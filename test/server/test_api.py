@@ -1031,7 +1031,7 @@ class TestAPI(ScrutinyUnitTest):
                 self.assertIn(installed_firmware_id, response['sfd_list'])
                 gotten_metadata = response['sfd_list'][installed_firmware_id]
                 real_metadata = SFDStorage.get_metadata(installed_firmware_id)
-                self.assertEqual(real_metadata, gotten_metadata)
+                self.assertEqual(real_metadata.to_dict(), gotten_metadata)
 
             SFDStorage.uninstall(sfd1.get_firmware_id_ascii())
             SFDStorage.uninstall(sfd2.get_firmware_id_ascii())
@@ -1064,7 +1064,7 @@ class TestAPI(ScrutinyUnitTest):
             self.assertIn('metadata', response)
             self.assertIn('firmware_id', response)
             self.assertEqual(response['firmware_id'], sfd1.get_firmware_id_ascii())
-            self.assertEqual(response['metadata'], sfd1.get_metadata() )
+            self.assertEqual(response['metadata'], sfd1.get_metadata().to_dict() )
 
             # load #2
             req = {
@@ -1086,7 +1086,7 @@ class TestAPI(ScrutinyUnitTest):
             self.assertIn('firmware_id', response)
             self.assertIn('metadata', response)
             self.assertEqual(response['firmware_id'], sfd2.get_firmware_id_ascii())
-            self.assertEqual(response['metadata'], sfd2.get_metadata())
+            self.assertEqual(response['metadata'], sfd2.get_metadata().to_dict())
 
             SFDStorage.uninstall(sfd1.get_firmware_id_ascii())
             SFDStorage.uninstall(sfd2.get_firmware_id_ascii())
@@ -1870,19 +1870,19 @@ class TestAPI(ScrutinyUnitTest):
                 self.assertEqual(response['acquisitions'][0]['reference_id'], 'refid1')
                 self.assertEqual(response['acquisitions'][0]['timestamp'], int(acq1.acq_time.timestamp()))
                 self.assertEqual(response['acquisitions'][0]['name'], 'foo')
-                self.assertEqual(response['acquisitions'][0]['firmware_metadata'], sfd1.get_metadata())
+                self.assertEqual(response['acquisitions'][0]['firmware_metadata'], sfd1.get_metadata().to_dict())
 
                 self.assertEqual(response['acquisitions'][1]['firmware_id'], sfd1.get_firmware_id_ascii())
                 self.assertEqual(response['acquisitions'][1]['reference_id'], 'refid2')
                 self.assertEqual(response['acquisitions'][1]['timestamp'], int(acq2.acq_time.timestamp()))
                 self.assertEqual(response['acquisitions'][1]['name'], 'bar')
-                self.assertEqual(response['acquisitions'][1]['firmware_metadata'], sfd1.get_metadata())
+                self.assertEqual(response['acquisitions'][1]['firmware_metadata'], sfd1.get_metadata().to_dict())
 
                 self.assertEqual(response['acquisitions'][2]['firmware_id'], sfd2.get_firmware_id_ascii())
                 self.assertEqual(response['acquisitions'][2]['reference_id'], 'refid3')
                 self.assertEqual(response['acquisitions'][2]['timestamp'], int(acq3.acq_time.timestamp()))
                 self.assertEqual(response['acquisitions'][2]['name'], 'baz')
-                self.assertEqual(response['acquisitions'][2]['firmware_metadata'], sfd2.get_metadata())
+                self.assertEqual(response['acquisitions'][2]['firmware_metadata'], sfd2.get_metadata().to_dict())
 
                 self.assertEqual(response['acquisitions'][3]['firmware_id'], "unknown_sfd")
                 self.assertEqual(response['acquisitions'][3]['reference_id'], 'refid4')
@@ -1935,13 +1935,13 @@ class TestAPI(ScrutinyUnitTest):
                 self.assertEqual(response['acquisitions'][0]['reference_id'], 'refid1')
                 self.assertEqual(response['acquisitions'][0]['timestamp'], int(acq1.acq_time.timestamp()))
                 self.assertEqual(response['acquisitions'][0]['name'], 'foo')
-                self.assertEqual(response['acquisitions'][0]['firmware_metadata'], sfd1.get_metadata())
+                self.assertEqual(response['acquisitions'][0]['firmware_metadata'], sfd1.get_metadata().to_dict())
 
                 self.assertEqual(response['acquisitions'][1]['firmware_id'], sfd1.get_firmware_id_ascii())
                 self.assertEqual(response['acquisitions'][1]['reference_id'], 'refid2')
                 self.assertEqual(response['acquisitions'][1]['timestamp'], int(acq2.acq_time.timestamp()))
                 self.assertEqual(response['acquisitions'][1]['name'], 'bar')
-                self.assertEqual(response['acquisitions'][1]['firmware_metadata'], sfd1.get_metadata())
+                self.assertEqual(response['acquisitions'][1]['firmware_metadata'], sfd1.get_metadata().to_dict())
 
                 req: api_typing.C2S.ListDataloggingAcquisitions = {
                     'cmd': 'list_datalogging_acquisitions',
@@ -2028,7 +2028,7 @@ class TestAPI(ScrutinyUnitTest):
                 self.assertEqual(response['acquisitions'][0]['reference_id'], 'refid2')
                 self.assertEqual(response['acquisitions'][0]['timestamp'], int(acq2.acq_time.timestamp()))
                 self.assertEqual(response['acquisitions'][0]['name'], 'bar')
-                self.assertEqual(response['acquisitions'][0]['firmware_metadata'], sfd1.get_metadata())
+                self.assertEqual(response['acquisitions'][0]['firmware_metadata'], sfd1.get_metadata().to_dict())
 
 
     def test_update_datalogging_acquisition(self):

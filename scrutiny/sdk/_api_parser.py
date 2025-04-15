@@ -11,7 +11,7 @@ import scrutiny.sdk.datalogging
 sdk = scrutiny.sdk  # Workaround for vscode linter an submodule on alias
 from scrutiny.core.basic_types import *
 from scrutiny.core.embedded_enum import EmbeddedEnum
-from scrutiny.core.firmware_description import MetadataType as FirmwareMetadataDict
+from scrutiny.core.firmware_description import MetadataTypedDict
 from scrutiny.server.api.API import API
 from scrutiny.server.api import typing as api_typing
 from dataclasses import dataclass
@@ -125,7 +125,7 @@ def _check_response_dict(cmd: str, d: Any, name: str, types: Union[Type[Any], It
                 f'Field {part_name} is expected to be of type "{typename}" but found "{gotten_type}" in message "{cmd}"')
 
 
-def _fetch_dict_val(d: Any, path: str, wanted_type: Type[T], default: Optional[T], allow_none:bool=True) -> Optional[T]:
+def _fetch_dict_val(d: Any, path: str, default: Optional[T], allow_none:bool=True) -> Any:
     if d is None:
         return default
     assert isinstance(d, dict)
@@ -144,37 +144,47 @@ def _fetch_dict_val(d: Any, path: str, wanted_type: Type[T], default: Optional[T
             if allow_none:
                 return None
             raise sdk.exceptions.BadResponseError(f'Field {key} cannot be None')
-        return wanted_type(d[key])
+        return d[key]
     else:
-        return _fetch_dict_val(d[key], '.'.join(next_parts), wanted_type=wanted_type, default=default)
+        return _fetch_dict_val(d[key], '.'.join(next_parts), default=default)
 
+def _fetch_dict_val_of_type(d: Any, path: str, wanted_type: Type[T], default: Optional[T], allow_none:bool=True) -> Optional[T]:
+    val = _fetch_dict_val(d, path, default, allow_none)
+    if val is None:
+        if allow_none:
+            return None
+        raise sdk.exceptions.BadResponseError(f'Field {path} cannot be None')
+    return wanted_type(val)
 
-def _fetch_dict_val_no_none(d: Any, path: str, wanted_type: Type[T], default: T) -> T:
-    return cast(T, _fetch_dict_val(d, path, wanted_type, default, allow_none=False))
+def _fetch_dict_val_of_type_no_none(d: Any, path: str, wanted_type: Type[T], default: T) -> T:
+    return cast(T, _fetch_dict_val_of_type(d, path, wanted_type, default, allow_none=False))
 
-
-def _read_sfd_metadata_from_incomplete_dict(obj: Optional[FirmwareMetadataDict]) -> Optional[sdk.SFDMetadata]:
+def _read_sfd_metadata_from_incomplete_dict(obj: Optional[MetadataTypedDict]) -> Optional[sdk.SFDMetadata]:
     if obj is None:
         return None
+
+    timestamp = _fetch_dict_val(obj, 'generation_info.time', default=None)
+    if not isinstance(timestamp, (int, type(None))) or isinstance(timestamp, bool):
+        raise sdk.exceptions.BadResponseError(f"Invalid timestamp in SFD metadata")
+
     try:
-        timestamp = _fetch_dict_val(obj, 'generation_info.time', int, None)
-    except (TypeError, ValueError):
-        timestamp = None
+        # This will raise a TypeError if the data is not of the right type.
+        # Expect the server to give the right thing.
 
-    return sdk.SFDMetadata(
-        author=_fetch_dict_val(obj, 'author', str, None),
-        project_name=_fetch_dict_val(obj, 'project_name', str, None),
-        version=_fetch_dict_val(obj, 'version', str, None),
-        generation_info=sdk.SFDGenerationInfo(
-            python_version=_fetch_dict_val(obj, 'generation_info.python_version', str, None),
-            scrutiny_version=_fetch_dict_val(obj, 'generation_info.scrutiny_version', str, None),
-            system_type=_fetch_dict_val(obj, 'generation_info.system_type', str, None),
-            timestamp=datetime.fromtimestamp(timestamp) if timestamp is not None else None
+        return  sdk.SFDMetadata(
+            author=_fetch_dict_val(obj, 'author', default=None),
+            project_name=_fetch_dict_val(obj, 'project_name', default=None),
+            version=_fetch_dict_val(obj, 'version', default=None),
+            generation_info=sdk.SFDGenerationInfo(
+                python_version=_fetch_dict_val(obj, 'generation_info.python_version',  default=None),
+                scrutiny_version=_fetch_dict_val(obj, 'generation_info.scrutiny_version',  default=None),
+                system_type=_fetch_dict_val(obj, 'generation_info.system_type',  default=None),
+                timestamp=datetime.fromtimestamp(timestamp) if isinstance(timestamp, int) else None
+            )
         )
-    )
-
-
-
+    except (TypeError, ValueError) as e:
+        raise sdk.exceptions.BadResponseError(f"Invalid SFD metadata: {e}")
+    
 def parse_get_watchable_list(response: api_typing.S2C.GetWatchableList) -> GetWatchableListResponse:
     """Parse a response to get_watchable_list and assume the request was for a single watchable"""
     assert isinstance(response, dict)
@@ -652,6 +662,12 @@ def parse_write_value_response(response: api_typing.S2C.WriteValue) -> WriteConf
     _check_response_dict(cmd, response, 'request_token', str)
     _check_response_dict(cmd, response, 'count', int)
 
+    if response['count'] < 0:
+        raise sdk.exceptions.BadResponseError("Got a negative count")
+    
+    if len(response['request_token']) == 0:
+        raise sdk.exceptions.BadResponseError("Empty request_token")
+
     return WriteConfirmation(
         request_token=response['request_token'],
         count=response['count']
@@ -670,6 +686,12 @@ def parse_write_completion(response: api_typing.S2C.WriteCompletion) -> WriteCom
     _check_response_dict(cmd, response, 'completion_server_time_us', (float, int))
     _check_response_dict(cmd, response, 'batch_index', int)
 
+    if len(response['watchable']) == 0:
+        raise sdk.exceptions.BadResponseError('Empty watchable')
+
+    if len(response['request_token']) == 0:
+        raise sdk.exceptions.BadResponseError('Empty request_token')
+        
     return WriteCompletion(
         request_token=response['request_token'],
         watchable=response['watchable'],
@@ -689,19 +711,7 @@ def parse_get_installed_sfds_response(response: api_typing.S2C.GetInstalledSFD) 
     _check_response_dict(cmd, response, 'sfd_list', dict)
 
     for firmware_id, sfd_content in response['sfd_list'].items():
-        timestamp = _fetch_dict_val(sfd_content, 'generation_info.time', int, None)
-        metadata = sdk.SFDMetadata(
-            author=_fetch_dict_val(sfd_content, 'author', str, None),
-            project_name=_fetch_dict_val(sfd_content, 'project_name', str, None),
-            version=_fetch_dict_val(sfd_content, 'version', str, None),
-            generation_info=sdk.SFDGenerationInfo(
-                python_version=_fetch_dict_val(sfd_content, 'generation_info.python_version', str, None),
-                scrutiny_version=_fetch_dict_val(sfd_content, 'generation_info.scrutiny_version', str, None),
-                system_type=_fetch_dict_val(sfd_content, 'generation_info.system_type', str, None),
-                timestamp=datetime.fromtimestamp(timestamp) if timestamp is not None else None
-            )
-        )
-
+        metadata = _read_sfd_metadata_from_incomplete_dict(sfd_content)
         output[firmware_id] = sdk.SFDInfo(
             firmware_id=firmware_id,
             metadata=metadata
@@ -719,21 +729,21 @@ def parse_memory_read_completion(response: api_typing.S2C.ReadMemoryComplete) ->
     _check_response_dict(cmd, response, 'request_token', str)
     _check_response_dict(cmd, response, 'success', bool)
     _check_response_dict(cmd, response, 'completion_server_time_us', (float, int))
-    success = _fetch_dict_val_no_none(response, 'success', bool, False)
+    success = _fetch_dict_val_of_type_no_none(response, 'success', bool, False)
     data_bin: Optional[bytes] = None
     if success:
         _check_response_dict(cmd, response, 'data', str)
-        data = _fetch_dict_val_no_none(response, 'data', str, "")
+        data = _fetch_dict_val_of_type_no_none(response, 'data', str, "")
         try:
             data_bin = b64decode(data, validate=True)
         except binascii.Error as e:
             raise sdk.exceptions.BadResponseError(f"Server returned a invalid base64 data block. {e}")
     
     _check_response_dict(cmd, response, 'detail_msg', (str, type(None)) )
-    detail_msg = _fetch_dict_val(response, 'detail_msg', str, "")
+    detail_msg = _fetch_dict_val_of_type(response, 'detail_msg', str, "")
 
     return MemoryReadCompletion(
-        request_token=_fetch_dict_val_no_none(response, 'request_token', str, ""),
+        request_token=_fetch_dict_val_of_type_no_none(response, 'request_token', str, ""),
         success=success,
         data=data_bin,
         error=detail_msg if detail_msg is not None else "",
@@ -752,11 +762,11 @@ def parse_memory_write_completion(response: api_typing.S2C.WriteMemoryComplete) 
     _check_response_dict(cmd, response, 'success', bool)
     _check_response_dict(cmd, response, 'completion_server_time_us', (float, int))
     _check_response_dict(cmd, response, 'detail_msg', (str, type(None)))
-    detail_msg = _fetch_dict_val(response, 'detail_msg', str, "")
+    detail_msg = _fetch_dict_val_of_type(response, 'detail_msg', str, "")
 
     return MemoryWriteCompletion(
-        request_token=_fetch_dict_val_no_none(response, 'request_token', str, ""),
-        success=_fetch_dict_val_no_none(response, 'success', bool, False),
+        request_token=_fetch_dict_val_of_type_no_none(response, 'request_token', str, ""),
+        success=_fetch_dict_val_of_type_no_none(response, 'success', bool, False),
         error=detail_msg if detail_msg is not None else "",
         server_time_us=float(response['completion_server_time_us']),
         local_monotonic_timestamp=time.monotonic()
@@ -882,9 +892,12 @@ def parse_datalogging_acquisition_complete(response: api_typing.S2C.InformDatalo
     _check_response_dict(cmd, response, 'detail_msg', str)
 
     if response['success']:
-        if response['reference_id'] is None:
+        if response['reference_id'] is None or response['reference_id'] == "":
             raise sdk.exceptions.BadResponseError("Missing reference ID for a successful acquisition")
 
+    if response['request_token'] == "":
+        raise sdk.exceptions.BadResponseError("Empty request token in response")
+    
     return DataloggingCompletion(
         request_token=response['request_token'],
         reference_id=response['reference_id'],

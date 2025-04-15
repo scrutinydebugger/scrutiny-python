@@ -84,7 +84,12 @@ class ListDatalog(BaseCommand):
 
             if SFDStorage.is_installed(acq.firmware_id):
                 firmware_meta = SFDStorage.get_metadata(acq.firmware_id)
-                entry.firmware_fullname = "%s (%s V%s)" % (acq.firmware_id, firmware_meta['project_name'], firmware_meta['version'])
+                project_name = "<No name>"
+                if firmware_meta.project_name is not None:
+                    project_name = firmware_meta.project_name
+                    if firmware_meta.version is not None:
+                        project_name += " V%s" % firmware_meta.version
+                entry.firmware_fullname = f"{acq.firmware_id} ({project_name})"
             sizes.update(entry)
             all_entries.append(entry)
 

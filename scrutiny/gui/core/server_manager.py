@@ -892,6 +892,7 @@ class ServerManager:
         else:
             if error is not None:
                 self._logger.error(f"Failed to download the SFD details: {error}")
+                tools.log_exception(self._logger, error)
 
         if valid:
             assert loaded_sfd is not None

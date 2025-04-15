@@ -17,7 +17,7 @@ import scrutiny.server.device.links.udp_link
 
 WatchableType = Literal['alias', 'var', 'rpv']
 # Mapping between app type and API type.
-SFDMetadata = scrutiny.core.firmware_description.MetadataType
+SFDMetadata = scrutiny.core.firmware_description.MetadataTypedDict
 SerialLinkConfig = scrutiny.server.device.links.serial_link.SerialConfig
 UdpLinkConfig = scrutiny.server.device.links.udp_link.UdpConfig
 RttLinkConfig = scrutiny.server.device.links.rtt_link.RttConfig

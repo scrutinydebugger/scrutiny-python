@@ -137,10 +137,10 @@ class DataloggingManager:
                 firmware_name: Optional[str] = None
                 if SFDStorage.is_installed(device_info.device_id):
                     sfd_metadata = SFDStorage.get_metadata(device_info.device_id)
-                    if 'project_name' in sfd_metadata:
-                        firmware_name = sfd_metadata["project_name"]
-                        if 'version' in sfd_metadata:
-                            firmware_name += " V%s" % sfd_metadata["version"]
+                    if sfd_metadata.project_name is not None:
+                        firmware_name = sfd_metadata.project_name
+                        if sfd_metadata.version is not None:
+                            firmware_name += " V%s" % sfd_metadata.version
                 # Crate the acquisition
                 acquisition = DataloggingAcquisition(
                     name=self.active_request.api_request.name,

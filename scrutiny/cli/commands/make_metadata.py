@@ -40,7 +40,7 @@ class MakeMetadata(BaseCommand):
 
     def run(self) -> Optional[int]:
         import scrutiny
-        from scrutiny.core.firmware_description import MetadataType
+        from scrutiny.core.firmware_description import MetadataTypedDict
         args = self.parser.parse_args(self.args)
 
         if args.output is None:
@@ -56,7 +56,7 @@ class MakeMetadata(BaseCommand):
             self.getLogger().warning("Could not find the scrutiny version")
             scrutiny_version = '0.0.0'
 
-        metadata: MetadataType = {
+        metadata: MetadataTypedDict = {
             'project_name': args.project_name,
             'author': args.author,
             'version': args.version,
