@@ -997,40 +997,47 @@ class TestApiParser(ScrutinyUnitTest):
                     msg["acquisitions"][0]["firmware_metadata"] = val
                 parser.parse_list_datalogging_acquisitions_response(msg)
 
-        # SFD metadata is user generated. We must be super resilient to garbage.
         for val in [[], 1, True, {}]:
             msg = base()
             msg["acquisitions"][0]["firmware_metadata"]["author"] = val
-            parser.parse_list_datalogging_acquisitions_response(msg)
+            with self.assertRaises(sdk.exceptions.BadResponseError, msg=f"val={val}"):
+                parser.parse_list_datalogging_acquisitions_response(msg)
 
         for val in [[], 1, True, {}]:
             msg = base()
             msg["acquisitions"][0]["firmware_metadata"]["project_name"] = val
-            parser.parse_list_datalogging_acquisitions_response(msg)
+            with self.assertRaises(sdk.exceptions.BadResponseError, msg=f"val={val}"):
+                parser.parse_list_datalogging_acquisitions_response(msg)
 
         for val in [[], 1, True, {}]:
             msg = base()
             msg["acquisitions"][0]["firmware_metadata"]["version"] = val
-            parser.parse_list_datalogging_acquisitions_response(msg)
+            with self.assertRaises(sdk.exceptions.BadResponseError, msg=f"val={val}"):
+                parser.parse_list_datalogging_acquisitions_response(msg)
 
         for val in [[], 1, True, {}]:
             msg = base()
             msg["acquisitions"][0]["firmware_metadata"]["generation_info"]["python_version"] = val
-            parser.parse_list_datalogging_acquisitions_response(msg)
+            with self.assertRaises(sdk.exceptions.BadResponseError, msg=f"val={val}"):
+                parser.parse_list_datalogging_acquisitions_response(msg)
 
         for val in [[], 1, True, {}]:
             msg = base()
             msg["acquisitions"][0]["firmware_metadata"]["generation_info"]["scrutiny_version"] = val
+            with self.assertRaises(sdk.exceptions.BadResponseError, msg=f"val={val}"):
+                parser.parse_list_datalogging_acquisitions_response(msg)
 
         for val in [[], 1, True, {}]:
             msg = base()
             msg["acquisitions"][0]["firmware_metadata"]["generation_info"]["system_type"] = val
-            parser.parse_list_datalogging_acquisitions_response(msg)
+            with self.assertRaises(sdk.exceptions.BadResponseError, msg=f"val={val}"):
+                parser.parse_list_datalogging_acquisitions_response(msg)
 
         for val in ["asd", [], True, {}]:
             msg = base()
             msg["acquisitions"][0]["firmware_metadata"]["generation_info"]["time"] = val
-            parser.parse_list_datalogging_acquisitions_response(msg)
+            with self.assertRaises(sdk.exceptions.BadResponseError, msg=f"val={val}"):
+                parser.parse_list_datalogging_acquisitions_response(msg)
 
     def test_parse_get_watchable_count(self):
         def base():
@@ -1499,6 +1506,349 @@ class TestApiParser(ScrutinyUnitTest):
             msg["action"] = 'delete_all'
             msg["reference_id"] = 'asd'
             parser.parse_datalogging_list_changed(msg)
+
+    def test_parse_request_datalogging_acquisition_response(self):
+        def base() -> api_typing.S2C.RequestDataloggingAcquisition:
+            return {
+                'cmd' : 'response_request_datalogging_acquisition',
+                "reqid": None,
+                "request_token" : "abcdef"
+            }
+        
+        msg = base()
+        self.assertEqual( parser.parse_request_datalogging_acquisition_response(msg), "abcdef")
+
+
+        class Delete:
+            pass
+
+        for v in [[], {}, None, 1, 2.2, True, Delete]:
+            msg = base()
+            if v == Delete:
+                del msg['request_token']
+            else:
+                msg["request_token"]= v
+
+            with self.assertRaises(sdk.exceptions.BadResponseError):
+                	parser.parse_request_datalogging_acquisition_response(msg)
+
+    def test_parse_datalogging_acquisition_complete(self):
+        def base_success() -> api_typing.S2C.InformDataloggingAcquisitionComplete:
+            return {
+                "cmd" : 'inform_datalogging_acquisition_complete',
+                "success" : True,
+                "reference_id" : "abc",
+                "request_token" : "xyz",
+                "detail_msg" : ""
+            }
+
+        def base_failure() -> api_typing.S2C.InformDataloggingAcquisitionComplete:
+            return {
+                "cmd" : 'inform_datalogging_acquisition_complete',
+                "success" : False,
+                "reference_id" : None,
+                "request_token" : "xyz",
+                "detail_msg" : "oops"
+            }
+        
+        msg = base_success()
+        response = parser.parse_datalogging_acquisition_complete(msg)
+        self.assertEqual(response.success, True)
+        self.assertEqual(response.reference_id, "abc")
+        self.assertEqual(response.request_token, "xyz")
+
+        msg = base_failure()
+        response = parser.parse_datalogging_acquisition_complete(msg)
+        self.assertEqual(response.success, False)
+        self.assertEqual(response.reference_id, None)
+        self.assertEqual(response.request_token, "xyz")
+        self.assertEqual(response.detail_msg, "oops")
+
+        class Delete:
+            pass
+        
+        for field in ['reference_id', 'request_token']:
+            for v in [[], {}, None, 1, "", True, Delete]:
+                msg = base_success()
+                if v == Delete:
+                    del msg[field]
+                else:
+                    msg[field] = v
+
+                with self.assertRaises(sdk.exceptions.BadResponseError, msg=f'field={field}. v={v}'):
+                    parser.parse_datalogging_acquisition_complete(msg)
+
+        for v in [[], {}, None, 1, "", Delete]:
+            msg = base_success()
+            if v == Delete:
+                del msg['success']
+            else:
+                msg['success'] = v
+
+            with self.assertRaises(sdk.exceptions.BadResponseError, msg=f'v={v}'):
+                parser.parse_datalogging_acquisition_complete(msg)   
+
+        for v in [[], {}, None, 1, Delete]:
+            msg = base_failure()
+            if v == Delete:
+                del msg['detail_msg']
+            else:
+                msg['detail_msg'] = v
+
+            with self.assertRaises(sdk.exceptions.BadResponseError, msg=f'v={v}'):
+                parser.parse_datalogging_acquisition_complete(msg)        
+
+    def test_parse_user_command_response(self):
+        def base() -> api_typing.S2C.UserCommand:
+            return {
+                "cmd" : "response_user_command",
+                "subfunction" : 2,
+                "data" : b64encode(bytes([1,2,3])).decode('utf8')
+            }
+        
+        msg = base()
+        response = parser.parse_user_command_response(msg)
+        self.assertEqual(response.subfunction, 2)
+        self.assertEqual(response.data, bytes([1,2,3]))
+
+        class Delete:
+            pass
+
+        for v in [[], {}, None, -1, 0x100, "", True, Delete]:
+            msg = base()
+            if v == Delete:
+                del msg['subfunction']
+            else:
+                msg['subfunction'] = v
+
+            with self.assertRaises(sdk.exceptions.BadResponseError, msg=f'v={v}'):
+                parser.parse_user_command_response(msg)
+
+        for v in [[], {}, None, 1, "!!!", True, Delete]:
+            msg = base()
+            if v == Delete:
+                del msg['data']
+            else:
+                msg['data'] = v
+
+            with self.assertRaises(sdk.exceptions.BadResponseError, msg=f'v={v}'):
+                parser.parse_user_command_response(msg)    
+
+    def test_parse_write_value_response(self):
+        def base() ->   api_typing.S2C.WriteValue:
+            return {
+                'cmd' : 'response_write_watchable',
+                'count' : 10,
+                'request_token' : 'abc'
+            }
+        
+        msg = base()
+        response = parser.parse_write_value_response(msg)
+        self.assertEqual(response.count, 10)
+        self.assertEqual(response.request_token, "abc")
+
+        class Delete:
+            pass
+
+        for v in [[], {}, None, -1, 1.2, "",  True, Delete]:
+            msg = base()
+            if v == Delete:
+                del msg['count']
+            else:
+                msg['count'] = v
+
+            with self.assertRaises(sdk.exceptions.BadResponseError, msg=f'v={v}'):
+                parser.parse_write_value_response(msg)    
+
+        for v in [[], {}, None, -1, 1.2, "", True, Delete]:
+            msg = base()
+            if v == Delete:
+                del msg['request_token']
+            else:
+                msg['request_token'] = v
+
+            with self.assertRaises(sdk.exceptions.BadResponseError, msg=f'v={v}'):
+                parser.parse_write_value_response(msg)    
+        
+    def test_parse_write_completion(self):
+        def base() -> api_typing.S2C.WriteCompletion:
+            return {
+                'cmd' : 'inform_write_completion',
+                'batch_index' : 1,
+                'completion_server_time_us' : 123.4,
+                'request_token' : 'abc',
+                'success' : True,
+                'watchable' : "def"
+            }
+        
+        msg = base()
+        response = parser.parse_write_completion(msg)
+
+        self.assertEqual(response.success, True)
+        self.assertEqual(response.batch_index, 1)
+        self.assertEqual(response.request_token, "abc")
+        self.assertEqual(response.watchable, "def")
+        self.assertEqual(response.server_time_us, 123.4)
+
+        class Delete:
+            pass
+
+        for v in [[], {}, None, 1, 1.2, "",  Delete]:
+            msg = base()
+            if v == Delete:
+                del msg['success']
+            else:
+                msg['success'] = v
+
+            with self.assertRaises(sdk.exceptions.BadResponseError, msg=f'v={v}'):
+                parser.parse_write_completion(msg)   
+
+        for v in [[], {}, None, 1.2, True, "aaa",  Delete]:
+            msg = base()
+            if v == Delete:
+                del msg['batch_index']
+            else:
+                msg['batch_index'] = v
+
+            with self.assertRaises(sdk.exceptions.BadResponseError, msg=f'v={v}'):
+                parser.parse_write_completion(msg)  
+
+        for v in [[], {}, None, 1, True, 1.2, "",  Delete]:
+            msg = base()
+            if v == Delete:
+                del msg['request_token']
+            else:
+                msg['request_token'] = v
+
+            with self.assertRaises(sdk.exceptions.BadResponseError, msg=f'v={v}'):
+                parser.parse_write_completion(msg)        
+
+        for v in [[], {}, None, 1, True, 1.2, "",  Delete]:
+            msg = base()
+            if v == Delete:
+                del msg['watchable']
+            else:
+                msg['watchable'] = v
+
+            with self.assertRaises(sdk.exceptions.BadResponseError, msg=f'v={v}'):
+                parser.parse_write_completion(msg)        
+
+        for v in [[], {}, None, True, "asd",  Delete]:
+            msg = base()
+            if v == Delete:
+                del msg['completion_server_time_us']
+            else:
+                msg['completion_server_time_us'] = v
+
+            with self.assertRaises(sdk.exceptions.BadResponseError, msg=f'v={v}'):
+                parser.parse_write_completion(msg)  
+
+
+    def test_parse_get_installed_sfds_response(self):
+        now_timestamp = int(datetime.now().timestamp())
+        def base() -> api_typing.S2C.GetInstalledSFD:
+            return {
+                "cmd" : 'response_get_installed_sfd',
+                "sfd_list" : {
+                    "firmware_id_1" : {
+                        'author' : "AAA",
+                        'version' : "1.2.3",
+                        'project_name' : "BBB",
+                        'generation_info' : {
+                            'python_version' : "3.14.1",
+                            'scrutiny_version' : "1.2.3",
+                            "system_type" : "linux",
+                            "time" : now_timestamp
+                        }
+                    },
+                    "firmware_id_2" : {
+                        'author' : "CCC",
+                        'version' : "1.2.4",
+                        'project_name' : "DDD"
+                    },
+                    "firmware_id_3" : {
+                        'generation_info' : {}
+                    }
+                }
+            }      
+        
+        msg = base()
+        response = parser.parse_get_installed_sfds_response(msg)
+        self.assertIsInstance(response, dict)
+        self.assertEqual(len(response), 3)
+        self.assertIn('firmware_id_1', response)
+        self.assertIn('firmware_id_2', response)
+        self.assertIn('firmware_id_3', response)
+
+        sfd1 = response['firmware_id_1']
+        sfd2 = response['firmware_id_2']
+        sfd3 = response['firmware_id_3']
+
+        self.assertIsInstance(sfd1, sdk.SFDInfo)
+        self.assertEqual(sfd1.firmware_id, 'firmware_id_1')
+        self.assertEqual(sfd1.metadata.author, 'AAA')
+        self.assertEqual(sfd1.metadata.project_name, 'BBB')
+        self.assertEqual(sfd1.metadata.version, '1.2.3')
+        self.assertEqual(sfd1.metadata.generation_info.timestamp, datetime.fromtimestamp(now_timestamp))
+        self.assertEqual(sfd1.metadata.generation_info.python_version, "3.14.1")
+        self.assertEqual(sfd1.metadata.generation_info.scrutiny_version, "1.2.3")
+        self.assertEqual(sfd1.metadata.generation_info.system_type, "linux")
+
+        self.assertIsInstance(sfd2, sdk.SFDInfo)
+        self.assertEqual(sfd2.firmware_id, 'firmware_id_2')
+        self.assertEqual(sfd2.metadata.author, 'CCC')
+        self.assertEqual(sfd2.metadata.project_name, 'DDD')
+        self.assertEqual(sfd2.metadata.version, '1.2.4')
+        self.assertIsNotNone(sfd2.metadata.generation_info)
+        self.assertIsNone(sfd2.metadata.generation_info.python_version)
+        self.assertIsNone(sfd2.metadata.generation_info.scrutiny_version)
+        self.assertIsNone(sfd2.metadata.generation_info.system_type)
+        self.assertIsNone(sfd2.metadata.generation_info.timestamp)
+
+        self.assertIsInstance(sfd3, sdk.SFDInfo)
+        self.assertEqual(sfd3.firmware_id, 'firmware_id_3')
+        self.assertIsNone(sfd3.metadata.author)
+        self.assertIsNone(sfd3.metadata.project_name)
+        self.assertIsNone(sfd3.metadata.version)
+        self.assertIsNotNone(sfd3.metadata.generation_info)
+        self.assertIsNone(sfd3.metadata.generation_info.python_version)
+        self.assertIsNone(sfd3.metadata.generation_info.scrutiny_version)
+        self.assertIsNone(sfd3.metadata.generation_info.system_type)
+        self.assertIsNone(sfd3.metadata.generation_info.timestamp)
+
+        class Delete:
+            pass
+
+        for v in [[], None, 1.2, 1, True, Delete]:
+            msg = base()
+            if v == Delete:
+                del msg["sfd_list"]
+            else:
+                msg["sfd_list"] = v
+            
+            with self.assertRaises(sdk.exceptions.BadResponseError):
+                parser.parse_get_installed_sfds_response(msg)
+
+
+
+        for field in ["author", "version", "project_name"]:
+            msg = base()
+            msg["sfd_list"]['firmware_id_1'][field] = None
+            response = parser.parse_get_installed_sfds_response(msg)
+            self.assertEqual( getattr(response['firmware_id_1'].metadata, field), None )
+
+            msg = base()
+            del msg["sfd_list"]['firmware_id_1'][field]
+            response = parser.parse_get_installed_sfds_response(msg)
+            self.assertEqual( getattr(response['firmware_id_1'].metadata, field), None)            
+           
+            for v in [[], {}, 1.2, 1, True]:
+                msg = base()
+                msg["sfd_list"]['firmware_id_1'][field] = v
+                with self.assertRaises(sdk.exceptions.BadResponseError, msg=f"field={field}. v={v}"):
+                    parser.parse_get_installed_sfds_response(msg)
+
+
 
 if __name__ == '__main__':
     unittest.main()

@@ -9,7 +9,7 @@
 __all__ = ['SFDStorageManager']
 
 import os
-from scrutiny.core.firmware_description import FirmwareDescription, MetadataType
+from scrutiny.core.firmware_description import FirmwareDescription, SFDMetadata
 import logging
 import os
 import re
@@ -133,7 +133,7 @@ class SFDStorageManager:
 
         return FirmwareDescription(filename)
 
-    def get_metadata(self, firmwareid: str) -> MetadataType:
+    def get_metadata(self, firmwareid: str) -> SFDMetadata:
         """Reads only the metadata from the Firmware DEscription file in the global storage identified by the given ID"""
         storage = self.get_storage_dir()
         firmwareid = self.clean_firmware_id(firmwareid)
@@ -141,8 +141,8 @@ class SFDStorageManager:
         return FirmwareDescription.read_metadata_from_sfd_file(filename)
 
     def list(self) -> List[str]:
-        """Returns a list of firmware ID installed in the global storage"""
         thelist = []
+        """Returns a list of firmware ID installed in the global storage"""
         if os.path.isdir(self.get_storage_dir()):
             for filename in os.listdir(self.get_storage_dir()):   # file name is firmware ID
                 if os.path.isfile(os.path.join(self.get_storage_dir(), filename)) and self.is_valid_firmware_id(filename):

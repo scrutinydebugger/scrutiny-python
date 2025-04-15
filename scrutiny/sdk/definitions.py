@@ -8,9 +8,9 @@
 
 import enum
 from dataclasses import dataclass
-from datetime import datetime
 from scrutiny.core.basic_types import MemoryRegion, EmbeddedDataType, WatchableType
 from scrutiny.core.embedded_enum import EmbeddedEnum
+from scrutiny.core.firmware_description import SFDMetadata, SFDGenerationInfo
 from scrutiny.tools import validation
 import abc
 from binascii import hexlify
@@ -310,33 +310,6 @@ class DeviceInfo:
     datalogging_capabilities:Optional[DataloggingCapabilities]
     """Contains the device datalogging capabilites. ``None`` if datalogging is not supported"""
 
-
-@dataclass(frozen=True)
-class SFDGenerationInfo:
-    """(Immutable struct) Metadata relative to the generation of the SFD"""
-
-    timestamp: Optional[datetime]
-    """Date/time at which the SFD has been created ``None`` if not available"""
-    python_version: Optional[str]
-    """Python version with which the SFD has been created ``None`` if not available"""
-    scrutiny_version: Optional[str]
-    """Scrutiny version with which the SFD has been created ``None`` if not available"""
-    system_type: Optional[str]
-    """Type of system on which the SFD has been created. Value given by Python `platform.system()`. ``None`` if not available"""
-
-
-@dataclass(frozen=True)
-class SFDMetadata:
-    """(Immutable struct) All the metadata associated with a Scrutiny Firmware Description"""
-
-    project_name: Optional[str]
-    """Name of the project. ``None`` if not available"""
-    author: Optional[str]
-    """The author of this firmware. ``None`` if not available"""
-    version: Optional[str]
-    """The version string of this firmware. ``None`` if not available"""
-    generation_info: Optional[SFDGenerationInfo]
-    """Metadata regarding the creation environment of the SFD file. ``None`` if not available"""
 
 
 @dataclass(frozen=True)

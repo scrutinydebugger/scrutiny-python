@@ -8,10 +8,14 @@
 #
 #   Copyright (c) 2021 Scrutiny Debugger
 
+__all__ = ['SFDGenerationInfo', 'SFDMetadata', 'FirmwareDescription', 'GenerationInfoTypedDict', 'MetadataTypedDict']
+
 import zipfile
 import os
 import json
 import logging
+from datetime import datetime
+from dataclasses import dataclass
 
 import scrutiny.core.firmware_id as firmware_id
 from scrutiny.core.varmap import VarMap
@@ -21,28 +25,84 @@ from scrutiny.core.basic_types import WatchableType
 from scrutiny.core.alias import Alias
 from scrutiny.core.basic_types import *
 
-from typing import List, Dict, Any, Tuple, Generator, TypedDict, cast, IO, Optional, Union
+from scrutiny.tools.typing import *
+from scrutiny.tools import validation
 
-
-class GenerationInfoType(TypedDict, total=False):
+class GenerationInfoTypedDict(TypedDict, total=False):
     """
     Metadata about the environment of the file creator
     """
-    time: int
-    python_version: str
-    scrutiny_version: str
-    system_type: str
+    time: Optional[int]
+    python_version: Optional[str]
+    scrutiny_version: Optional[str]
+    system_type: Optional[str]
 
-
-class MetadataType(TypedDict, total=False):
+class MetadataTypedDict(TypedDict, total=False):
     """
     Firmware Description metadata. Used for display in the UI (Communicated through API)
     """
-    project_name: str
-    author: str
-    version: str
-    generation_info: GenerationInfoType
+    project_name: Optional[str]
+    author: Optional[str]
+    version: Optional[str]
+    generation_info: Optional[GenerationInfoTypedDict]
 
+
+@dataclass(frozen=True)
+class SFDGenerationInfo:
+    """(Immutable struct) Metadata relative to the generation of the SFD"""
+
+    timestamp: Optional[datetime]
+    """Date/time at which the SFD has been created ``None`` if not available"""
+    python_version: Optional[str]
+    """Python version with which the SFD has been created ``None`` if not available"""
+    scrutiny_version: Optional[str]
+    """Scrutiny version with which the SFD has been created ``None`` if not available"""
+    system_type: Optional[str]
+    """Type of system on which the SFD has been created. Value given by Python `platform.system()`. ``None`` if not available"""
+
+    def __post_init__(self) -> None:
+        validation.assert_type_or_none(self.timestamp, 'timestamp', datetime)
+        validation.assert_type_or_none(self.python_version, 'python_version', str)
+        validation.assert_type_or_none(self.scrutiny_version, 'scrutiny_version', str)
+        validation.assert_type_or_none(self.system_type, 'system_type', str)
+
+    def to_dict(self) -> GenerationInfoTypedDict:
+        timestmap = None
+        if self.timestamp is not None:
+            timestamp = int(self.timestamp.timestamp())
+        return {
+            'python_version' : self.python_version,
+            'scrutiny_version' : self.scrutiny_version,
+            'system_type' : self.system_type,
+            'time' : timestamp
+        }
+
+@dataclass(frozen=True)
+class SFDMetadata:
+    """(Immutable struct) All the metadata associated with a Scrutiny Firmware Description"""
+
+    project_name: Optional[str]
+    """Name of the project. ``None`` if not available"""
+    author: Optional[str]
+    """The author of this firmware. ``None`` if not available"""
+    version: Optional[str]
+    """The version string of this firmware. ``None`` if not available"""
+    generation_info: SFDGenerationInfo
+    """Metadata regarding the creation environment of the SFD file."""
+
+    def __post_init__(self) -> None:
+        validation.assert_type_or_none(self.project_name, 'project_name', str)
+        validation.assert_type_or_none(self.author, 'author', str)
+        validation.assert_type_or_none(self.version, 'version', str)
+        validation.assert_type(self.generation_info, 'generation_info', SFDGenerationInfo)
+    
+    def to_dict(self) -> MetadataTypedDict:
+        return {
+            'project_name': self.project_name,
+            'author' : self.author,
+            'version' : self.version,
+            'generation_info' : self.generation_info.to_dict()
+        }
 
 class FirmwareDescription:
     """
@@ -53,7 +113,7 @@ class FirmwareDescription:
     COMPRESSION_TYPE = zipfile.ZIP_DEFLATED
 
     varmap: VarMap
-    metadata: MetadataType
+    metadata: SFDMetadata
     firmwareid: bytes
     aliases: Dict[str, Alias]
 
@@ -106,11 +166,11 @@ class FirmwareDescription:
                 self.append_aliases(aliases)
 
     @classmethod
-    def read_metadata_from_sfd_file(cls, filename: str) -> MetadataType:
+    def read_metadata_from_sfd_file(cls, filename: str) -> SFDMetadata:
         with zipfile.ZipFile(filename, mode='r', compression=cls.COMPRESSION_TYPE) as sfd:
             with sfd.open(cls.metadata_filename) as f:
                 metadata = cls.read_metadata(f)
-
+            
         return metadata
 
     def load_from_file(self, filename: str) -> None:
@@ -135,8 +195,56 @@ class FirmwareDescription:
         return bytes.fromhex(f.read().decode('ascii'))
 
     @classmethod
-    def read_metadata(cls, f: IO[bytes]) -> MetadataType:
-        return cast(MetadataType, json.loads(f.read().decode('utf8')))
+    def read_metadata(cls, f: IO[bytes]) -> SFDMetadata:
+        FIELDS_TYPE:TypeAlias = List[Tuple[str, Type[Any]]]
+
+        metadata_dict = cast(MetadataTypedDict, json.loads(f.read().decode('utf8')))
+        if not isinstance(metadata_dict, dict):
+            return {}
+
+        def remove_bad_fields(obj:Any, fields:FIELDS_TYPE) -> None:
+            obj2 = cast(Dict[str, Any], obj)
+            for field in fields:
+                if field[0] in obj2 and not isinstance(obj2[field[0]], field[1]):
+                    del obj2[field[0]]
+
+        fields1:FIELDS_TYPE = [
+            ('project_name', str),
+            ('author', str),
+            ('version', str),
+            ('generation_info', dict)
+        ]
+
+        remove_bad_fields(metadata_dict, fields1)
+
+        if 'generation_info' in metadata_dict:
+            fields2:FIELDS_TYPE = [
+                ('python_version', str),
+                ('scrutiny_version', str),
+                ('system_type', str),
+                ('time', int)
+            ]
+            remove_bad_fields(metadata_dict['generation_info'], fields2)
+        
+        generation_timestamp = None
+        generation_info = metadata_dict.get('generation_info', {})
+        if generation_info is None:
+            generation_info = cast(GenerationInfoTypedDict, {})
+        
+        generation_timestamp = generation_info.get('time', None)
+
+        return SFDMetadata(
+            author=metadata_dict.get('author', None),
+            project_name=metadata_dict.get('project_name', None),
+            version=metadata_dict.get('version', None),
+            generation_info=SFDGenerationInfo(
+                python_version=generation_info.get('python_version', None),
+                scrutiny_version=generation_info.get('scrutiny_version', None),
+                system_type=generation_info.get('system_type', None),
+                timestamp=None if generation_timestamp is None else datetime.fromtimestamp(generation_timestamp),
+            )
+        )
+            
 
     @classmethod
     def read_aliases(cls, f: IO[bytes], varmap: VarMap) -> Dict[str, Alias]:
@@ -187,7 +295,7 @@ class FirmwareDescription:
         """SFD file format is just a .zip with a bunch of JSON (and a firmwareid file)"""
         with zipfile.ZipFile(filename, mode='w', compression=self.COMPRESSION_TYPE) as outzip:
             outzip.writestr(self.firmwareid_filename, self.firmwareid.hex())
-            outzip.writestr(self.metadata_filename, json.dumps(self.metadata, indent=4))
+            outzip.writestr(self.metadata_filename, json.dumps(self.metadata.to_dict(), indent=4))
             outzip.writestr(self.varmap_filename, self.varmap.get_json())
             outzip.writestr(self.alias_file, self.serialize_aliases(list(self.aliases.values())))
 
@@ -235,14 +343,14 @@ class FirmwareDescription:
                             (len(self.firmwareid), len(firmware_id.PLACEHOLDER)))
 
     def validate_metadata(self) -> None:
-        if 'project_name' not in self.metadata or not self.metadata['project_name']:
-            logging.warning('No project name defined in %s' % self.metadata_filename)
+        if self.metadata.project_name is None:
+            logging.warning('No valid project name defined in %s' % self.metadata_filename)
 
-        if 'version' not in self.metadata or not self.metadata['version']:
-            logging.warning('No version defined in %s' % self.metadata_filename)
+        if self.metadata.version is None:
+            logging.warning('No valid version defined in %s' % self.metadata_filename)
 
-        if 'author' not in self.metadata or not self.metadata['author']:
-            logging.warning('No author defined in %s' % self.metadata_filename)
+        if self.metadata.author is None:
+            logging.warning('No valid author defined in %s' % self.metadata_filename)
 
     def get_vars_for_datastore(self) -> Generator[Tuple[str, Variable], None, None]:
         """Returns all variables in this SFD with a Generator to avoid consuming memory."""
@@ -258,7 +366,7 @@ class FirmwareDescription:
     def get_aliases(self) -> Dict[str, Alias]:
         return self.aliases
 
-    def get_metadata(self) -> MetadataType:
+    def get_metadata(self) -> SFDMetadata:
         return self.metadata
 
     @classmethod

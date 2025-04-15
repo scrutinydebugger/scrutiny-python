@@ -271,7 +271,7 @@ class TestDataloggingIntegration(ScrutinyIntegrationTestWithTestSFD1):
                                 self.assertIsNone(acq_summary['firmware_metadata'])
                             else:   # emulated device firmware ID is cahnged at the end of the loop so it matches the SFD
                                 self.assertIsNotNone(acq_summary['firmware_metadata'])
-                                self.assertEqual(acq_summary['firmware_metadata'], self.sfd.get_metadata())
+                                self.assertEqual(acq_summary['firmware_metadata'], self.sfd.get_metadata().to_dict())
                             break
 
                     self.assertTrue(found)
@@ -295,7 +295,7 @@ class TestDataloggingIntegration(ScrutinyIntegrationTestWithTestSFD1):
                     if session_iteration == 0:
                         self.assertIsNone(response['firmware_name'])
                     else:
-                        expected_firmware_name = '%s V%s' % (self.sfd.get_metadata()['project_name'], self.sfd.get_metadata()['version'])
+                        expected_firmware_name = '%s V%s' % (self.sfd.get_metadata().project_name, self.sfd.get_metadata().version)
                         self.assertEqual(response['firmware_name'], expected_firmware_name)
 
                     # Check that all signals has the same number of points, including x axis

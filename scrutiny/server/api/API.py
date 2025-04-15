@@ -696,7 +696,7 @@ class API:
         firmware_id_list = SFDStorage.list()
         metadata_dict = {}
         for firmware_id in firmware_id_list:
-            metadata_dict[firmware_id] = SFDStorage.get_metadata(firmware_id)
+            metadata_dict[firmware_id] = SFDStorage.get_metadata(firmware_id).to_dict()
 
         response: api_typing.S2C.GetInstalledSFD = {
             'cmd': self.Command.Api2Client.GET_INSTALLED_SFD_RESPONSE,
@@ -716,7 +716,7 @@ class API:
             'cmd': self.Command.Api2Client.GET_LOADED_SFD_RESPONSE,
             'reqid': self.get_req_id(req),
             'firmware_id': sfd.get_firmware_id_ascii() if sfd is not None else None,
-            'metadata' : sfd.get_metadata() if sfd is not None else None
+            'metadata' : sfd.get_metadata().to_dict() if sfd is not None else None
         }
 
         self.client_handler.send(ClientHandlerMessage(conn_id=conn_id, obj=response))
@@ -1474,7 +1474,7 @@ class API:
             acq = DataloggingStorage.read(reference_id)
             firmware_metadata: Optional[api_typing.SFDMetadata] = None
             if SFDStorage.is_installed(acq.firmware_id):
-                firmware_metadata = SFDStorage.get_metadata(acq.firmware_id)
+                firmware_metadata = SFDStorage.get_metadata(acq.firmware_id).to_dict()
             acquisitions.append({
                 'firmware_id': acq.firmware_id,
                 'name': acq.name,

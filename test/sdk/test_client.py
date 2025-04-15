@@ -737,15 +737,7 @@ class TestClient(ScrutinyUnitTest):
 
         sfd = FirmwareDescription(get_artifact('test_sfd_1.sfd'))
         self.assertEqual(server_sfd.firmware_id, sfd.get_firmware_id_ascii())
-        self.assertEqual(server_sfd.metadata.author, sfd.metadata['author'])
-        self.assertEqual(server_sfd.metadata.project_name, sfd.metadata['project_name'])
-        self.assertEqual(server_sfd.metadata.version, sfd.metadata['version'])
-
-        self.assertEqual(server_sfd.metadata.generation_info.python_version, sfd.metadata['generation_info']['python_version'])
-        self.assertEqual(server_sfd.metadata.generation_info.scrutiny_version, sfd.metadata['generation_info']['scrutiny_version'])
-        self.assertEqual(server_sfd.metadata.generation_info.system_type, sfd.metadata['generation_info']['system_type'])
-        self.assertEqual(server_sfd.metadata.generation_info.timestamp, datetime.fromtimestamp(sfd.metadata['generation_info']['time']))
-
+        self.assertEqual(server_sfd.metadata, sfd.metadata)
 
     def test_get_device_info(self):
         # Make sure we can read the status of the server correctly
@@ -1403,22 +1395,11 @@ class TestClient(ScrutinyUnitTest):
             installed2 = installed[sfd2.get_firmware_id_ascii()]
 
             self.assertEqual(installed1.firmware_id, sfd1.get_firmware_id_ascii())
-            self.assertEqual(installed1.metadata.author, sfd1.get_metadata()['author'])
-            self.assertEqual(installed1.metadata.project_name, sfd1.get_metadata()['project_name'])
-            self.assertEqual(installed1.metadata.version, sfd1.get_metadata()['version'])
-            self.assertEqual(installed1.metadata.generation_info.python_version, sfd1.get_metadata()['generation_info']['python_version'])
-            self.assertEqual(installed1.metadata.generation_info.scrutiny_version, sfd1.get_metadata()['generation_info']['scrutiny_version'])
-            self.assertEqual(installed1.metadata.generation_info.system_type, sfd1.get_metadata()['generation_info']['system_type'])
-            self.assertEqual(installed1.metadata.generation_info.timestamp, datetime.fromtimestamp(sfd1.get_metadata()['generation_info']['time']))
-
+            self.assertEqual(installed1.metadata, sfd1.get_metadata())
+          
             self.assertEqual(installed2.firmware_id, sfd2.get_firmware_id_ascii())
-            self.assertEqual(installed2.metadata.author, sfd2.get_metadata()['author'])
-            self.assertEqual(installed2.metadata.project_name, sfd2.get_metadata()['project_name'])
-            self.assertEqual(installed2.metadata.version, sfd2.get_metadata()['version'])
-            self.assertEqual(installed2.metadata.generation_info.python_version, sfd2.get_metadata()['generation_info']['python_version'])
-            self.assertEqual(installed2.metadata.generation_info.scrutiny_version, sfd2.get_metadata()['generation_info']['scrutiny_version'])
-            self.assertEqual(installed2.metadata.generation_info.system_type, sfd2.get_metadata()['generation_info']['system_type'])
-            self.assertEqual(installed2.metadata.generation_info.timestamp, datetime.fromtimestamp(sfd2.get_metadata()['generation_info']['time']))
+            self.assertEqual(installed2.metadata, sfd2.get_metadata())
+           
 
     def test_simple_request_response_timeout(self):
         with SFDStorage.use_temp_folder():

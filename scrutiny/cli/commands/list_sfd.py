@@ -13,11 +13,12 @@ from typing import Optional, List
 import logging
 import time
 from scrutiny import tools
+from datetime import datetime
 
 
 class PrintableSFDEntry:
     firmware_id: Optional[str]
-    create_time: Optional[int]
+    create_time: Optional[datetime]
     scrutiny_version: Optional[str]
     project_name: str
     version: str
@@ -40,8 +41,10 @@ class PrintableSFDEntry:
 
     def __str__(self) -> str:
         padding_len = max(0, self.padding_target_len - self.get_len_for_padding()) + 3
-        create_time_str = time.strftime('%Y-%m-%d %H:%M:%S', time.localtime(self.create_time))
-        line = '  %s %s%s (%s)\tScrutiny %s \t Created on %s' % (self.project_name, self.version, ' ' * padding_len,
+        create_time_str = ""
+        if self.create_time is not None:
+            create_time_str = " \t Created on %s " % self.create_time.astimezone().strftime(r'%Y-%m-%d %H:%M:%S')
+        line = '  %s %s%s (%s)\tScrutiny %s%s' % (self.project_name, self.version, ' ' * padding_len,
                                                                  self.firmware_id, self.scrutiny_version, create_time_str)
         return line
 
@@ -71,18 +74,17 @@ class ListSFD(BaseCommand):
                 metadata = SFDStorage.get_metadata(firmware_id)
                 entry = PrintableSFDEntry()
                 entry.firmware_id = firmware_id
-                entry.create_time = metadata['generation_info']['time']
-                entry.scrutiny_version = metadata['generation_info']['scrutiny_version']
+                entry.create_time = metadata.generation_info.timestamp
+                entry.scrutiny_version =  metadata.generation_info.scrutiny_version
                 str(entry)  # Make sure it can be rendered. Otherwise exception will be raised
-
-                with tools.SuppressException(Exception):
-                    entry.project_name = metadata['project_name']
-
-                with tools.SuppressException(Exception):
-                    entry.version = metadata['version']
-
-                with tools.SuppressException(Exception):
-                    entry.author = metadata['author']
+                if metadata.project_name is not None:
+                    entry.project_name = metadata.project_name
+                
+                if metadata.version is not None:
+                    entry.version = metadata.version
+                
+                if metadata.author is not None:
+                    entry.author = metadata.author
 
                 padding = max(padding, entry.get_len_for_padding())
 

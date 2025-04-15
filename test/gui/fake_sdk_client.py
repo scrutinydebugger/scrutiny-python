@@ -462,7 +462,7 @@ class FakeSDKClient(tools.UnitTestStub):
                             python_version="aaa",
                             scrutiny_version="bbb",
                             system_type="ccc",
-                            timestamp=datetime.now().timestamp(),
+                            timestamp=datetime.now(),
                         )
                     )
                 )
