@@ -28,7 +28,7 @@ from scrutiny.gui import assets
 from scrutiny.gui.core.watchable_registry import WatchableRegistry, WatchableRegistryNodeContent
 from scrutiny.gui.core.scrutiny_drag_data import WatchableListDescriptor, SingleWatchableDescriptor, ScrutinyDragData
 from scrutiny.gui.tools import watchabletype_2_icon
-from scrutiny.gui.dashboard_components.common.base_tree import BaseTreeModel, BaseTreeView
+from scrutiny.gui.widgets.base_tree import BaseTreeModel, BaseTreeView
 
 
 from scrutiny.tools.typing import *

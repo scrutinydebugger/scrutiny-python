@@ -37,7 +37,7 @@ from scrutiny.gui.tools.min_max import MinMax
 from scrutiny.gui.widgets.validable_line_edit import ValidableLineEdit
 
 from scrutiny.tools import validation
-from scrutiny.gui.dashboard_components.common.graph_signal_tree import GraphSignalTree
+from scrutiny.gui.widgets.graph_signal_tree import GraphSignalTree
 
 from scrutiny.tools.typing import *
 

@@ -13,7 +13,7 @@ from PySide6.QtCore import Signal, QObject, Qt, QModelIndex, QPoint
 
 from scrutiny.sdk import datalogging
 from scrutiny.gui.core.preferences import gui_preferences
-from scrutiny.gui.dashboard_components.common.base_tree import BaseTreeModel, BaseTreeView
+from scrutiny.gui.widgets.base_tree import BaseTreeModel, BaseTreeView
 from scrutiny.gui import assets
 
 from scrutiny.tools.typing import *

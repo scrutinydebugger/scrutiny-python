@@ -28,16 +28,16 @@ from scrutiny.gui.dashboard_components.base_component import ScrutinyGUIBaseComp
 from scrutiny.gui.dashboard_components.embedded_graph.graph_config_widget import GraphConfigWidget
 from scrutiny.gui.dashboard_components.embedded_graph.graph_browse_list_widget import GraphBrowseListWidget
 from scrutiny.gui.dashboard_components.embedded_graph.chart_status_overlay import ChartStatusOverlay
-from scrutiny.gui.dashboard_components.common.base_chart import (
+from scrutiny.gui.widgets.base_chart import (
     ScrutinyChart, ScrutinyChartView, ScrutinyChartToolBar,  ScrutinyLineSeries, ScrutinyValueAxisWithMinMax
     )
-from scrutiny.gui.dashboard_components.common.graph_signal_tree import GraphSignalTree, ChartSeriesWatchableStandardItem, AxisStandardItem
+from scrutiny.gui.widgets.graph_signal_tree import GraphSignalTree, ChartSeriesWatchableStandardItem, AxisStandardItem
 from scrutiny.gui.widgets.feedback_label import FeedbackLabel
 
 from scrutiny import tools
 from scrutiny.tools.typing import *
 from scrutiny.gui.tools.invoker import InvokeInQtThread
-from scrutiny.gui.dashboard_components.common.export_chart_csv import export_chart_csv_threaded
+from scrutiny.gui.core.export_chart_csv import export_chart_csv_threaded
 
 
 @dataclass

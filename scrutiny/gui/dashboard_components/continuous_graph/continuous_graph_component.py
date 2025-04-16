@@ -27,9 +27,9 @@ from scrutiny.gui.core.definitions import WidgetState
 from scrutiny.gui.core.watchable_registry import WatchableRegistryNodeNotFoundError, ValueUpdate
 from scrutiny.gui.widgets.feedback_label import FeedbackLabel
 from scrutiny.gui.dashboard_components.base_component import ScrutinyGUIBaseComponent
-from scrutiny.gui.dashboard_components.common.graph_signal_tree import GraphSignalTree, ChartSeriesWatchableStandardItem
-from scrutiny.gui.dashboard_components.common.export_chart_csv import export_chart_csv_threaded, make_csv_headers
-from scrutiny.gui.dashboard_components.common.base_chart import (
+from scrutiny.gui.widgets.graph_signal_tree import GraphSignalTree, ChartSeriesWatchableStandardItem
+from scrutiny.gui.core.export_chart_csv import export_chart_csv_threaded, make_csv_headers
+from scrutiny.gui.widgets.base_chart import (
     ScrutinyLineSeries, ScrutinyValueAxisWithMinMax, ScrutinyChartView, ScrutinyChart,
     ScrutinyChartToolBar)
 from scrutiny.gui.dashboard_components.continuous_graph.csv_logging_menu import CsvLoggingMenuWidget

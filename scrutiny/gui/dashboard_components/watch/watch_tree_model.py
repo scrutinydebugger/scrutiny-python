@@ -18,7 +18,7 @@ from PySide6.QtGui import QStandardItem,QPalette
 from scrutiny.sdk.definitions import WatchableConfiguration
 from scrutiny.gui.core.scrutiny_drag_data import ScrutinyDragData, WatchableListDescriptor
 from scrutiny.gui.core.watchable_registry import WatchableRegistry
-from scrutiny.gui.dashboard_components.common.watchable_tree import (
+from scrutiny.gui.widgets.watchable_tree import (
     WatchableTreeModel, 
     NodeSerializableData, 
     FolderStandardItem,
@@ -26,7 +26,7 @@ from scrutiny.gui.dashboard_components.common.watchable_tree import (
     BaseWatchableRegistryTreeStandardItem,
     item_from_serializable_data
 )
-from scrutiny.gui.dashboard_components.common.base_tree import SerializableItemIndexDescriptor
+from scrutiny.gui.widgets.base_tree import SerializableItemIndexDescriptor
 from scrutiny.tools.global_counters import global_i64_counter
 
 from typing import List, Union, Optional, cast, Sequence, TypedDict, Generator, Iterable

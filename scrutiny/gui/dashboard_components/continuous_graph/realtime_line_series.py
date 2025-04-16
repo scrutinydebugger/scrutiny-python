@@ -12,7 +12,7 @@ __all__ = ['RealTimeScrutinyLineSeries']
 from PySide6.QtCore import QPointF
 
 from scrutiny.gui.tools.min_max import MinMax
-from scrutiny.gui.dashboard_components.common.base_chart import ScrutinyLineSeries
+from scrutiny.gui.widgets.base_chart import ScrutinyLineSeries
 from scrutiny.gui.dashboard_components.continuous_graph.decimator import GraphMonotonicNonUniformMinMaxDecimator
 
 from scrutiny.tools.typing import *

@@ -20,7 +20,7 @@ from PySide6.QtCharts import QLineSeries
 import scrutiny
 from scrutiny import sdk
 from scrutiny import tools
-from scrutiny.gui.dashboard_components.common.graph_signal_tree import AxisContent
+from scrutiny.gui.widgets.graph_signal_tree import AxisContent
 from scrutiny.gui.core.preferences import gui_preferences
 
 from typing import Optional, List, Callable, Union

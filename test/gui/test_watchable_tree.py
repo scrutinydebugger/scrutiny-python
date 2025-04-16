@@ -10,10 +10,10 @@ from PySide6.QtGui import QStandardItem
 from PySide6.QtCore import QModelIndex, Qt
 
 from scrutiny import sdk
-from scrutiny.gui.dashboard_components.common.watchable_tree import WatchableTreeModel
+from scrutiny.gui.widgets.watchable_tree import WatchableTreeModel
 from scrutiny.gui.dashboard_components.varlist.varlist_component import VarListComponentTreeModel
 from scrutiny.gui.dashboard_components.watch.watch_component import WatchComponentTreeModel
-from scrutiny.gui.dashboard_components.common.watchable_tree import FolderStandardItem, WatchableStandardItem
+from scrutiny.gui.widgets.watchable_tree import FolderStandardItem, WatchableStandardItem
 from scrutiny.gui.core.watchable_registry import WatchableRegistry
 from scrutiny.gui.core.scrutiny_drag_data import ScrutinyDragData
 from test.gui.base_gui_test import ScrutinyBaseGuiTest
