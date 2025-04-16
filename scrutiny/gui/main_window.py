@@ -27,34 +27,35 @@ from scrutiny.gui.widgets.status_bar import StatusBar
 from scrutiny.gui.widgets.menu_bar import MenuBar
 from scrutiny.gui.dialogs.server_config_dialog import ServerConfigDialog
 
-from scrutiny.gui.dashboard_components.base_component import ScrutinyGUIBaseComponent
-from scrutiny.gui.dashboard_components.debug.debug_component import DebugComponent
-from scrutiny.gui.dashboard_components.varlist.varlist_component import VarListComponent
-from scrutiny.gui.dashboard_components.watch.watch_component import WatchComponent
-from scrutiny.gui.dashboard_components.continuous_graph.continuous_graph_component import ContinuousGraphComponent
-from scrutiny.gui.dashboard_components.embedded_graph.embedded_graph_component import EmbeddedGraph
-from scrutiny.gui.dashboard_components.metrics.metrics_component import MetricsComponent
+from scrutiny.gui.components.dashboard.base_dashboard_component import ScrutinyGUIBaseDashboardComponent
+from scrutiny.gui.components.globals.base_global_component import ScrutinyGUIBaseGlobalComponent
+from scrutiny.gui.components.globals.varlist.varlist_component import VarListComponent
+from scrutiny.gui.components.dashboard.watch.watch_component import WatchComponent
+from scrutiny.gui.components.dashboard.continuous_graph.continuous_graph_component import ContinuousGraphComponent
+from scrutiny.gui.components.dashboard.embedded_graph.embedded_graph_component import EmbeddedGraph
+from scrutiny.gui.components.globals.metrics.metrics_component import MetricsComponent
 
 from scrutiny.gui.core.server_manager import ServerManager
 from scrutiny.gui.core.watchable_registry import WatchableRegistry
 
-from typing import Type, Dict
-
+from scrutiny.tools.typing import *
 
 class MainWindow(QMainWindow):
     INITIAL_W = 1200
     INITIAL_H = 900
 
-    ENABLED_COMPONENTS = [
-        DebugComponent,
+    ENABLED_GLOBAL_COMPONENTS:List[Type[ScrutinyGUIBaseGlobalComponent]] = [
         VarListComponent,
-        WatchComponent,
-        ContinuousGraphComponent,
-        EmbeddedGraph,
         MetricsComponent
     ]
 
-    _dashboard_components:Dict[str, ScrutinyGUIBaseComponent]
+    ENABLED_DASHBOARD_COMPONENTS:List[Type[ScrutinyGUIBaseDashboardComponent]] = [
+        WatchComponent,
+        ContinuousGraphComponent,
+        EmbeddedGraph
+    ]
+
+    _dashboard_components:Dict[str, ScrutinyGUIBaseDashboardComponent]
     _logger: logging.Logger
 
     _central_widget:QWidget
@@ -144,7 +145,7 @@ class MainWindow(QMainWindow):
         dock_vlayout = QVBoxLayout(self._dock_conainer)
         dock_vlayout.setContentsMargins(0,0,0,0)
         
-        self._component_sidebar = ComponentSidebar(self.ENABLED_COMPONENTS)
+        self._component_sidebar = ComponentSidebar(self.ENABLED_DASHBOARD_COMPONENTS)
         self.addToolBar(Qt.ToolBarArea.LeftToolBarArea, self._component_sidebar)
         self._component_sidebar.insert_component.connect(self.add_new_component)
 
@@ -154,12 +155,12 @@ class MainWindow(QMainWindow):
     def get_central_widget(self) -> QWidget:
         return self._central_widget
 
-    def add_new_component(self, component_class:Type[ScrutinyGUIBaseComponent]) -> None:
+    def add_new_component(self, component_class:Type[ScrutinyGUIBaseDashboardComponent]) -> None:
         """Adds a new component inside the dashboard
-        :param component_class: The class that represent the component (inhreiting ScrutinyGUIBaseComponent) 
+        :param component_class: The class that represent the component (inhreiting ScrutinyGUIBaseDashboardComponent) 
         """
         
-        def make_name(component_class:Type[ScrutinyGUIBaseComponent], instance_number:int) -> str:
+        def make_name(component_class:Type[ScrutinyGUIBaseDashboardComponent], instance_number:int) -> str:
             return f'{component_class.__name__}_{instance_number}'
 
         instance_number = 0

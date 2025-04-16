@@ -17,8 +17,8 @@ app = make_manual_test_app()
 from PySide6.QtWidgets import QMainWindow, QWidget,  QHBoxLayout
 from scrutiny.gui import assets
 
-from scrutiny.gui.dashboard_components.varlist.varlist_component import VarListComponent
-from scrutiny.gui.dashboard_components.watch.watch_component import WatchComponent
+from scrutiny.gui.components.globals.varlist.varlist_component import VarListComponent
+from scrutiny.gui.components.dashboard.watch.watch_component import WatchComponent
 from scrutiny.gui.core.watchable_registry import WatchableRegistry
 from scrutiny.gui.widgets.graph_signal_tree import GraphSignalModel, GraphSignalTree
 

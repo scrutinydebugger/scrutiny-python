@@ -12,7 +12,7 @@ __all__ = ['ComponentSidebar']
 from PySide6.QtWidgets import QWidget,  QToolBar,  QToolButton, QSizePolicy
 from PySide6.QtCore import Qt, QSize,  Signal
 from PySide6.QtGui import QAction
-from scrutiny.gui.dashboard_components.base_component import ScrutinyGUIBaseComponent
+from scrutiny.gui.components.dashboard.base_dashboard_component import ScrutinyGUIBaseDashboardComponent
 import functools
 
 from typing import List, Type, Dict
@@ -20,7 +20,7 @@ from typing import List, Type, Dict
 class ComponentSidebar(QToolBar):
     insert_component=Signal(type)
 
-    def __init__(self, components:List[Type[ScrutinyGUIBaseComponent]]) -> None:
+    def __init__(self, components:List[Type[ScrutinyGUIBaseDashboardComponent]]) -> None:
         super().__init__()
 
         self.setIconSize(QSize(32,24))       
@@ -37,5 +37,5 @@ class ComponentSidebar(QToolBar):
             btn.setDefaultAction(btn_action)
             self.addWidget(btn)
     
-    def trigger_signal(self, component:Type[ScrutinyGUIBaseComponent]) -> None:
+    def trigger_signal(self, component:Type[ScrutinyGUIBaseDashboardComponent]) -> None:
         self.insert_component.emit(component)

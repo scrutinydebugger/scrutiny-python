@@ -15,8 +15,8 @@ from manual_test_base import make_manual_test_app
 app = make_manual_test_app()
 
 from PySide6.QtWidgets import QMainWindow, QLabel, QWidget, QVBoxLayout, QHBoxLayout, QPushButton, QFormLayout
-from scrutiny.gui.dashboard_components.varlist.varlist_component import VarListComponent
-from scrutiny.gui.dashboard_components.watch.watch_component import WatchComponent
+from scrutiny.gui.components.globals.varlist.varlist_component import VarListComponent
+from scrutiny.gui.components.dashboard.watch.watch_component import WatchComponent
 from scrutiny.gui.core.watchable_registry import WatchableRegistry
 from test.gui.fake_server_manager import FakeServerManager, ServerConfig
 from typing import List

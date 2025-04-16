@@ -1,5 +1,5 @@
 #    base_component.py
-#        A base class for a component that can be added to the dashboard
+#        A base class for a component that can be added to the GUI (globally or on the dashboard)
 #
 #   - License : MIT - See LICENSE file.
 #   - Project :  Scrutiny Debugger (github.com/scrutinydebugger/scrutiny-python)
@@ -8,11 +8,11 @@
 
 __all__ = ['ScrutinyGUIBaseComponent']
 
-from abc import ABC, abstractmethod
+from abc import abstractmethod
 
 from PySide6.QtWidgets import QWidget
 from PySide6.QtGui import QIcon
-from typing import Dict, cast, TYPE_CHECKING, Any
+from typing import cast, TYPE_CHECKING
 
 from scrutiny.gui.core.server_manager import ServerManager
 from scrutiny.gui.core.watchable_registry import WatchableRegistry
@@ -61,14 +61,6 @@ class ScrutinyGUIBaseComponent(QWidget):
 
     @abstractmethod
     def teardown(self) -> None:
-        pass
-
-    @abstractmethod
-    def get_state(self) -> Dict[Any, Any]:
-        pass
-
-    @abstractmethod
-    def load_state(self, state:Dict[Any, Any]) -> None:
         pass
     
     def visibilityChanged(self, visible:bool) -> None:

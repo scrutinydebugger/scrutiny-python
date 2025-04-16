@@ -6,7 +6,9 @@
 #
 #   Copyright (c) 2021 Scrutiny Debugger
 
-from scrutiny.gui.dashboard_components.base_component import ScrutinyGUIBaseComponent
+__all__ = ['MetricsComponent']
+
+from scrutiny.gui.components.globals.base_global_component import ScrutinyGUIBaseGlobalComponent
 from typing import Dict,Any, Optional
 
 from PySide6.QtWidgets import QVBoxLayout, QPushButton, QSizePolicy
@@ -17,7 +19,7 @@ from scrutiny.sdk.client import ScrutinyClient
 from scrutiny import sdk
 
 
-class MetricsComponent(ScrutinyGUIBaseComponent):
+class MetricsComponent(ScrutinyGUIBaseGlobalComponent):
     _ICON = assets.get("stopwatch-96x128.png")
     _NAME = "Internal Metrics"
 

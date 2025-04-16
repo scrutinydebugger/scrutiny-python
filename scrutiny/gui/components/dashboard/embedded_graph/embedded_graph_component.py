@@ -24,10 +24,10 @@ from scrutiny.sdk.client import ScrutinyClient
 
 from scrutiny.gui import assets
 from scrutiny.gui.tools import prompt
-from scrutiny.gui.dashboard_components.base_component import ScrutinyGUIBaseComponent
-from scrutiny.gui.dashboard_components.embedded_graph.graph_config_widget import GraphConfigWidget
-from scrutiny.gui.dashboard_components.embedded_graph.graph_browse_list_widget import GraphBrowseListWidget
-from scrutiny.gui.dashboard_components.embedded_graph.chart_status_overlay import ChartStatusOverlay
+from scrutiny.gui.components.dashboard.base_dashboard_component import ScrutinyGUIBaseDashboardComponent
+from scrutiny.gui.components.dashboard.embedded_graph.graph_config_widget import GraphConfigWidget
+from scrutiny.gui.components.dashboard.embedded_graph.graph_browse_list_widget import GraphBrowseListWidget
+from scrutiny.gui.components.dashboard.embedded_graph.chart_status_overlay import ChartStatusOverlay
 from scrutiny.gui.widgets.base_chart import (
     ScrutinyChart, ScrutinyChartView, ScrutinyChartToolBar,  ScrutinyLineSeries, ScrutinyValueAxisWithMinMax
     )
@@ -99,7 +99,7 @@ class EmbeddedGraphState:
 @dataclass
 class InitialGraphListDownloadConditions:
     firmware_id:Optional[str]
-class EmbeddedGraph(ScrutinyGUIBaseComponent):
+class EmbeddedGraph(ScrutinyGUIBaseDashboardComponent):
     instance_name : str
 
     _ICON = assets.get("scope-96x128.png")

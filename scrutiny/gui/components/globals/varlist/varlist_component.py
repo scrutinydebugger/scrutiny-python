@@ -22,7 +22,7 @@ from PySide6.QtCore import QModelIndex, QMimeData
 from scrutiny.gui import assets
 from scrutiny.gui.core.watchable_registry import   WatchableRegistry
 from scrutiny.gui.core.scrutiny_drag_data import ScrutinyDragData
-from scrutiny.gui.dashboard_components.base_component import ScrutinyGUIBaseComponent
+from scrutiny.gui.components.globals.base_global_component import ScrutinyGUIBaseGlobalComponent
 from scrutiny.gui.widgets.watchable_tree import (
     BaseWatchableRegistryTreeStandardItem, 
     WatchableTreeModel, 
@@ -136,7 +136,7 @@ class VarlistComponentTreeWidget(WatchableTreeWidget):
     def model(self) -> VarListComponentTreeModel:
         return cast(VarListComponentTreeModel, super().model())
 
-class VarListComponent(ScrutinyGUIBaseComponent):
+class VarListComponent(ScrutinyGUIBaseGlobalComponent):
     instance_name : str
 
     _ICON = assets.get("treelist-96x128.png")
