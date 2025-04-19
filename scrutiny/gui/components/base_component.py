@@ -12,7 +12,7 @@ from abc import abstractmethod
 
 from PySide6.QtWidgets import QWidget
 from PySide6.QtGui import QIcon
-from typing import cast, TYPE_CHECKING
+from typing import cast, TYPE_CHECKING, Dict, Any
 
 from scrutiny.gui.core.server_manager import ServerManager
 from scrutiny.gui.core.watchable_registry import WatchableRegistry
@@ -52,6 +52,12 @@ class ScrutinyGUIBaseComponent(QWidget):
             raise RuntimeError(f"Class {cls.__name__} require the _NAME to be set")
         return cast(str, getattr(cls, '_NAME'))
 
+    @classmethod
+    def get_type_id(cls) -> str: 
+        if not hasattr(cls, '_TYPE_ID'):
+            raise RuntimeError(f"Class {cls.__name__} require the _TYPE_ID to be set")
+        return cast(str, getattr(cls, '_TYPE_ID'))
+
     @abstractmethod
     def setup(self) -> None:
         pass
@@ -64,4 +70,12 @@ class ScrutinyGUIBaseComponent(QWidget):
         pass
     
     def visibilityChanged(self, visible:bool) -> None:
+        pass
+
+    @abstractmethod
+    def get_state(self) -> Dict[Any, Any]:
+        pass
+
+    @abstractmethod
+    def load_state(self, state:Dict[Any, Any]) -> None:
         pass

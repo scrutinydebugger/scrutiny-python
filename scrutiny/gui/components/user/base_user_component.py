@@ -6,20 +6,13 @@
 #
 #   Copyright (c) 2021 Scrutiny Debugger
 
-__all__ = ['ScrutinyGUIBaseDashboardComponent']
+__all__ = ['ScrutinyGUIBaseUserComponent']
 
 from abc import ABC, abstractmethod
 
-from typing import Dict, Any
+
 
 from scrutiny.gui.components.base_component import ScrutinyGUIBaseComponent
 
-class ScrutinyGUIBaseDashboardComponent(ScrutinyGUIBaseComponent):
-    
-    @abstractmethod
-    def get_state(self) -> Dict[Any, Any]:
-        pass
-
-    @abstractmethod
-    def load_state(self, state:Dict[Any, Any]) -> None:
-        pass
+class ScrutinyGUIBaseUserComponent(ScrutinyGUIBaseComponent):
+    pass

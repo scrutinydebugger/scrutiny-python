@@ -22,6 +22,7 @@ from scrutiny import sdk
 class MetricsComponent(ScrutinyGUIBaseGlobalComponent):
     _ICON = assets.get("stopwatch-96x128.png")
     _NAME = "Internal Metrics"
+    _TYPE_ID = "metrics"
 
     app_stats:ApplicationStatsDisplay
 

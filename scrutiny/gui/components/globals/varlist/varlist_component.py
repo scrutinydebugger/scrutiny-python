@@ -141,6 +141,7 @@ class VarListComponent(ScrutinyGUIBaseGlobalComponent):
 
     _ICON = assets.get("treelist-96x128.png")
     _NAME = "Variable List"
+    _TYPE_ID = "varlist"
 
     _tree:VarlistComponentTreeWidget
     _tree_model:VarListComponentTreeModel

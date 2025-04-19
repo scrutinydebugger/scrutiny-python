@@ -19,9 +19,9 @@ from scrutiny import sdk
 from scrutiny.gui import assets
 from scrutiny.gui.core.server_manager import ValueUpdate
 from scrutiny.gui.core.watchable_registry import WatchableRegistryNodeNotFoundError, WatcherNotFoundError
-from scrutiny.gui.components.dashboard.base_dashboard_component import ScrutinyGUIBaseDashboardComponent
+from scrutiny.gui.components.user.base_user_component import ScrutinyGUIBaseUserComponent
 from scrutiny.gui.widgets.watchable_tree import WatchableTreeWidget, WatchableStandardItem, FolderStandardItem, BaseWatchableRegistryTreeStandardItem
-from scrutiny.gui.components.dashboard.watch.watch_tree_model import WatchComponentTreeModel, ValueStandardItem
+from scrutiny.gui.components.user.watch.watch_tree_model import WatchComponentTreeModel, ValueStandardItem
 from scrutiny.tools import format_exception
 
 import logging
@@ -219,11 +219,12 @@ class WatchComponentTreeWidget(WatchableTreeWidget):
 
 
 
-class WatchComponent(ScrutinyGUIBaseDashboardComponent):
+class WatchComponent(ScrutinyGUIBaseUserComponent):
     instance_name : str
 
     _ICON = assets.get("eye-96x128.png")
     _NAME = "Watch Window"
+    _TYPE_ID = "watch"
 
     _tree:WatchComponentTreeWidget
     _tree_model:WatchComponentTreeModel
@@ -266,10 +267,10 @@ class WatchComponent(ScrutinyGUIBaseDashboardComponent):
 
 
     def get_state(self) -> Dict[Any, Any]:
-        raise NotImplementedError()
+        return {}
 
-    def load_state(self, state: Dict[Any, Any]) -> None:
-        raise NotImplementedError()
+    def load_state(self, state:Dict[Any, Any]) -> None:
+        pass
 
     def _get_item(self, parent:QModelIndex, row_index:int) -> Optional[BaseWatchableRegistryTreeStandardItem]:
         """Get the item pointed by the index and the row (column is assumed 0). Handles the no-parent case

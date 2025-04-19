@@ -8,7 +8,7 @@
 
 from PySide6.QtGui import QStandardItemModel
 from test.gui.base_gui_test import ScrutinyBaseGuiTest
-from scrutiny.gui.components.dashboard.embedded_graph.graph_config_widget import GraphConfigWidget
+from scrutiny.gui.components.user.embedded_graph.graph_config_widget import GraphConfigWidget
 from scrutiny.gui.core.watchable_registry import WatchableRegistry
 from scrutiny.sdk import *
 from scrutiny.sdk.datalogging import *

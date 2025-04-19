@@ -24,10 +24,10 @@ from scrutiny.sdk.client import ScrutinyClient
 
 from scrutiny.gui import assets
 from scrutiny.gui.tools import prompt
-from scrutiny.gui.components.dashboard.base_dashboard_component import ScrutinyGUIBaseDashboardComponent
-from scrutiny.gui.components.dashboard.embedded_graph.graph_config_widget import GraphConfigWidget
-from scrutiny.gui.components.dashboard.embedded_graph.graph_browse_list_widget import GraphBrowseListWidget
-from scrutiny.gui.components.dashboard.embedded_graph.chart_status_overlay import ChartStatusOverlay
+from scrutiny.gui.components.user.base_user_component import ScrutinyGUIBaseUserComponent
+from scrutiny.gui.components.user.embedded_graph.graph_config_widget import GraphConfigWidget
+from scrutiny.gui.components.user.embedded_graph.graph_browse_list_widget import GraphBrowseListWidget
+from scrutiny.gui.components.user.embedded_graph.chart_status_overlay import ChartStatusOverlay
 from scrutiny.gui.widgets.base_chart import (
     ScrutinyChart, ScrutinyChartView, ScrutinyChartToolBar,  ScrutinyLineSeries, ScrutinyValueAxisWithMinMax
     )
@@ -43,10 +43,22 @@ from scrutiny.gui.core.export_chart_csv import export_chart_csv_threaded
 @dataclass
 class EmbeddedGraphState:
     has_content:bool
+    """Chartview ha a graph being displayed"""
     waiting_on_graph:bool
+    """Waiting on an acquisition to complete"""
     chart_toolbar_wanted:bool
+    """The suer wants to see the chart toolbar"""
     has_failure_message:bool
+    """There's a failure message being displayed on the chartview"""
+    
     may_have_more_to_load:bool
+    """Browse tab: There might be more data to load"""
+    initial_load_completed:bool
+    """Browse tab: First load has been completed successfully"""
+    load_list_in_progress:bool
+    """Browse tab: Loading of acquisition list in progress"""
+
+    server_connected:bool
 
     def allow_save_csv(self) -> bool:
         return self.has_content
@@ -91,19 +103,26 @@ class EmbeddedGraphState:
         self.chart_toolbar_wanted = True
 
     def can_load_more_acquisitions(self) -> bool:
-        return self.may_have_more_to_load 
+        return self.may_have_more_to_load or not self.initial_load_completed
 
     def enable_load_more_button(self) -> bool:
-        return self.can_load_more_acquisitions()
+        return self.can_load_more_acquisitions() and not self.load_list_in_progress and self.server_connected
+    
+    def enable_delete_all_button(self) -> bool:
+        return self.server_connected
+
+    def must_use_load_more_btn_label(self) -> bool:
+        return self.initial_load_completed
 
 @dataclass
 class InitialGraphListDownloadConditions:
     firmware_id:Optional[str]
-class EmbeddedGraph(ScrutinyGUIBaseDashboardComponent):
+class EmbeddedGraph(ScrutinyGUIBaseUserComponent):
     instance_name : str
 
     _ICON = assets.get("scope-96x128.png")
     _NAME = "Embedded Graph"
+    _TYPE_ID = "embedded_graph"
 
     Y_AXIS_MARGIN = 0.02
     """Margin used to autoset the Y-Axis based on the Y-data"""
@@ -178,7 +197,10 @@ class EmbeddedGraph(ScrutinyGUIBaseDashboardComponent):
             waiting_on_graph=False,
             chart_toolbar_wanted=True,
             has_failure_message=False,
-            may_have_more_to_load = True
+            may_have_more_to_load = True,
+            initial_load_completed=False,
+            load_list_in_progress=False,
+            server_connected=(self.server_manager.get_server_state() == sdk.ServerState.Connected)
         )
 
         self._teared_down = False
@@ -274,7 +296,7 @@ class EmbeddedGraph(ScrutinyGUIBaseDashboardComponent):
                 
             self._graph_browse_list_widget = GraphBrowseListWidget(self)
             self._btn_delete_all = QPushButton(assets.load_tiny_icon(assets.Icons.RedX), " Delete All", self)
-            self._btn_load_more = QPushButton("Load more", self)
+            self._btn_load_more = QPushButton("Load", self)
             self._browse_feedback_label = FeedbackLabel()
 
             btn_line = QWidget(self)
@@ -337,6 +359,8 @@ class EmbeddedGraph(ScrutinyGUIBaseDashboardComponent):
 
         layout.addWidget(self._splitter)
 
+        self.server_manager.signals.server_connected.connect(self._server_connected_slot)
+        self.server_manager.signals.server_disconnected.connect(self._server_disconnected_slot)
         self.server_manager.signals.device_info_availability_changed.connect(self._update_datalogging_capabilities)
         self.server_manager.signals.device_disconnected.connect(self._update_datalogging_capabilities)
         self.server_manager.signals.device_ready.connect(self._update_datalogging_capabilities)
@@ -363,12 +387,10 @@ class EmbeddedGraph(ScrutinyGUIBaseDashboardComponent):
         self._teared_down = True
 
     def get_state(self) -> Dict[Any, Any]:
-        """Virtual func. For dashboard export"""
-        raise NotImplementedError()
+        return {}
 
-    def load_state(self, state: Dict[Any, Any]) -> None:
-        """Virtual func. For dashboard reload"""
-        raise NotImplementedError()
+    def load_state(self, state:Dict[Any, Any]) -> None:
+        pass
     
     def _apply_internal_state(self) -> None:
         """Update all the widgets based on our internal state variables"""
@@ -392,9 +414,25 @@ class EmbeddedGraph(ScrutinyGUIBaseDashboardComponent):
         else:
             self._signal_tree.update_all_availabilities()
         
+        if not self._state.initial_load_completed:
+            self._btn_load_more.setText("Load")
+        else:
+            self._btn_load_more.setText("Load more")
+
         self._btn_load_more.setEnabled(self._state.enable_load_more_button())
+        self._btn_delete_all.setEnabled(self._state.enable_delete_all_button())
         
         self._chart_status_overlay.setVisible(self._state.must_show_overlay())
+
+    def _server_connected_slot(self) -> None:
+        self._state.server_connected = True
+        self._do_initial_graph_list_download()
+        self._apply_internal_state()
+
+    def _server_disconnected_slot(self) -> None:
+        self._state.server_connected = False
+        self._graph_browse_list_widget.clear()
+        self._apply_internal_state()
 
     def _update_datalogging_capabilities(self) -> None:
         """Update the UI with new datalogging capabilities broadcast by the server"""
@@ -998,7 +1036,8 @@ class EmbeddedGraph(ScrutinyGUIBaseDashboardComponent):
     def _browse_tab_visible_slot(self) -> None:
         """When the user make "Browse" tab visible"""
         # We initiate the downlaod of a first chunk of acquisition list
-        self._do_initial_graph_list_download()
+        if self.server_manager.get_server_state() == sdk.ServerState.Connected:
+            self._do_initial_graph_list_download()
 
     def _datalogging_storage_updated_slot(self, change_type:sdk.DataloggingListChangeType, reference_id:Optional[str]) -> None:
         """The server informs us that a change was made to the datalogging storage. We use ths to update our list, even if this GUI 
@@ -1092,8 +1131,11 @@ class EmbeddedGraph(ScrutinyGUIBaseDashboardComponent):
         """Reset the content of the available acquisitions and downloads the first page of data"""
         self._oldest_acquisition_downloaded = None
         self._state.may_have_more_to_load = True
+        self._state.initial_load_completed = False
+        self._state.load_list_in_progress = True
         self._graph_browse_list_widget.clear()
         self._browse_feedback_label.set_info("Downloading...")
+        self._apply_internal_state()
 
         # If there is a firmware loaded and the user wants to filter by it.
         firmware_id:Optional[str] = None
@@ -1113,7 +1155,9 @@ class EmbeddedGraph(ScrutinyGUIBaseDashboardComponent):
                 )
         
         def qt_thread_receive(result:Optional[List[DataloggingStorageEntry]], error:Optional[Exception]) -> None:
+            self._state.load_list_in_progress = False
             if result is not None:
+                self._state.initial_load_completed = True
                 self._receive_acquisition_list(result)
                 self._browse_feedback_label.clear()
                 self._graph_browse_list_widget.autosize_columns()
@@ -1162,10 +1206,17 @@ class EmbeddedGraph(ScrutinyGUIBaseDashboardComponent):
 
     def _btn_load_more_clicked_slot(self) -> None:
         """ When the "Load more" button has been clicked"""
+
+        if not self._state.initial_load_completed:
+            self._do_initial_graph_list_download()
+            return
+        
         if not self._state.can_load_more_acquisitions():
             return
+        self._state.load_list_in_progress = True
         assert self._oldest_acquisition_downloaded is not None
         
+        self._apply_internal_state()
         self._browse_feedback_label.set_info("Downloading...")
         def bg_thread_download(client:ScrutinyClient) -> List[DataloggingStorageEntry]:    
             return client.list_stored_datalogging_acquisitions(
@@ -1175,6 +1226,7 @@ class EmbeddedGraph(ScrutinyGUIBaseDashboardComponent):
                 )
         
         def qt_thread_receive(result:Optional[List[DataloggingStorageEntry]], error:Optional[Exception]) -> None:
+            self._state.load_list_in_progress = False
             if result is not None:
                 self._receive_acquisition_list(result)
                 self._browse_feedback_label.clear()
