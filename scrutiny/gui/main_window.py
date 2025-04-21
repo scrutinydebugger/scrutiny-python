@@ -26,6 +26,7 @@ from scrutiny.gui.dashboard import Dashboard
 
 from scrutiny.gui.components.user.base_user_component import ScrutinyGUIBaseUserComponent
 from scrutiny.gui.components.globals.base_global_component import ScrutinyGUIBaseGlobalComponent
+from scrutiny.gui.components.base_component import ScrutinyGUIBaseComponent
 from scrutiny.gui.components.globals.varlist.varlist_component import VarListComponent
 from scrutiny.gui.components.user.watch.watch_component import WatchComponent
 from scrutiny.gui.components.user.continuous_graph.continuous_graph_component import ContinuousGraphComponent
@@ -91,7 +92,7 @@ class MainWindow(QMainWindow):
         self._menu_bar.buttons.dashboard_open.triggered.connect(self._dashboard_open_click)
 
         self._menu_bar.buttons.dashboard_clear.setDisabled(False)
-        self._menu_bar.buttons.dashboard_open.setDisabled(True)
+        self._menu_bar.buttons.dashboard_open.setDisabled(False)
         self._menu_bar.buttons.dashboard_save.setDisabled(False)
         self._menu_bar.buttons.server_launch_local.setDisabled(True)
 
@@ -123,7 +124,11 @@ class MainWindow(QMainWindow):
         
         self._component_sidebar = ComponentSidebar(self.ENABLED_DASHBOARD_COMPONENTS)
         self.addToolBar(Qt.ToolBarArea.LeftToolBarArea, self._component_sidebar)
-        self._component_sidebar.insert_component.connect(self._dashboard.add_new_component)
+
+        def add_component(component_class:Type[ScrutinyGUIBaseComponent]) -> None:
+            ads_dock_widget = self._dashboard.create_new_component(component_class=component_class)
+            self._dashboard.add_widget_to_default_location(ads_dock_widget)
+        self._component_sidebar.insert_component.connect(add_component)
 
         hlayout.addWidget(self._dashboard)
         

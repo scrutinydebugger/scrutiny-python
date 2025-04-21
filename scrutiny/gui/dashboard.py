@@ -3,7 +3,7 @@ from dataclasses import dataclass
 import json
 import enum
 
-from PySide6.QtWidgets import QWidget, QVBoxLayout, QHBoxLayout
+from PySide6.QtWidgets import QWidget, QVBoxLayout, QHBoxLayout, QSplitter
 from PySide6.QtCore import Qt, QTimer, QXmlStreamWriter, QFile
 
 import PySide6QtAds  as QtAds   # type: ignore
@@ -14,6 +14,7 @@ from scrutiny.gui.components.base_component import ScrutinyGUIBaseComponent
 
 from scrutiny.gui.tools.opengl import prepare_for_opengl
 from scrutiny.gui.app_settings import app_settings
+from scrutiny.gui.tools.invoker import InvokeQueued
 
 from scrutiny.gui.components.globals.varlist.varlist_component import VarListComponent
 from scrutiny.gui.components.user.watch.watch_component import WatchComponent
@@ -29,45 +30,55 @@ if TYPE_CHECKING:
 
 @dataclass
 class SerializableComponent:
+    TYPE = 'component'
+
     title:str
-    component_type:str
-    component_state:Dict[str, Any]
+    type:str
+    state:Dict[str, Any]
 
     def to_dict(self) -> Dict[str, Any]:
         return {
+            'type' : self.TYPE,
             'title' : self.title,
-            'component_type' : self.component_type,
-            'component_state' : self.component_state
+            'type' : self.type,
+            'state' : self.state
         }
 
 
 @dataclass
 class SerializableDockWidget:
+    TYPE = 'dock_widget'
+
     current_tab:bool
     component:SerializableComponent
 
     def to_dict(self) -> Dict[str, Any]:
         return {
+            'type' : self.TYPE,
             'current_tab' : self.current_tab,
             'component' : self.component.to_dict()
         }
 
 @dataclass
 class SerializableDockArea:
+    TYPE = 'dock_area'
     dock_widgets:List[SerializableDockWidget]
 
     def to_dict(self) -> Dict[str, Any]:
         return {
+            'type' : self.TYPE,
             'dock_widgets' : [dw.to_dict() for dw in self.dock_widgets]
         }
 
 @dataclass
 class SerializableContainer:
+    TYPE = 'container'
     floating:bool
     dock_areas : List[SerializableDockArea]
 
     def to_dict(self)-> Dict[str, Any]:
         return {
+            'type' : self.TYPE,
             'floating' : self.floating,
             'dock_areas' : [da.to_dict() for da in self.dock_areas]
         }
@@ -98,27 +109,66 @@ class SidebarLocation(enum.Enum):
 
 @dataclass
 class SerializableSideBarComponent:
+    TYPE = 'sidebar_component'
     sidebar_location:SidebarLocation
     component:SerializableComponent
 
     def to_dict(self) -> Dict[str, Any]:
         return {
+            'type' : self.TYPE,
             'sidebar_location' : str(self.sidebar_location),
             'component' : self.component.to_dict()
         }
 
 @dataclass
 class SerializableDashboard:
+    TYPE = 'dashboard'
+
     containers:List[SerializableContainer]
     sidebar_components:List[SerializableSideBarComponent]
 
     def to_dict(self) -> Dict[str, Any]:
         return {
+            'type':self.TYPE,
             'containers' : [c.to_dict() for c in self.containers],
             'sidebar_components' : [sc.to_dict() for sc in self.sidebar_components]
         }
 
+class SplitterOrientation(enum.Enum):
+    VERTICAL = 'vertical'
+    HORIZONTAL = 'horizontal'
 
+    def __str__(self) -> str:
+        return self.value
+    
+    @classmethod
+    def from_str(cls, v:str) -> "SidebarLocation":
+        return cls(v)
+    
+    @classmethod
+    def from_qt(cls, v:Qt.Orientation) -> "SidebarLocation":
+        lookup = {
+            Qt.Orientation.Vertical : cls.VERTICAL,
+            Qt.Orientation.Horizontal : cls.HORIZONTAL,
+        }
+
+        return lookup[v]
+
+@dataclass
+class SerializableSplitter:
+    TYPE = 'splitter'
+
+    orientation:SplitterOrientation
+    sizes:List[int]
+    content:List[Union["SerializableSplitter", "SerializableDockArea"]]
+
+    def to_dict(self) -> Dict[str, Any]:
+        return {
+            'type' : self.TYPE,
+            'orientation' : str(self.orientation),
+            'sizes' : self.sizes,
+            'content' : [elem.to_dict() for elem in self.content]
+        }
 
 
 class Dashboard(QWidget):
@@ -162,8 +212,8 @@ class Dashboard(QWidget):
         layout = QHBoxLayout(self)
         layout.addWidget(self._dock_conainer)
 
-    def add_new_component(self, component_class:Type[ScrutinyGUIBaseComponent]) -> None:
-        """Adds a new component inside the dashboard
+    def create_new_component(self, component_class:Type[ScrutinyGUIBaseComponent]) -> QtAds.CDockWidget:
+        """Create a new component and initializes it
         :param component_class: The class that represent the component (inhreiting ScrutinyGUIBaseComponent) 
         """
         if issubclass(component_class, ScrutinyGUIBaseGlobalComponent):
@@ -207,11 +257,7 @@ class Dashboard(QWidget):
             dock_widget.deleteLater()
             return 
 
-        timer = QTimer(self)
-        timer.setSingleShot(True)
-        timer.setInterval(0)
-        timer.timeout.connect(widget.ready)
-        timer.start()
+        InvokeQueued(widget.ready)
 
         def destroy_widget() -> None:
             """Closure for this widget deletion"""
@@ -236,11 +282,15 @@ class Dashboard(QWidget):
             self._global_components[component_class] = widget
             
         dock_widget.closeRequested.connect(destroy_widget)
-        if issubclass(component_class, ScrutinyGUIBaseGlobalComponent):
+        return dock_widget
+        
+    def add_widget_to_default_location(self, dock_widget:QtAds.CDockWidget) -> None:
+        component = cast(ScrutinyGUIBaseComponent, dock_widget.widget())
+        if isinstance(component, ScrutinyGUIBaseGlobalComponent):
             self._dock_manager.addAutoHideDockWidget(QtAds.SideBarRight, dock_widget)
         else:
             self._dock_manager.addDockWidgetTab(QtAds.TopDockWidgetArea, dock_widget)
-        
+    
 
     def make_default_dashboard(self) -> None:
         pass
@@ -259,23 +309,7 @@ class Dashboard(QWidget):
                 )
             dashboard_struct.containers.append(container)
             for i in range(ads_container.dockAreaCount()):
-                ads_dock_area = ads_container.dockArea(i)
-                dock_area = SerializableDockArea(
-                    dock_widgets=[]
-                )
-                container.dock_areas.append(dock_area)
-                for j in range(ads_dock_area.dockWidgetsCount()):
-                    ads_dock_widget = ads_dock_area.dockWidget(j)
-                    scrutiny_component = cast(ScrutinyGUIBaseComponent, ads_dock_widget.widget())
-                    dock_widget = SerializableDockWidget(
-                        current_tab = ads_dock_widget.isCurrentTab(),
-                        component=SerializableComponent(
-                            title="???",
-                            component_type=scrutiny_component.get_type_id(),
-                            component_state= scrutiny_component.get_state()
-                        )
-                    )
-                    dock_area.dock_widgets.append(dock_widget)
+                pass
         
         ads_autohide_containers = ads_container.autoHideWidgets()
         for ads_autohide_container in ads_autohide_containers:
@@ -284,22 +318,71 @@ class Dashboard(QWidget):
             sidebar_component = SerializableSideBarComponent(
                 sidebar_location=SidebarLocation.from_ads(ads_autohide_container.sideBarLocation()),
                 component=SerializableComponent(
-                    title="???",
-                    component_type=scrutiny_component.get_type_id(),
-                    component_state=scrutiny_component.get_state()
+                    title=ads_dock_widget.tabWidget().text(),
+                    type=scrutiny_component.get_type_id(),
+                    state=scrutiny_component.get_state()
                 )
             )
             dashboard_struct.sidebar_components.append(sidebar_component)
 
-        print(json.dumps(dashboard_struct.to_dict(), indent=4))
+
+        x = self.get_struct_recursive(self._dock_manager.rootSplitter())
+
+
+        print(json.dumps(x.to_dict(), indent=4))
+
+    def get_struct_recursive(self, parent:Union[QtAds.CDockSplitter, QtAds.CDockAreaWidget]) -> Union[SerializableSplitter, SerializableDockArea]:
+
+        if isinstance(parent, QtAds.CDockSplitter):
+            splitter = cast(QSplitter, parent)    # Better type hint
+            out = SerializableSplitter(
+                orientation=SplitterOrientation.from_qt(splitter.orientation()),
+                sizes=splitter.sizes(),
+                content=[]
+            )
+
+            for i in range(splitter.count()):
+                children = self.get_struct_recursive(splitter.widget(i))
+                out.content.append(children)
+            return out
+        elif isinstance(parent, QtAds.CDockAreaWidget):
+            ads_dock_area = parent
+            dock_area = SerializableDockArea(
+                dock_widgets=[]
+            )
+            for j in range(ads_dock_area.dockWidgetsCount()):
+                ads_dock_widget = ads_dock_area.dockWidget(j)
+                scrutiny_component = cast(ScrutinyGUIBaseComponent, ads_dock_widget.widget())
+                dock_widget = SerializableDockWidget(
+                    current_tab = ads_dock_widget.isCurrentTab(),
+                    component=SerializableComponent(
+                        title=ads_dock_widget.tabWidget().text(),
+                        type=scrutiny_component.get_type_id(),
+                        state=scrutiny_component.get_state()
+                    )
+                )
+                dock_area.dock_widgets.append(dock_widget)
+            return dock_area
+        raise NotImplementedError("Cannot dump")
 
     def clear(self) -> None:
         dock_widgets = self._dock_manager.dockWidgetsMap()
         for title, dock_widget in dock_widgets.items():
-            component = dock_widget.widget()
             dock_widget.closeDockWidget()
 
 
     def open(self) -> None:
-        pass
+        watch1 = self.create_new_component(WatchComponent)
+        watch1.tabWidget().setText("watch1")
+        watch2 = self.create_new_component(WatchComponent)
+        watch2.tabWidget().setText("watch2")
+        watch3 = self.create_new_component(WatchComponent)
+        watch3.tabWidget().setText("watch3")
+        watch4 = self.create_new_component(WatchComponent)
+        watch4.tabWidget().setText("watch4")
+        self._dock_manager.addDockWidgetTab(QtAds.TopDockWidgetArea, watch1)
+        self._dock_manager.addDockWidgetTab(QtAds.TopDockWidgetArea, watch2)
+        self._dock_manager.addDockWidgetTab(QtAds.RightDockWidgetArea, watch3)
+        self._dock_manager.addDockWidgetTab(QtAds.RightDockWidgetArea, watch4)
+        
     
