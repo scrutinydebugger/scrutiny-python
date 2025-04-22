@@ -6,7 +6,7 @@
 #
 #   Copyright (c) 2021 Scrutiny Debugger
 
-from typing import Union, Any, Type, List, Tuple, Sequence, Optional
+from typing import Union, Any, Type, List, Tuple, Sequence, Optional, Iterable
 import math
 
 
@@ -91,3 +91,36 @@ def assert_is_iterable(val:Any, name:str) -> None:
 def assert_not_none(val:Any, name:str) -> None:
     if val is None:
         raise ValueError(f"{name} is None")
+
+def assert_dict_key( d: Any, name: str, types: Union[Type[Any], Iterable[Type[Any]]], previous_parts: str = '') -> None:
+    if isinstance(types, type):
+        types = tuple([types])
+    else:
+        types = tuple(types)
+
+    parts = name.split('.')
+    key = parts[0]
+
+    if not key:
+        return
+
+    if previous_parts:
+        part_name = f"{previous_parts}.{key}"
+    else:
+        part_name = key
+    next_parts = parts[1:]
+
+    if key not in d:
+        raise KeyError(f'Missing field "{part_name}"')
+
+    if len(next_parts) > 0:
+        if not isinstance(d, dict):
+            raise KeyError(f'Field {part_name} is expected to be a dictionary')
+
+        assert_dict_key(d[key], '.'.join(next_parts), types, part_name)
+    else:
+        isbool = d[key].__class__ == True.__class__ # bool are ints for Python. Avoid allowing bools as valid int.
+        if not isinstance(d[key], types) or isbool and bool not in types:
+            gotten_type = d[key].__class__.__name__
+            typename = "(%s)" % ', '.join([t.__name__ for t in types])
+            raise TypeError(f'Field {part_name} is expected to be of type "{typename}" but found "{gotten_type}"')

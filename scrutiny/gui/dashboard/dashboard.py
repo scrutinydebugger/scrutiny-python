@@ -2,12 +2,15 @@ import logging
 from dataclasses import dataclass
 import json
 import enum
+import os
+from datetime import datetime
 
 from PySide6.QtWidgets import QWidget, QVBoxLayout, QHBoxLayout, QSplitter
 from PySide6.QtCore import Qt, QTimer, QXmlStreamWriter, QFile
 
 import PySide6QtAds  as QtAds   # type: ignore
 
+import scrutiny 
 from scrutiny.gui.components.user.base_user_component import ScrutinyGUIBaseUserComponent
 from scrutiny.gui.components.globals.base_global_component import ScrutinyGUIBaseGlobalComponent
 from scrutiny.gui.components.base_component import ScrutinyGUIBaseComponent
@@ -21,6 +24,9 @@ from scrutiny.gui.components.user.watch.watch_component import WatchComponent
 from scrutiny.gui.components.user.continuous_graph.continuous_graph_component import ContinuousGraphComponent
 from scrutiny.gui.components.user.embedded_graph.embedded_graph_component import EmbeddedGraph
 from scrutiny.gui.components.globals.metrics.metrics_component import MetricsComponent
+from scrutiny.gui.dashboard.dashboard_file_v1 import DashboardFileFormatV1
+
+from scrutiny.gui.tools import prompt
 
 from scrutiny.tools.typing import *
 from scrutiny import tools
@@ -28,150 +34,11 @@ from scrutiny import tools
 if TYPE_CHECKING:
     from scrutiny.gui.main_window import MainWindow
 
-@dataclass
-class SerializableComponent:
-    TYPE = 'component'
-
-    title:str
-    type:str
-    state:Dict[str, Any]
-
-    def to_dict(self) -> Dict[str, Any]:
-        return {
-            'type' : self.TYPE,
-            'title' : self.title,
-            'type' : self.type,
-            'state' : self.state
-        }
-
-
-@dataclass
-class SerializableDockWidget:
-    TYPE = 'dock_widget'
-
-    current_tab:bool
-    component:SerializableComponent
-
-    def to_dict(self) -> Dict[str, Any]:
-        return {
-            'type' : self.TYPE,
-            'current_tab' : self.current_tab,
-            'component' : self.component.to_dict()
-        }
-
-@dataclass
-class SerializableDockArea:
-    TYPE = 'dock_area'
-    dock_widgets:List[SerializableDockWidget]
-
-    def to_dict(self) -> Dict[str, Any]:
-        return {
-            'type' : self.TYPE,
-            'dock_widgets' : [dw.to_dict() for dw in self.dock_widgets]
-        }
-
-@dataclass
-class SerializableContainer:
-    TYPE = 'container'
-    floating:bool
-    dock_areas : List[SerializableDockArea]
-
-    def to_dict(self)-> Dict[str, Any]:
-        return {
-            'type' : self.TYPE,
-            'floating' : self.floating,
-            'dock_areas' : [da.to_dict() for da in self.dock_areas]
-        }
-
-class SidebarLocation(enum.Enum):
-    TOP = 'top'
-    LEFT = 'left'
-    RIGHT = 'right'
-    BOTTOM = 'bottom'
-
-    def __str__(self) -> str:
-        return self.value
-    
-    @classmethod
-    def from_str(cls, v:str) -> "SidebarLocation":
-        return cls(v)
-    
-    @classmethod
-    def from_ads(cls, v:int) -> "SidebarLocation":
-        lookup = {
-            QtAds.SideBarLeft.value : cls.LEFT,
-            QtAds.SideBarTop.value : cls.TOP,
-            QtAds.SideBarBottom.value : cls.BOTTOM,
-            QtAds.SideBarRight.value : cls.RIGHT,
-        }
-
-        return lookup[v]
-
-@dataclass
-class SerializableSideBarComponent:
-    TYPE = 'sidebar_component'
-    sidebar_location:SidebarLocation
-    component:SerializableComponent
-
-    def to_dict(self) -> Dict[str, Any]:
-        return {
-            'type' : self.TYPE,
-            'sidebar_location' : str(self.sidebar_location),
-            'component' : self.component.to_dict()
-        }
-
-@dataclass
-class SerializableDashboard:
-    TYPE = 'dashboard'
-
-    containers:List[SerializableContainer]
-    sidebar_components:List[SerializableSideBarComponent]
-
-    def to_dict(self) -> Dict[str, Any]:
-        return {
-            'type':self.TYPE,
-            'containers' : [c.to_dict() for c in self.containers],
-            'sidebar_components' : [sc.to_dict() for sc in self.sidebar_components]
-        }
-
-class SplitterOrientation(enum.Enum):
-    VERTICAL = 'vertical'
-    HORIZONTAL = 'horizontal'
-
-    def __str__(self) -> str:
-        return self.value
-    
-    @classmethod
-    def from_str(cls, v:str) -> "SidebarLocation":
-        return cls(v)
-    
-    @classmethod
-    def from_qt(cls, v:Qt.Orientation) -> "SidebarLocation":
-        lookup = {
-            Qt.Orientation.Vertical : cls.VERTICAL,
-            Qt.Orientation.Horizontal : cls.HORIZONTAL,
-        }
-
-        return lookup[v]
-
-@dataclass
-class SerializableSplitter:
-    TYPE = 'splitter'
-
-    orientation:SplitterOrientation
-    sizes:List[int]
-    content:List[Union["SerializableSplitter", "SerializableDockArea"]]
-
-    def to_dict(self) -> Dict[str, Any]:
-        return {
-            'type' : self.TYPE,
-            'orientation' : str(self.orientation),
-            'sizes' : self.sizes,
-            'content' : [elem.to_dict() for elem in self.content]
-        }
-
 
 class Dashboard(QWidget):
+    FILE_FORMAT_VERSION = 1
+    MAX_FILE_SIZE_TO_LOAD = 64*1024*1024
+
     _main_window:"MainWindow"
     _dock_manager:QtAds.CDockManager
     _dock_conainer:QWidget
@@ -300,70 +167,51 @@ class Dashboard(QWidget):
         self._dock_manager.deleteLater()
 
     def save(self) -> None:
-        dashboard_struct = SerializableDashboard(containers=[], sidebar_components=[])
-        ads_containers = self._dock_manager.dockContainers()
-        for ads_container in ads_containers:
-            container = SerializableContainer(
-                floating=ads_container.isFloating(),
-                dock_areas=[]
-                )
-            dashboard_struct.containers.append(container)
-            for i in range(ads_container.dockAreaCount()):
-                pass
+#        dashboard_struct = SerializableDashboard(containers=[], sidebar_components=[])
+#        ads_containers = self._dock_manager.dockContainers()
+#        for ads_container in ads_containers:
+#            container = SerializableContainer(
+#                floating=ads_container.isFloating(),
+#                dock_areas=[]
+#                )
+#            dashboard_struct.containers.append(container)
+#            for i in range(ads_container.dockAreaCount()):
+#                pass
+#        
+#        ads_autohide_containers = ads_container.autoHideWidgets()
+#        for ads_autohide_container in ads_autohide_containers:
+#            ads_dock_widget = ads_autohide_container.dockWidget()
+#            scrutiny_component = cast(ScrutinyGUIBaseComponent, ads_dock_widget.widget())
+#            sidebar_component = SerializableSideBarComponent(
+#                sidebar_location=SidebarLocation.from_ads(ads_autohide_container.sideBarLocation()),
+#                component=SerializableComponent(
+#                    title=ads_dock_widget.tabWidget().text(),
+#                    type=scrutiny_component.get_type_id(),
+#                    state=scrutiny_component.get_state()
+#                )
+#            )
+#            dashboard_struct.sidebar_components.append(sidebar_component)
+
+
+        filepath = prompt.get_save_filepath_from_last_save_dir(self, ".scdb")
+        if filepath is None:
+            return
         
-        ads_autohide_containers = ads_container.autoHideWidgets()
-        for ads_autohide_container in ads_autohide_containers:
-            ads_dock_widget = ads_autohide_container.dockWidget()
-            scrutiny_component = cast(ScrutinyGUIBaseComponent, ads_dock_widget.widget())
-            sidebar_component = SerializableSideBarComponent(
-                sidebar_location=SidebarLocation.from_ads(ads_autohide_container.sideBarLocation()),
-                component=SerializableComponent(
-                    title=ads_dock_widget.tabWidget().text(),
-                    type=scrutiny_component.get_type_id(),
-                    state=scrutiny_component.get_state()
-                )
-            )
-            dashboard_struct.sidebar_components.append(sidebar_component)
-
-
-        x = self.get_struct_recursive(self._dock_manager.rootSplitter())
-
-
-        print(json.dumps(x.to_dict(), indent=4))
-
-    def get_struct_recursive(self, parent:Union[QtAds.CDockSplitter, QtAds.CDockAreaWidget]) -> Union[SerializableSplitter, SerializableDockArea]:
-
-        if isinstance(parent, QtAds.CDockSplitter):
-            splitter = cast(QSplitter, parent)    # Better type hint
-            out = SerializableSplitter(
-                orientation=SplitterOrientation.from_qt(splitter.orientation()),
-                sizes=splitter.sizes(),
-                content=[]
-            )
-
-            for i in range(splitter.count()):
-                children = self.get_struct_recursive(splitter.widget(i))
-                out.content.append(children)
-            return out
-        elif isinstance(parent, QtAds.CDockAreaWidget):
-            ads_dock_area = parent
-            dock_area = SerializableDockArea(
-                dock_widgets=[]
-            )
-            for j in range(ads_dock_area.dockWidgetsCount()):
-                ads_dock_widget = ads_dock_area.dockWidget(j)
-                scrutiny_component = cast(ScrutinyGUIBaseComponent, ads_dock_widget.widget())
-                dock_widget = SerializableDockWidget(
-                    current_tab = ads_dock_widget.isCurrentTab(),
-                    component=SerializableComponent(
-                        title=ads_dock_widget.tabWidget().text(),
-                        type=scrutiny_component.get_type_id(),
-                        state=scrutiny_component.get_state()
-                    )
-                )
-                dock_area.dock_widgets.append(dock_widget)
-            return dock_area
-        raise NotImplementedError("Cannot dump")
+        try:
+            # When v2 exist, add a class swapping mechanism
+            data = DashboardFileFormatV1.content_from_dock_manager(self._dock_manager)
+        except Exception as e:
+            tools.log_exception(self._logger, e, "Internal error while saving the dashboard")
+            prompt.exception_msgbox(title="Error while saving", parent=self, exception=e, message="Internal error while saving the dashboard")
+            return
+        
+        try:
+            with open(filepath, 'wb') as f:
+                f.write(data)
+        except Exception as e:
+            prompt.exception_msgbox(title="Failed to save dashboard", parent=self, exception=e, message="Failed to save dashboard")
+            tools.log_exception(self._logger, e, "Failed to save")
+            return
 
     def clear(self) -> None:
         dock_widgets = self._dock_manager.dockWidgetsMap()
@@ -372,17 +220,28 @@ class Dashboard(QWidget):
 
 
     def open(self) -> None:
-        watch1 = self.create_new_component(WatchComponent)
-        watch1.tabWidget().setText("watch1")
-        watch2 = self.create_new_component(WatchComponent)
-        watch2.tabWidget().setText("watch2")
-        watch3 = self.create_new_component(WatchComponent)
-        watch3.tabWidget().setText("watch3")
-        watch4 = self.create_new_component(WatchComponent)
-        watch4.tabWidget().setText("watch4")
-        self._dock_manager.addDockWidgetTab(QtAds.TopDockWidgetArea, watch1)
-        self._dock_manager.addDockWidgetTab(QtAds.TopDockWidgetArea, watch2)
-        self._dock_manager.addDockWidgetTab(QtAds.RightDockWidgetArea, watch3)
-        self._dock_manager.addDockWidgetTab(QtAds.RightDockWidgetArea, watch4)
+        filepath = prompt.get_open_filepath_from_last_save_dir(self, ".scdb")
+        if filepath is None:
+            return
         
+        if not os.path.isfile(filepath):
+            prompt.error_msgbox(self, "File not found", f"File {filepath} does not exist")
+            return
+        
+        filesize = os.path.getsize(filepath)
+        if filesize > self.MAX_FILE_SIZE_TO_LOAD:
+            prompt.error_msgbox(self, "File too big", f"File {filepath} has a size of {filesize} bytes. This is unusual for a dashboard.\n Will not load. (max={self.MAX_FILE_SIZE_TO_LOAD}).")
+            return
+        
+        try:
+            with open(filepath, 'rb') as f:
+                decoded = DashboardFileFormatV1.read_from_file(f)
+        except Exception as e:
+            prompt.exception_msgbox(title="Failed to open dashboard", parent=self, exception=e, message="Failed to parse the dashboard file. JSON is invalid")
+            tools.log_exception(self._logger, e, "Failed to open")
+            return 
+        
+        #
+        self.clear()
+
     

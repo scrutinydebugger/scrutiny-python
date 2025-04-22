@@ -22,7 +22,7 @@ from scrutiny.gui.widgets.component_sidebar import ComponentSidebar
 from scrutiny.gui.widgets.status_bar import StatusBar
 from scrutiny.gui.widgets.menu_bar import MenuBar
 from scrutiny.gui.dialogs.server_config_dialog import ServerConfigDialog
-from scrutiny.gui.dashboard import Dashboard
+from scrutiny.gui.dashboard.dashboard import Dashboard
 
 from scrutiny.gui.components.user.base_user_component import ScrutinyGUIBaseUserComponent
 from scrutiny.gui.components.globals.base_global_component import ScrutinyGUIBaseGlobalComponent
