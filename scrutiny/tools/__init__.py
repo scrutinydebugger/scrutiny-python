@@ -237,7 +237,6 @@ def run_in_thread(fn:Callable[..., T], sync_var:Optional[ThreadSyncer[T]]=None) 
     fn2 = fn if sync_var is None else sync_var.executor_func(fn)
     thread = threading.Thread(target = fn2, daemon=True)
     thread.start()
-
 @dataclass
 class MutableInt:
     """Helper to pass a int by reference"""
@@ -262,6 +261,22 @@ class MutableNullableFloat:
 class MutableBool:
     """Helper to pass a bool by reference"""
     val:bool
+
+    def set(self) -> None:
+        self.val = True
+    
+    def clear(self) -> None:
+        self.val = False
+
+    def __eq__(self, other:Any) -> bool:
+        if isinstance(other, bool):
+            return self.val == other
+        if isinstance(other, MutableBool):
+            return self.val == other.val
+        return False
+    
+    def __bool__(self) -> bool:
+        return self.val
 
 @dataclass
 class MutableNullableBool:

@@ -12,7 +12,7 @@ from abc import abstractmethod
 
 from PySide6.QtWidgets import QWidget
 from PySide6.QtGui import QIcon
-from typing import cast, TYPE_CHECKING, Dict, Any
+from typing import cast, TYPE_CHECKING, Dict, Any, Type, Optional
 
 from scrutiny.gui.core.server_manager import ServerManager
 from scrutiny.gui.core.watchable_registry import WatchableRegistry
@@ -39,6 +39,18 @@ class ScrutinyGUIBaseComponent(QWidget):
         self.watchable_registry=watchable_registry
         self.logger = logging.getLogger(self.__class__.__name__)
         super().__init__()
+
+    @classmethod
+    def class_from_type_id(cls:Type["ScrutinyGUIBaseComponent"], type_id:str) -> Optional[Type["ScrutinyGUIBaseComponent"]]:
+        def find_recursive(parent_class:Type["ScrutinyGUIBaseComponent"], type_id:str) -> Optional[Type["ScrutinyGUIBaseComponent"]]:
+            for subclass in parent_class.__subclasses__():
+                if hasattr(subclass, '_TYPE_ID'):
+                    if subclass.get_type_id() == type_id:
+                        return subclass
+                else:
+                    return find_recursive(subclass, type_id)
+            return None
+        return find_recursive(ScrutinyGUIBaseComponent, type_id)    # type: ignore
 
     @classmethod
     def get_icon(cls) -> QIcon:
