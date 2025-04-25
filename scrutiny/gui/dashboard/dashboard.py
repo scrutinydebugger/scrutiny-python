@@ -6,7 +6,7 @@ import json
 from datetime import datetime
 
 from PySide6.QtWidgets import QWidget, QVBoxLayout, QHBoxLayout
-from PySide6.QtCore import Qt
+from PySide6.QtCore import Qt, QSize
 
 import PySide6QtAds  as QtAds   # type: ignore
 import shiboken6
@@ -204,7 +204,7 @@ class Dashboard(QWidget):
         try:
             dashboard_struct = dashboard_file_format.SerializableDashboard(
                 main_container = dashboard_file_format.serialize_container(self._dock_manager),
-                floating_containers=[], # Added below
+                windows=[], # Added below
                 file_version=1,
                 scrutiny_version=scrutiny.__version__,
                 metadata={
@@ -214,8 +214,7 @@ class Dashboard(QWidget):
 
             ads_floating_dock_containers = self._dock_manager.floatingWidgets()
             for ads_floating_dock_container in ads_floating_dock_containers:
-                ads_dock_container = ads_floating_dock_container.dockContainer()
-                dashboard_struct.floating_containers.append(dashboard_file_format.serialize_container(ads_dock_container))
+                dashboard_struct.windows.append(dashboard_file_format.serialize_floating_container(ads_floating_dock_container))
 
             dashboard_json = json.dumps(dashboard_struct.to_dict(), indent=2)
 
@@ -265,14 +264,15 @@ class Dashboard(QWidget):
             return 
         
         self.clear()
-        self._restore_splitpane_recursive(self._dock_manager, serialized_dashboard.main_container.root_splitter)
+        self._restore_splitpane_recursive(serialized_dashboard.main_container.root_splitter)
         self._restore_sidebar_components(self._dock_manager, serialized_dashboard.main_container.sidebar_components)
 
-        for floating_container in serialized_dashboard.floating_containers:
+        for window in serialized_dashboard.windows:
             placeholder = self._create_placeholder_dock_widget()
             ads_floating_container = self._dock_manager.addDockWidgetFloating(placeholder)
-            self._restore_splitpane_recursive(ads_floating_container.dockContainer(), floating_container.root_splitter, first_ads_dock_area=placeholder.dockAreaWidget())
-            self._restore_sidebar_components(ads_floating_container.dockContainer(), floating_container.sidebar_components)
+            ads_floating_container.resize(QSize(window.width, window.height))
+            self._restore_splitpane_recursive(window.container.root_splitter, first_ads_dock_area=placeholder.dockAreaWidget())
+            self._restore_sidebar_components(ads_floating_container.dockContainer(), window.container.sidebar_components)
             placeholder.deleteDockWidget()
 
     def _configure_new_dock_widget(self, widget:QtAds.CDockWidget) -> None:
@@ -308,7 +308,6 @@ class Dashboard(QWidget):
         return component_dock_widget
 
     def _restore_splitpane_recursive(self,
-                           top_level_container:QtAds.CDockContainerWidget,  
                            s_splitter:dashboard_file_format.SerializableSplitter, 
                            first_ads_dock_area:Optional[QtAds.CDockAreaWidget] = None,
                            mutable_data:Optional[BuildSplitterRecursiveMutableData]=None,
@@ -360,7 +359,7 @@ class Dashboard(QWidget):
                 insert_dock_area = ads_dock_areas[-1]
                 insert_direction = ads_area_direction
             
-            ads_dock_area = top_level_container.addDockWidget(insert_direction, ads_placeholder_widget, insert_dock_area)
+            ads_dock_area = self._dock_manager.addDockWidget(insert_direction, ads_placeholder_widget, insert_dock_area)
             ads_dock_areas.append(ads_dock_area)
         
         # We need to apply the splitter sizes at the very end because adding dock widgets causes containers to be deleted and recreated, which
@@ -381,14 +380,19 @@ class Dashboard(QWidget):
                     name_suffix=new_suffix,
                     top_level=False
                 )
-                self._restore_splitpane_recursive(top_level_container, s_child_node, ads_dock_areas[i], mutable_data=mutable_data, immutable_data=new_immutable_data)
+                self._restore_splitpane_recursive(s_child_node, ads_dock_areas[i], mutable_data=mutable_data, immutable_data=new_immutable_data)
             elif isinstance(s_child_node, dashboard_file_format.SerializableDockArea):
+                current_widget:Optional[QtAds.CDockWidget] = None
                 for s_dock_widget in s_child_node.dock_widgets:
                     component_dock_widget = self._create_dock_widget_from_component_serialized(s_dock_widget.component)
                     if component_dock_widget is None:
                         continue
-                    # Todo : Handle active tab
-                    top_level_container.addDockWidget(QtAds.CenterDockWidgetArea, component_dock_widget, ads_dock_areas[i])
+                    
+                    self._dock_manager.addDockWidget(QtAds.CenterDockWidgetArea, component_dock_widget, ads_dock_areas[i])
+                    if s_dock_widget.current_tab:
+                        current_widget = component_dock_widget
+                if current_widget is not None:
+                    ads_dock_areas[i].setCurrentDockWidget(current_widget)
 
         # Our splitter is fully created, remove the placeholders.
         for i in range(len(placeholder_widgets)):

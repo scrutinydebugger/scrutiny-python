@@ -48,6 +48,11 @@ class SerializableComponent:
             state = d['state']
         )
 
+    def __post_init__(self) -> None:
+        assert isinstance(self.title, str)
+        assert isinstance(self.type_id, str)
+        assert isinstance(self.state, dict)        
+
 
 @dataclass
 class SerializableDockWidget:
@@ -76,6 +81,10 @@ class SerializableDockWidget:
             current_tab = d['current_tab'],
             component = SerializableComponent.from_dict(d['component'])
         )
+    
+    def __post_init__(self) -> None:
+        assert isinstance(self.current_tab, bool)
+        assert isinstance(self.component, SerializableComponent)
 
 @dataclass
 class SerializableDockArea:
@@ -105,7 +114,11 @@ class SerializableDockArea:
         return cls(
             dock_widgets=dock_widgets
         )
-
+    
+    def __post_init__(self) -> None:
+        assert isinstance(self.dock_widgets, list)
+        for dw in self.dock_widgets:
+            assert isinstance(dw, SerializableDockWidget)
 
 class SidebarLocation(enum.Enum):
     TOP = 'top'
@@ -248,7 +261,16 @@ class SerializableSplitter:
             sizes = d['sizes'],
             content = content
         )
+    
+    def __post_init__(self) -> None:
+        assert isinstance(self.orientation, SplitterOrientation)
+        assert isinstance(self.sizes, list)
+        for v in self.sizes:
+            assert isinstance(v, int)
 
+        assert isinstance(self.content, list)
+        for element in self.content:
+            assert isinstance(element, (SerializableSplitter, SerializableDockArea) )
 
 @dataclass
 class SerializableContainer:
@@ -286,11 +308,49 @@ class SerializableContainer:
             assert isinstance(x, SerializableSideBarComponent)
 
 @dataclass
+class SerializableWindow:
+    TYPE = 'window'
+
+    container:SerializableContainer
+    width:int
+    height:int
+
+    def to_dict(self) -> Dict[str, Any]:
+        return {
+            'type' : self.TYPE,
+            'container' : self.container.to_dict(),
+            'width' : self.width,
+            'height' : self.height
+        }
+    
+    @classmethod
+    def from_dict(cls, d:Dict[str, Any]) -> Self:
+        validation.assert_dict_key(d, 'type', str)
+        validation.assert_dict_key(d, 'container', dict)
+        validation.assert_dict_key(d, 'width', int)
+        validation.assert_dict_key(d, 'height', int)
+
+        if d['type'] != cls.TYPE:
+            raise ValueError(f"Expected node of type {cls.TYPE}, got {d['type']}")
+
+        return cls(
+            container=SerializableContainer.from_dict(d['container']),
+            width=d['width'],
+            height=d['height']
+        )
+
+    def __post_init__(self) -> None:
+        assert isinstance(self.container, SerializableContainer)
+        assert isinstance(self.width, int)
+        assert isinstance(self.height, int)
+
+
+@dataclass
 class SerializableDashboard:
     TYPE = 'dashboard'
 
     main_container:SerializableContainer
-    floating_containers:List[SerializableContainer]
+    windows:List[SerializableWindow]
     metadata:Dict[str,str]
     file_version: int
     scrutiny_version:str
@@ -299,7 +359,7 @@ class SerializableDashboard:
         return {
             'type':self.TYPE,
             'main_container' : self.main_container.to_dict(),
-            'floating_containers' : [fc.to_dict() for fc in self.floating_containers],
+            'windows' : [win.to_dict() for win in self.windows],
             'file_version' : self.file_version,
             'scrutiny_version' : self.scrutiny_version,
             'metadata' : self.metadata
@@ -309,9 +369,9 @@ class SerializableDashboard:
     def from_dict(cls, d:Dict[str, Any]) -> Self:
         validation.assert_dict_key(d, 'type', str)
         validation.assert_dict_key(d, 'main_container', dict)
-        validation.assert_dict_key(d, 'floating_containers', list)
-        for x in d['floating_containers']:
-            validation.assert_type(x, 'container["floating_containers"][...]', dict)
+        validation.assert_dict_key(d, 'windows', list)
+        for x in d['windows']:
+            validation.assert_type(x, 'container["windows"][...]', dict)
         validation.assert_dict_key(d, 'file_version', int)
         validation.assert_dict_key(d, 'scrutiny_version', (str, float))
 
@@ -323,11 +383,20 @@ class SerializableDashboard:
 
         return cls(
             main_container=SerializableContainer.from_dict(d['main_container']),
-            floating_containers = [SerializableContainer.from_dict(x) for x in d['floating_containers']],
+            windows = [SerializableWindow.from_dict(x) for x in d['windows']],
             file_version = d['file_version'],
             metadata = d.get('metadata', {}),
             scrutiny_version=str(d['scrutiny_version'])
         )
+    
+    def __post_init__(self) -> None:
+        assert isinstance(self.main_container, SerializableContainer)
+        assert isinstance(self.windows, list)
+        for win in self.windows:
+            assert isinstance(win, SerializableWindow)
+        assert isinstance(self.metadata, dict)
+        assert isinstance(self.file_version, int)
+        assert isinstance(self.scrutiny_version, str)
     
 def _get_sidebar_components_from_container(container:QtAds.CDockContainerWidget) -> List[SerializableSideBarComponent]:
     outlist: List[SerializableSideBarComponent] = []
@@ -390,4 +459,11 @@ def serialize_container(dock_container:QtAds.CDockContainerWidget) -> Serializab
     return SerializableContainer(
         root_splitter=cast(SerializableSplitter, _get_container_splitter_recursive(dock_container.rootSplitter())),
         sidebar_components=_get_sidebar_components_from_container(dock_container)
+    )
+
+def serialize_floating_container(floating_dock_container:QtAds.CFloatingDockContainer) -> SerializableWindow:
+    return SerializableWindow(
+        container=serialize_container(floating_dock_container.dockContainer()),
+        height=floating_dock_container.size().height(),
+        width=floating_dock_container.size().width()
     )
