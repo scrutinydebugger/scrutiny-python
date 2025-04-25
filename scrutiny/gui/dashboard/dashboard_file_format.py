@@ -386,27 +386,8 @@ def _get_container_splitter_recursive(parent:Union[QtAds.CDockSplitter, QtAds.CD
         return dock_area
     raise NotImplementedError("Unsupported widget type inside dock manager")
 
-def _serialize_container(dock_container:QtAds.CDockContainerWidget) -> SerializableContainer:
+def serialize_container(dock_container:QtAds.CDockContainerWidget) -> SerializableContainer:
     return SerializableContainer(
         root_splitter=cast(SerializableSplitter, _get_container_splitter_recursive(dock_container.rootSplitter())),
         sidebar_components=_get_sidebar_components_from_container(dock_container)
     )
-
-def content_from_dock_manager(dock_manager:QtAds.CDockManager) -> bytes:
-    dashboard_struct = SerializableDashboard(
-        main_container=_serialize_container(dock_manager),
-        floating_containers=[],
-        file_version=1,
-        scrutiny_version=scrutiny.__version__,
-        metadata={
-            'created_on' : datetime.now().astimezone().strftime(r'%Y-%m-%d %H:%M:%S')
-        }
-    )
-    dashboard_json = json.dumps(dashboard_struct.to_dict(), indent=4)
-    return dashboard_json.encode('utf8')
-
-def read_from_file(f:"SupportsRead[bytes]") ->  SerializableDashboard:
-    content = json.load(f)
-    return SerializableDashboard.from_dict(content)
-
-    

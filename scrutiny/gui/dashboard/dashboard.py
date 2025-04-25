@@ -2,13 +2,16 @@ import logging
 from dataclasses import dataclass
 import os
 from uuid import uuid4
+import json
+from datetime import datetime
 
-from PySide6.QtWidgets import QWidget, QVBoxLayout, QHBoxLayout, QSplitter
-from PySide6.QtCore import Qt, QTimer, QXmlStreamWriter, QFile
+from PySide6.QtWidgets import QWidget, QVBoxLayout, QHBoxLayout
+from PySide6.QtCore import Qt
 
 import PySide6QtAds  as QtAds   # type: ignore
 import shiboken6
 
+import scrutiny
 from scrutiny.gui.components.user.base_user_component import ScrutinyGUIBaseUserComponent
 from scrutiny.gui.components.globals.base_global_component import ScrutinyGUIBaseGlobalComponent
 from scrutiny.gui.components.base_component import ScrutinyGUIBaseComponent
@@ -47,6 +50,7 @@ class BuildSplitterRecursiveImmutableData:
     top_level : bool
 
 class Dashboard(QWidget):
+    FILE_EXT = ".scdb"
     FILE_FORMAT_VERSION = 1
     MAX_FILE_SIZE_TO_LOAD = 64*1024*1024
 
@@ -112,13 +116,12 @@ class Dashboard(QWidget):
         
         try:
             widget = component_class(self._main_window, name, self._main_window.get_watchable_registry(), self._main_window.get_server_manager())
-            if app_settings().opengl_enabled:
-                prepare_for_opengl(widget)  # On every widget. Flaating widget creates a new window -> Must be done on each window
         except Exception as e:
             tools.log_exception(self._logger, e, f"Failed to create a dashboard component of type {component_class.__name__}")    
             return
         
         dock_widget = QtAds.CDockWidget(component_class.get_name())
+        self._configure_new_dock_widget(dock_widget)
         if widget.instance_name in self._dock_manager.dockWidgetsMap():
             self._logger.error(f"Duplicate dashboard instance name {widget.instance_name}.")
         dock_widget.setObjectName(widget.instance_name) # Name required to be unique by QT ADS.
@@ -193,39 +196,29 @@ class Dashboard(QWidget):
         self._dock_manager.deleteLater()
 
     def save(self) -> None:
-#        dashboard_struct = SerializableDashboard(containers=[], sidebar_components=[])
-#        ads_containers = self._dock_manager.dockContainers()
-#        for ads_container in ads_containers:
-#            container = SerializableContainer(
-#                floating=ads_container.isFloating(),
-#                dock_areas=[]
-#                )
-#            dashboard_struct.containers.append(container)
-#            for i in range(ads_container.dockAreaCount()):
-#                pass
-#        
-#        ads_autohide_containers = ads_container.autoHideWidgets()
-#        for ads_autohide_container in ads_autohide_containers:
-#            ads_dock_widget = ads_autohide_container.dockWidget()
-#            scrutiny_component = cast(ScrutinyGUIBaseComponent, ads_dock_widget.widget())
-#            sidebar_component = SerializableSideBarComponent(
-#                sidebar_location=SidebarLocation.from_ads(ads_autohide_container.sideBarLocation()),
-#                component=SerializableComponent(
-#                    title=ads_dock_widget.tabWidget().text(),
-#                    type=scrutiny_component.get_type_id(),
-#                    state=scrutiny_component.get_state()
-#                )
-#            )
-#            dashboard_struct.sidebar_components.append(sidebar_component)
-
-
-        filepath = prompt.get_save_filepath_from_last_save_dir(self, ".scdb")
+        """Export the actual dashboard to a file that can be reloaded later"""
+        filepath = prompt.get_save_filepath_from_last_save_dir(self, self.FILE_EXT)
         if filepath is None:
             return
         
         try:
-            # When v2 exist, add a class swapping mechanism
-            data = dashboard_file_format.content_from_dock_manager(self._dock_manager)
+            dashboard_struct = dashboard_file_format.SerializableDashboard(
+                main_container = dashboard_file_format.serialize_container(self._dock_manager),
+                floating_containers=[], # Added below
+                file_version=1,
+                scrutiny_version=scrutiny.__version__,
+                metadata={
+                    'created_on' : datetime.now().astimezone().strftime(r'%Y-%m-%d %H:%M:%S')
+                }
+            )
+
+            ads_floating_dock_containers = self._dock_manager.floatingWidgets()
+            for ads_floating_dock_container in ads_floating_dock_containers:
+                ads_dock_container = ads_floating_dock_container.dockContainer()
+                dashboard_struct.floating_containers.append(dashboard_file_format.serialize_container(ads_dock_container))
+
+            dashboard_json = json.dumps(dashboard_struct.to_dict(), indent=2)
+
         except Exception as e:
             tools.log_exception(self._logger, e, "Internal error while saving the dashboard")
             prompt.exception_msgbox(title="Error while saving", parent=self, exception=e, message="Internal error while saving the dashboard")
@@ -233,19 +226,23 @@ class Dashboard(QWidget):
         
         try:
             with open(filepath, 'wb') as f:
-                f.write(data)
+                f.write(dashboard_json.encode('utf8'))
         except Exception as e:
             prompt.exception_msgbox(title="Failed to save dashboard", parent=self, exception=e, message="Failed to save dashboard")
             tools.log_exception(self._logger, e, "Failed to save")
             return
 
     def clear(self) -> None:
+        """Removes everything from the dashboard. 
+        The ADS internal map maps object name to the widget. title is used if no object name is explicitly set before registration.
+        Colliding names may cause this map to not return all the references, leaving some stray widget after clear.
+        """
         dock_widgets = self._dock_manager.dockWidgetsMap()
         for title, dock_widget in dock_widgets.items():
-            dock_widget.closeDockWidget()
+            dock_widget.closeDockWidget()   # Widgets are supposed to be "deleteOnClose". Will trigger the destroy callback that will call each component teardown()
 
     def open(self) -> None:
-        filepath = prompt.get_open_filepath_from_last_save_dir(self, ".scdb")
+        filepath = prompt.get_open_filepath_from_last_save_dir(self, self.FILE_EXT)
         if filepath is None:
             return
         
@@ -260,16 +257,36 @@ class Dashboard(QWidget):
         
         try:
             with open(filepath, 'rb') as f:
-                decoded = dashboard_file_format.read_from_file(f)
+                json_decoded = json.load(f)
+                serialized_dashboard = dashboard_file_format.SerializableDashboard.from_dict(json_decoded)
         except Exception as e:
             prompt.exception_msgbox(title="Failed to open dashboard", parent=self, exception=e, message="Failed to parse the dashboard file. JSON is invalid")
             tools.log_exception(self._logger, e, "Failed to open")
             return 
         
-        
         self.clear()
-        self.build_splitter_recursive(self._dock_manager, decoded.main_container.root_splitter)
-        self.load_sidebar_components(self._dock_manager, decoded.main_container.sidebar_components)
+        self._restore_splitpane_recursive(self._dock_manager, serialized_dashboard.main_container.root_splitter)
+        self._restore_sidebar_components(self._dock_manager, serialized_dashboard.main_container.sidebar_components)
+
+        for floating_container in serialized_dashboard.floating_containers:
+            placeholder = self._create_placeholder_dock_widget()
+            ads_floating_container = self._dock_manager.addDockWidgetFloating(placeholder)
+            self._restore_splitpane_recursive(ads_floating_container.dockContainer(), floating_container.root_splitter, first_ads_dock_area=placeholder.dockAreaWidget())
+            self._restore_sidebar_components(ads_floating_container.dockContainer(), floating_container.sidebar_components)
+            placeholder.deleteDockWidget()
+
+    def _configure_new_dock_widget(self, widget:QtAds.CDockWidget) -> None:
+        if app_settings().opengl_enabled:
+            prepare_for_opengl(widget)
+    
+    def _create_placeholder_dock_widget(self, title:Optional[str] = None) -> QtAds.CDockWidget:
+        if title is None:
+            title = "placeholder"
+        dock_widget = QtAds.CDockWidget(title)
+        dock_widget.setObjectName(uuid4().hex)
+        self._configure_new_dock_widget(dock_widget)
+        return dock_widget
+
 
     def _find_parent_splitter(self, dock_area:QtAds.CDockAreaWidget) -> Optional[QtAds.CDockSplitter]:
         """Finds the splitter that owns a dock area"""
@@ -280,7 +297,7 @@ class Dashboard(QWidget):
             parent = parent.parent()
         return None
 
-    def create_dock_widget_from_component_serialized(self, s_component:dashboard_file_format.SerializableComponent) -> Optional[QtAds.CDockWidget]:
+    def _create_dock_widget_from_component_serialized(self, s_component:dashboard_file_format.SerializableComponent) -> Optional[QtAds.CDockWidget]:
         component_class = ScrutinyGUIBaseComponent.class_from_type_id(s_component.type_id)
         if component_class is None:
             self._logger.warning(f"Unknown dashboard component : id={s_component.type_id}")
@@ -290,7 +307,7 @@ class Dashboard(QWidget):
         component_dock_widget.tabWidget().setText(s_component.title)
         return component_dock_widget
 
-    def build_splitter_recursive(self,
+    def _restore_splitpane_recursive(self,
                            top_level_container:QtAds.CDockContainerWidget,  
                            s_splitter:dashboard_file_format.SerializableSplitter, 
                            first_ads_dock_area:Optional[QtAds.CDockAreaWidget] = None,
@@ -302,7 +319,7 @@ class Dashboard(QWidget):
         We do not have access to internal ADS dunction to create splitters and containers, so we rely on a workaround
         that consist of adding a series of placeholders widget to create dock areas, fill the dock area then delete the placeholder.
 
-        Mutable data is sahred for each recursive call.
+        Mutable data is shared for each recursive call.
         Immurable data is copied for each sub call
         """
 
@@ -335,8 +352,7 @@ class Dashboard(QWidget):
 
             # First, we create a placeholder and add it
             new_suffix = f"{immutable_data.name_suffix}_{i}"
-            ads_placeholder_widget = QtAds.CDockWidget(f"placeholder_{new_suffix}")
-            ads_placeholder_widget.setObjectName(uuid4().hex) # Name required to be unique by QT ADS.
+            ads_placeholder_widget = self._create_placeholder_dock_widget(f"placeholder_{new_suffix}")
             placeholder_widgets.append(ads_placeholder_widget)
 
             if i > 0:
@@ -365,10 +381,10 @@ class Dashboard(QWidget):
                     name_suffix=new_suffix,
                     top_level=False
                 )
-                self.build_splitter_recursive(top_level_container, s_child_node, ads_dock_areas[i], mutable_data=mutable_data, immutable_data=new_immutable_data)
+                self._restore_splitpane_recursive(top_level_container, s_child_node, ads_dock_areas[i], mutable_data=mutable_data, immutable_data=new_immutable_data)
             elif isinstance(s_child_node, dashboard_file_format.SerializableDockArea):
                 for s_dock_widget in s_child_node.dock_widgets:
-                    component_dock_widget = self.create_dock_widget_from_component_serialized(s_dock_widget.component)
+                    component_dock_widget = self._create_dock_widget_from_component_serialized(s_dock_widget.component)
                     if component_dock_widget is None:
                         continue
                     # Todo : Handle active tab
@@ -379,12 +395,12 @@ class Dashboard(QWidget):
             placeholder_widgets[i].deleteDockWidget()
         placeholder_widgets.clear()
 
-        # We're done creating/deleteing containers and dock areas. Resizes every splitter now.
+        # We're done creating/deleting containers and dock areas. Resizes every splitter now.
         if immutable_data.top_level:
             for splitter_size_pair in mutable_data.splitter_sizes:
                 splitter_size_pair.splitter.setSizes(splitter_size_pair.sizes)
 
-    def load_sidebar_components(self, 
+    def _restore_sidebar_components(self, 
                      dock_container:QtAds.CDockContainerWidget, 
                      s_sidebar_components:List[dashboard_file_format.SerializableSideBarComponent]
                      ) -> None:
@@ -393,7 +409,7 @@ class Dashboard(QWidget):
         """
 
         for s_sidebar_component in s_sidebar_components:    # For each sidebar component for that container
-            component_dock_widget = self.create_dock_widget_from_component_serialized(s_sidebar_component.component)
+            component_dock_widget = self._create_dock_widget_from_component_serialized(s_sidebar_component.component)
             if component_dock_widget is None:   # None if the scrutiny component is unknown
                 continue
             
