@@ -24,13 +24,13 @@ from scrutiny.gui.widgets.menu_bar import MenuBar
 from scrutiny.gui.dialogs.server_config_dialog import ServerConfigDialog
 from scrutiny.gui.dashboard.dashboard import Dashboard
 
-from scrutiny.gui.components.user.base_user_component import ScrutinyGUIBaseUserComponent
+from scrutiny.gui.components.locals.base_local_component import ScrutinyGUIBaseLocalComponent
 from scrutiny.gui.components.globals.base_global_component import ScrutinyGUIBaseGlobalComponent
 from scrutiny.gui.components.base_component import ScrutinyGUIBaseComponent
 from scrutiny.gui.components.globals.varlist.varlist_component import VarListComponent
-from scrutiny.gui.components.user.watch.watch_component import WatchComponent
-from scrutiny.gui.components.user.continuous_graph.continuous_graph_component import ContinuousGraphComponent
-from scrutiny.gui.components.user.embedded_graph.embedded_graph_component import EmbeddedGraph
+from scrutiny.gui.components.locals.watch.watch_component import WatchComponent
+from scrutiny.gui.components.locals.continuous_graph.continuous_graph_component import ContinuousGraphComponent
+from scrutiny.gui.components.locals.embedded_graph.embedded_graph_component import EmbeddedGraph
 from scrutiny.gui.components.globals.metrics.metrics_component import MetricsComponent
 
 from scrutiny.gui.core.server_manager import ServerManager
@@ -47,7 +47,7 @@ class MainWindow(QMainWindow):
         MetricsComponent
     ]
 
-    ENABLED_DASHBOARD_COMPONENTS:List[Type[ScrutinyGUIBaseUserComponent]] = [
+    ENABLED_LOCAL_COMPONENTS:List[Type[ScrutinyGUIBaseLocalComponent]] = [
         WatchComponent,
         ContinuousGraphComponent,
         EmbeddedGraph
@@ -122,13 +122,14 @@ class MainWindow(QMainWindow):
         hlayout.setContentsMargins(0,0,0,0)
         hlayout.setSpacing(0)
         
-        self._component_sidebar = ComponentSidebar(self.ENABLED_DASHBOARD_COMPONENTS)
+        self._component_sidebar = ComponentSidebar(
+            global_components=self.ENABLED_GLOBALS_COMPONENTS, 
+            local_components=self.ENABLED_LOCAL_COMPONENTS
+            )
         self.addToolBar(Qt.ToolBarArea.LeftToolBarArea, self._component_sidebar)
 
-        def add_component(component_class:Type[ScrutinyGUIBaseComponent]) -> None:
-            ads_dock_widget = self._dashboard.create_new_component(component_class=component_class)
-            self._dashboard.add_widget_to_default_location(ads_dock_widget)
-        self._component_sidebar.insert_component.connect(add_component)
+        self._component_sidebar.insert_local_component.connect(self._dashboard.add_local_component)
+        self._component_sidebar.show_global_component.connect(self._dashboard.show_or_create_global_component)
 
         hlayout.addWidget(self._dashboard)
         

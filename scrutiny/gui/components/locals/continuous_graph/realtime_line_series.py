@@ -13,7 +13,7 @@ from PySide6.QtCore import QPointF
 
 from scrutiny.gui.tools.min_max import MinMax
 from scrutiny.gui.widgets.base_chart import ScrutinyLineSeries
-from scrutiny.gui.components.user.continuous_graph.decimator import GraphMonotonicNonUniformMinMaxDecimator
+from scrutiny.gui.components.locals.continuous_graph.decimator import GraphMonotonicNonUniformMinMaxDecimator
 
 from scrutiny.tools.typing import *
 

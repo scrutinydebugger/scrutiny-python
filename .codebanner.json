@@ -480,13 +480,13 @@
         "scrutiny/gui/components/base_component.py": {
             "docstring": "A base class for a component that can be added to the GUI (globally or on the dashboard)"
         },
-        "scrutiny/gui/components/dashboard/embedded_graph/embedded_graph_component.py": {
+        "scrutiny/gui/components/locals/embedded_graph/embedded_graph_component.py": {
             "docstring": "A component to configure, trigger, view and browse embedded datalogging."
         },
         "scrutiny/gui/components/globals/varlist/varlist_component.py": {
             "docstring": "A component that shows the content of the watchable registry, a copy og what's available on the server"
         },
-        "scrutiny/gui/components/dashboard/watch/watch_component.py": {
+        "scrutiny/gui/components/locals/watch/watch_component.py": {
             "docstring": "A component to look at the value of watchable items broadcast by the server"
         },
         "scrutiny/sdk/pending_request.py": {
@@ -540,7 +540,7 @@
         "scrutiny/gui/widgets/watchable_tree.py": {
             "docstring": "An enhanced QTreeView with a data model dedicated to Watchables displayed in folder structure."
         },
-        "scrutiny/gui/components/dashboard/watch/watch_tree_model.py": {
+        "scrutiny/gui/components/locals/watch/watch_tree_model.py": {
             "docstring": "The data model used by the Watch component treeview"
         },
         "test/gui/fake_server_manager.py": {
@@ -591,7 +591,7 @@
         "scrutiny/gui/widgets/base_tree.py": {
             "docstring": "An extension of the QT QTreeView that suits this application. Defines some helper functions and common keyboard/mouse behaviors "
         },
-        "scrutiny/gui/components/dashboard/continuous_graph/continuous_graph_component.py": {
+        "scrutiny/gui/components/locals/continuous_graph/continuous_graph_component.py": {
             "docstring": "A component that makes a real time graphs of the values streamed by the server"
         },
         "scrutiny/tools/global_counters.py": {
@@ -630,7 +630,7 @@
         "scrutiny/gui/core/export_chart_csv.py": {
             "docstring": "Tools to export graphs to CSV format"
         },
-        "scrutiny/gui/components/dashboard/continuous_graph/decimator.py": {
+        "scrutiny/gui/components/locals/continuous_graph/decimator.py": {
             "docstring": "A data decimator meant to handle real-time data stream (monotonic time axis)"
         },
         "scrutiny/gui/tools/prompt.py": {
@@ -663,13 +663,13 @@
         "scrutiny/gui/core/user_messages_manager.py": {
             "docstring": "A manager that handles many toast-like messages with a duration but only shows one at the time. \nMeant to be connected to the status bar and exposed to the app as a service"
         },
-        "scrutiny/gui/components/dashboard/continuous_graph/csv_logging_menu.py": {
+        "scrutiny/gui/components/locals/continuous_graph/csv_logging_menu.py": {
             "docstring": "A widget used to configure the continuous CSV logger"
         },
-        "scrutiny/gui/components/dashboard/continuous_graph/realtime_line_series.py": {
+        "scrutiny/gui/components/locals/continuous_graph/realtime_line_series.py": {
             "docstring": "A extension of the QLineSeries meants for real-time graph. It includes a decimator and some inline stats computation"
         },
-        "scrutiny/gui/components/dashboard/continuous_graph/graph_statistics.py": {
+        "scrutiny/gui/components/locals/continuous_graph/graph_statistics.py": {
             "docstring": "A statistic overlay that can be displayed on the top of a graph"
         },
         "test/gui/test_graph_features.py": {
@@ -684,7 +684,7 @@
         "test/gui/manual/manual_test_base.py": {
             "docstring": "Common setup for all manual test files that launches a standalone apps for testing GUI elements"
         },
-        "scrutiny/gui/components/dashboard/embedded_graph/graph_config_widget.py": {
+        "scrutiny/gui/components/locals/embedded_graph/graph_config_widget.py": {
             "docstring": "A widget that let a user configure a datalogging configuration (except the list of signals). Meant to be used  in the EmbeddedGraph component"
         },
         "scrutiny/gui/widgets/watchable_line_edit.py": {
@@ -693,16 +693,16 @@
         "test/gui/manual/manual_test_embedded_graph_status_overlay.py": {
             "docstring": "A manual test suite that validates how the embedded graph status overlay behaves with resizes"
         },
-        "scrutiny/gui/components/dashboard/embedded_graph/chart_status_overlay.py": {
+        "scrutiny/gui/components/locals/embedded_graph/chart_status_overlay.py": {
             "docstring": "An overlay that can be applied on a chart to display a message with an icon. USed to display errors and loading messages"
         },
-        "scrutiny/gui/components/dashboard/embedded_graph/graph_browse_list_widget.py": {
+        "scrutiny/gui/components/locals/embedded_graph/graph_browse_list_widget.py": {
             "docstring": "A widget that show to the user a list of acquisitions available on the server. Communicate with the Embedded Graph widget through signals"
         },
         "scrutiny/server/sfd_storage.py": {
             "docstring": "Declaration of the server-wide SFD storage"
         },
-        "scrutiny/gui/components/dashboard/base_dashboard_component.py": {
+        "scrutiny/gui/components/locals/base_dashboard_component.py": {
             "docstring": "A base class for a component that can be added to the dashboard"
         },
         "scrutiny/gui/components/globals/base_global_component.py": {

@@ -6,7 +6,7 @@
 #
 #   Copyright (c) 2021 Scrutiny Debugger
 
-__all__ = ['ScrutinyGUIBaseUserComponent']
+__all__ = ['ScrutinyGUIBaseLocalComponent']
 
 from abc import ABC, abstractmethod
 
@@ -14,5 +14,5 @@ from abc import ABC, abstractmethod
 
 from scrutiny.gui.components.base_component import ScrutinyGUIBaseComponent
 
-class ScrutinyGUIBaseUserComponent(ScrutinyGUIBaseComponent):
+class ScrutinyGUIBaseLocalComponent(ScrutinyGUIBaseComponent):
     pass

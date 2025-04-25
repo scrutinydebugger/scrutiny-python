@@ -26,15 +26,15 @@ from scrutiny.gui.tools.invoker import InvokeQueued, InvokeInQtThread
 from scrutiny.gui.core.definitions import WidgetState
 from scrutiny.gui.core.watchable_registry import WatchableRegistryNodeNotFoundError, ValueUpdate
 from scrutiny.gui.widgets.feedback_label import FeedbackLabel
-from scrutiny.gui.components.user.base_user_component import ScrutinyGUIBaseUserComponent
+from scrutiny.gui.components.locals.base_local_component import ScrutinyGUIBaseLocalComponent
 from scrutiny.gui.widgets.graph_signal_tree import GraphSignalTree, ChartSeriesWatchableStandardItem
 from scrutiny.gui.core.export_chart_csv import export_chart_csv_threaded, make_csv_headers
 from scrutiny.gui.widgets.base_chart import (
     ScrutinyLineSeries, ScrutinyValueAxisWithMinMax, ScrutinyChartView, ScrutinyChart,
     ScrutinyChartToolBar)
-from scrutiny.gui.components.user.continuous_graph.csv_logging_menu import CsvLoggingMenuWidget
-from scrutiny.gui.components.user.continuous_graph.realtime_line_series import RealTimeScrutinyLineSeries
-from scrutiny.gui.components.user.continuous_graph.graph_statistics import GraphStatistics
+from scrutiny.gui.components.locals.continuous_graph.csv_logging_menu import CsvLoggingMenuWidget
+from scrutiny.gui.components.locals.continuous_graph.realtime_line_series import RealTimeScrutinyLineSeries
+from scrutiny.gui.components.locals.continuous_graph.graph_statistics import GraphStatistics
 from scrutiny.gui.core.preferences import gui_preferences
 from scrutiny.sdk.listeners.csv_logger import CSVLogger
 
@@ -127,7 +127,7 @@ class ContinuousGraphState:
     def enable_csv_logging_menu(self) -> bool:
         return not self.acquiring
 
-class ContinuousGraphComponent(ScrutinyGUIBaseUserComponent):
+class ContinuousGraphComponent(ScrutinyGUIBaseLocalComponent):
     instance_name : str
 
     _ICON = assets.get("graph-96x128.png")

@@ -7,12 +7,13 @@ from datetime import datetime
 
 from PySide6.QtWidgets import QWidget, QVBoxLayout, QHBoxLayout
 from PySide6.QtCore import Qt, QSize
+from PySide6.QtGui import QGuiApplication
 
 import PySide6QtAds  as QtAds   # type: ignore
 import shiboken6
 
 import scrutiny
-from scrutiny.gui.components.user.base_user_component import ScrutinyGUIBaseUserComponent
+from scrutiny.gui.components.locals.base_local_component import ScrutinyGUIBaseLocalComponent
 from scrutiny.gui.components.globals.base_global_component import ScrutinyGUIBaseGlobalComponent
 from scrutiny.gui.components.base_component import ScrutinyGUIBaseComponent
 
@@ -21,9 +22,9 @@ from scrutiny.gui.app_settings import app_settings
 from scrutiny.gui.tools.invoker import InvokeQueued
 
 from scrutiny.gui.components.globals.varlist.varlist_component import VarListComponent
-from scrutiny.gui.components.user.watch.watch_component import WatchComponent
-from scrutiny.gui.components.user.continuous_graph.continuous_graph_component import ContinuousGraphComponent
-from scrutiny.gui.components.user.embedded_graph.embedded_graph_component import EmbeddedGraph
+from scrutiny.gui.components.locals.watch.watch_component import WatchComponent
+from scrutiny.gui.components.locals.continuous_graph.continuous_graph_component import ContinuousGraphComponent
+from scrutiny.gui.components.locals.embedded_graph.embedded_graph_component import EmbeddedGraph
 from scrutiny.gui.components.globals.metrics.metrics_component import MetricsComponent
 from scrutiny.gui.dashboard import dashboard_file_format
 
@@ -94,31 +95,81 @@ class Dashboard(QWidget):
         layout = QHBoxLayout(self)
         layout.addWidget(self._dock_conainer)
 
-    def create_new_component(self, component_class:Type[ScrutinyGUIBaseComponent]) -> QtAds.CDockWidget:
+    def show_or_create_global_component(self, component_class:Type[ScrutinyGUIBaseGlobalComponent]) -> Optional[QtAds.CDockWidget]:
+        """Either create a new global component or highlight it if it already exists"""
+        assert issubclass(component_class, ScrutinyGUIBaseGlobalComponent)
+        instance = self._get_global_component(component_class)
+        dock_widget = self._dock_manager.findDockWidget(component_class.__name__)
+        
+        
+
+        # Create or find
+        if instance is None:    # Create
+            dock_widget = self._create_new_component(component_class)
+            if dock_widget is None:
+                return
+            instance = self._get_global_component(component_class)
+            assert instance is not None
+            auto_hide_container = self._dock_manager.addAutoHideDockWidget(QtAds.SideBarRight, dock_widget)
+            auto_hide_container.setSize(instance.sizeHint().width())
+            
+        else:   # Find
+            if dock_widget is None:  # if the dashboard is in sync with the component map, this should be fine
+                self._logger.error(f"No widget named {component_class.__name__}. The dashboard UI and the internal dashboard structure are out of sync. This should not happen")
+                return
+
+        # The user may have moved it, no assumption on type of container.
+        if dock_widget.isAutoHide():
+            auto_hide_container = dock_widget.autoHideDockContainer()
+            auto_hide_container.collapseView(False)
+        elif dock_widget.isFloating():
+            floating_container = dock_widget.floatingDockContainer()
+            floating_container.activateWindow()
+        elif dock_widget.isTabbed():
+            dock_widget.setAsCurrentTab()
+        else:
+            self._logger.error(f"Unknown type of dock container to show")
+
+        return dock_widget
+
+
+    def add_local_component(self, component_class:Type[ScrutinyGUIBaseLocalComponent]) -> None:
+        """Add a component to the dashboard. Called by the ComponentSidebar"""
+        ads_dock_widget = self._create_new_component(component_class=component_class)
+        if ads_dock_widget is not None:
+            self._add_widget_to_default_location(ads_dock_widget)
+
+    def _get_global_component(self, component_class:Type[ScrutinyGUIBaseGlobalComponent] ) -> Optional[ScrutinyGUIBaseGlobalComponent]:
+        if component_class not in self._global_components:
+            self._global_components[component_class] = None
+        return self._global_components[component_class]
+
+    def _create_new_component(self, component_class:Type[ScrutinyGUIBaseComponent]) -> Optional[QtAds.CDockWidget]:
         """Create a new component and initializes it
         :param component_class: The class that represent the component (inhreiting ScrutinyGUIBaseComponent) 
         """
         if issubclass(component_class, ScrutinyGUIBaseGlobalComponent):
-            if component_class not in self._global_components:
-                self._global_components[component_class] = None
-            
-            if self._global_components[component_class] is not None:
-                return
-            
-        def make_name(component_class:Type[ScrutinyGUIBaseComponent], instance_number:int) -> str:
-            return f'{component_class.__name__}_{instance_number}'
+            if self._get_global_component(component_class) is not None:
+                raise RuntimeError(f"Global component {component_class.__name__} already exists")
+            name = component_class.__name__
+        
+        elif issubclass(component_class, ScrutinyGUIBaseLocalComponent):
+            def make_instance_name(component_class:Type[ScrutinyGUIBaseComponent], instance_number:int) -> str:
+                return f'{component_class.__name__}_{instance_number}'
 
-        instance_number = 0
-        name = make_name(component_class, instance_number)
-        while name in self._component_instances:
-            instance_number+=1
-            name = make_name(component_class, instance_number)
+            instance_number = 0
+            name = make_instance_name(component_class, instance_number)
+            while name in self._component_instances:
+                instance_number+=1
+                name = make_instance_name(component_class, instance_number)
+        else:
+            raise NotImplementedError("Unknown component type")
         
         try:
             widget = component_class(self._main_window, name, self._main_window.get_watchable_registry(), self._main_window.get_server_manager())
         except Exception as e:
             tools.log_exception(self._logger, e, f"Failed to create a dashboard component of type {component_class.__name__}")    
-            return
+            return None
         
         dock_widget = QtAds.CDockWidget(component_class.get_name())
         self._configure_new_dock_widget(dock_widget)
@@ -139,7 +190,7 @@ class Dashboard(QWidget):
                 widget.teardown()
             widget.deleteLater()
             dock_widget.deleteLater()
-            return 
+            return None
 
         def ready_if_not_deleted() -> None:
             # If the component is created but unused (deleted at func exit), this could happend
@@ -150,6 +201,7 @@ class Dashboard(QWidget):
 
         def destroy_widget() -> None:
             """Closure for this widget deletion"""
+            print(f"destroy {widget.instance_name}")
             if name in self._component_instances:
                 del self._component_instances[name]
             
@@ -177,7 +229,7 @@ class Dashboard(QWidget):
         dock_widget.closeRequested.connect(destroy_widget)
         return dock_widget
         
-    def add_widget_to_default_location(self, dock_widget:QtAds.CDockWidget) -> None:
+    def _add_widget_to_default_location(self, dock_widget:QtAds.CDockWidget) -> None:
         component = cast(ScrutinyGUIBaseComponent, dock_widget.widget())
         if component is None:
             self._logger.error("Dock widget has no component widget")
@@ -241,6 +293,7 @@ class Dashboard(QWidget):
             dock_widget.closeDockWidget()   # Widgets are supposed to be "deleteOnClose". Will trigger the destroy callback that will call each component teardown()
 
     def open(self) -> None:
+        """Open and reload a dashboard file. Clears the actual dashboard"""
         filepath = prompt.get_open_filepath_from_last_save_dir(self, self.FILE_EXT)
         if filepath is None:
             return
@@ -280,6 +333,8 @@ class Dashboard(QWidget):
             prepare_for_opengl(widget)
     
     def _create_placeholder_dock_widget(self, title:Optional[str] = None) -> QtAds.CDockWidget:
+        # We use placeholder dock widget to trigger the creation of splitters and windows with QTAds.
+        # There is no public API to create the layout without inserting a widget
         if title is None:
             title = "placeholder"
         dock_widget = QtAds.CDockWidget(title)
@@ -303,8 +358,13 @@ class Dashboard(QWidget):
             self._logger.warning(f"Unknown dashboard component : id={s_component.type_id}")
             return None
 
-        component_dock_widget = self.create_new_component(component_class)
-        component_dock_widget.tabWidget().setText(s_component.title)
+        if issubclass(component_class, ScrutinyGUIBaseGlobalComponent):
+            component_dock_widget = self.show_or_create_global_component(component_class)
+        else:
+            component_dock_widget = self._create_new_component(component_class)
+        
+        if component_dock_widget is not None:
+            component_dock_widget.tabWidget().setText(s_component.title)
         return component_dock_widget
 
     def _restore_splitpane_recursive(self,

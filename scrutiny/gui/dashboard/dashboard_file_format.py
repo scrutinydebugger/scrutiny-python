@@ -1,20 +1,13 @@
 from dataclasses import dataclass
 import enum
-import json
-from datetime import datetime
 
 import PySide6QtAds  as QtAds   # type: ignore
 from PySide6.QtCore import Qt, QSize
 from PySide6.QtWidgets import QSplitter
 
-import scrutiny
 from scrutiny.gui.components.base_component import ScrutinyGUIBaseComponent
 from scrutiny.tools.typing import *
 from scrutiny.tools import validation
-
-if TYPE_CHECKING:
-    from _typeshed import SupportsRead
-
 
 @dataclass
 class SerializableComponent:

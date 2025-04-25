@@ -48,7 +48,9 @@ class ScrutinyGUIBaseComponent(QWidget):
                     if subclass.get_type_id() == type_id:
                         return subclass
                 else:
-                    return find_recursive(subclass, type_id)
+                    sub = find_recursive(subclass, type_id)
+                    if sub is not None:
+                        return sub
             return None
         return find_recursive(ScrutinyGUIBaseComponent, type_id)    # type: ignore
 

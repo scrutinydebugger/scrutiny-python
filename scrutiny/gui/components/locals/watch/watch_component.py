@@ -19,9 +19,9 @@ from scrutiny import sdk
 from scrutiny.gui import assets
 from scrutiny.gui.core.server_manager import ValueUpdate
 from scrutiny.gui.core.watchable_registry import WatchableRegistryNodeNotFoundError, WatcherNotFoundError
-from scrutiny.gui.components.user.base_user_component import ScrutinyGUIBaseUserComponent
+from scrutiny.gui.components.locals.base_local_component import ScrutinyGUIBaseLocalComponent
 from scrutiny.gui.widgets.watchable_tree import WatchableTreeWidget, WatchableStandardItem, FolderStandardItem, BaseWatchableRegistryTreeStandardItem
-from scrutiny.gui.components.user.watch.watch_tree_model import WatchComponentTreeModel, ValueStandardItem
+from scrutiny.gui.components.locals.watch.watch_tree_model import WatchComponentTreeModel, ValueStandardItem
 from scrutiny.tools import format_exception
 
 import logging
@@ -219,7 +219,7 @@ class WatchComponentTreeWidget(WatchableTreeWidget):
 
 
 
-class WatchComponent(ScrutinyGUIBaseUserComponent):
+class WatchComponent(ScrutinyGUIBaseLocalComponent):
     instance_name : str
 
     _ICON = assets.get("eye-96x128.png")
