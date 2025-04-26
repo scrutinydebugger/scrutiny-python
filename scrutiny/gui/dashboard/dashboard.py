@@ -503,15 +503,3 @@ class Dashboard(QWidget):
             parent = parent.parent()
         return None
 # endregion
-
-
-    def keyPressEvent(self, event:QKeyEvent):
-        modifiers = event.modifiers()
-        if modifiers == Qt.KeyboardModifier.ControlModifier:
-            if event.key() == Qt.Key.Key_W:
-                dock_widget = self._dock_manager.focusedDockWidget()
-                print(dock_widget)
-                if dock_widget is not None:
-                    self._dock_manager.removeDockWidget(dock_widget)
-            
-        return super().keyPressEvent(event)

@@ -7,8 +7,10 @@
 #   Copyright (c) 2021 Scrutiny Debugger
 
 __all__ = ['MenuBar']
+
 from PySide6.QtWidgets import QMenuBar
-from PySide6.QtGui import QAction
+from PySide6.QtGui import QAction, QKeySequence
+
 class Actions:
     dashboard_open: QAction
     dashboard_save: QAction
@@ -26,9 +28,9 @@ class MenuBar(QMenuBar):
         self.buttons = Actions()
        
         dashboard_menu = self.addMenu('Dashboard')
-        self.buttons.dashboard_open = dashboard_menu.addAction("Open")
-        self.buttons.dashboard_save = dashboard_menu.addAction("Save")
-        self.buttons.dashboard_clear = dashboard_menu.addAction("Clear")
+        self.buttons.dashboard_open = dashboard_menu.addAction("Open", QKeySequence.StandardKey.Open)
+        self.buttons.dashboard_save = dashboard_menu.addAction("Save", QKeySequence.StandardKey.SaveAs)
+        self.buttons.dashboard_clear = dashboard_menu.addAction("Clear",)
 
         server_menu =  self.addMenu('Server')
         self.buttons.server_launch_local = server_menu.addAction("Launch local")
