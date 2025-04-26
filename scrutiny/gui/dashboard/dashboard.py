@@ -4,10 +4,11 @@ import os
 from uuid import uuid4
 import json
 from datetime import datetime
+from pathlib import Path
 
 from PySide6.QtWidgets import QWidget, QVBoxLayout, QHBoxLayout
 from PySide6.QtCore import Qt, QSize
-from PySide6.QtGui import QGuiApplication
+from PySide6.QtGui import QKeyEvent
 
 import PySide6QtAds  as QtAds   # type: ignore
 import shiboken6
@@ -36,6 +37,26 @@ from scrutiny import tools
 if TYPE_CHECKING:
     from scrutiny.gui.main_window import MainWindow
 
+class ScrutinyDockWidget(QtAds.CDockWidget):
+
+    tools.copy_type(QtAds.CDockWidget)
+    def __init__(self, *args:Any, **kwargs:Any) -> None:
+        super().__init__(*args, **kwargs)
+        def set_focus() -> None:
+            if self.tabWidget().isActiveTab():
+                self.setFocus(Qt.FocusReason.ActiveWindowFocusReason)
+        # When our tab is being shown, auto set the focus to the dock widget. Allow the user to do Ctrl+W, W, W, W
+        self.tabWidget().activeTabChanged.connect(set_focus, Qt.ConnectionType.QueuedConnection)
+
+    def keyPressEvent(self, event:QKeyEvent):
+        modifiers = event.modifiers()
+        if modifiers == Qt.KeyboardModifier.ControlModifier:
+            if event.key() == Qt.Key.Key_W:
+                self.dockManager().removeDockWidget(self)
+                event.accept()
+            
+        return super().keyPressEvent(event)
+
 @dataclass 
 class SplitterAndSizePair:
     splitter : QtAds.CDockSplitter
@@ -57,9 +78,7 @@ class Dashboard(QWidget):
 
     _main_window:"MainWindow"
     _dock_manager:QtAds.CDockManager
-    _dock_conainer:QWidget
     _component_instances:Dict[str, ScrutinyGUIBaseComponent]
-    _global_components:Dict[Type[ScrutinyGUIBaseGlobalComponent], Optional[ScrutinyGUIBaseGlobalComponent]]
     _logger:logging.Logger
     
     def __init__(self, main_window:"MainWindow") -> None:
@@ -68,14 +87,13 @@ class Dashboard(QWidget):
 
         self._logger = logging.getLogger(self.__class__.__name__)
         self._component_instances = {}
-        self._global_components = {}
 
-        self._dock_conainer = QWidget()
+        dock_conainer = QWidget()
         QtAds.CDockManager.setConfigFlag(QtAds.CDockManager.OpaqueSplitterResize)
         QtAds.CDockManager.setConfigFlag(QtAds.CDockManager.FloatingContainerHasWidgetTitle)
         QtAds.CDockManager.setConfigFlag(QtAds.CDockManager.XmlCompressionEnabled, False)
         QtAds.CDockManager.setAutoHideConfigFlags(QtAds.CDockManager.DefaultAutoHideConfig)
-        self._dock_manager = QtAds.CDockManager(self._dock_conainer)
+        self._dock_manager = QtAds.CDockManager(dock_conainer)
 
         def configure_new_window(win:QtAds.CFloatingDockContainer) -> None:
             flags = win.windowFlags()
@@ -87,51 +105,48 @@ class Dashboard(QWidget):
             win.setWindowFlags(flags)
 
         self._dock_manager.floatingWidgetCreated.connect(configure_new_window)
+        self._dock_manager.dockWidgetAboutToBeRemoved.connect(self._destroy_widget)
 
-        dock_vlayout = QVBoxLayout(self._dock_conainer)
+        dock_vlayout = QVBoxLayout(dock_conainer)
         dock_vlayout.setContentsMargins(0,0,0,0)
         dock_vlayout.addWidget(self._dock_manager)
 
         layout = QHBoxLayout(self)
-        layout.addWidget(self._dock_conainer)
+        layout.addWidget(dock_conainer)
 
-    def show_or_create_global_component(self, component_class:Type[ScrutinyGUIBaseGlobalComponent]) -> Optional[QtAds.CDockWidget]:
+# region Public API
+
+    def create_or_show_global_component(self, component_class:Type[ScrutinyGUIBaseGlobalComponent], show:bool = True) -> Optional[QtAds.CDockWidget]:
         """Either create a new global component or highlight it if it already exists"""
         assert issubclass(component_class, ScrutinyGUIBaseGlobalComponent)
-        instance = self._get_global_component(component_class)
-        dock_widget = self._dock_manager.findDockWidget(component_class.__name__)
-        
-        
+        dock_widget = self._dock_manager.findDockWidget(component_class.__name__)   # try to find
 
-        # Create or find
-        if instance is None:    # Create
+        # Create 
+        if dock_widget is None:    # Create
             dock_widget = self._create_new_component(component_class)
             if dock_widget is None:
-                return
-            instance = self._get_global_component(component_class)
-            assert instance is not None
+                return None
+            component = dock_widget.widget()
+            assert component is not None
             auto_hide_container = self._dock_manager.addAutoHideDockWidget(QtAds.SideBarRight, dock_widget)
-            auto_hide_container.setSize(instance.sizeHint().width())
-            
-        else:   # Find
-            if dock_widget is None:  # if the dashboard is in sync with the component map, this should be fine
-                self._logger.error(f"No widget named {component_class.__name__}. The dashboard UI and the internal dashboard structure are out of sync. This should not happen")
-                return
+            auto_hide_container.setSize(component.sizeHint().width())
 
-        # The user may have moved it, no assumption on type of container.
-        if dock_widget.isAutoHide():
-            auto_hide_container = dock_widget.autoHideDockContainer()
-            auto_hide_container.collapseView(False)
-        elif dock_widget.isFloating():
-            floating_container = dock_widget.floatingDockContainer()
-            floating_container.activateWindow()
-        elif dock_widget.isTabbed():
-            dock_widget.setAsCurrentTab()
-        else:
-            self._logger.error(f"Unknown type of dock container to show")
+        if show:
+            # The user may have moved it, no assumption on type of container.
+            if dock_widget.isAutoHide():
+                auto_hide_container = dock_widget.autoHideDockContainer()
+                auto_hide_container.collapseView(False)
+            
+            # We could use dock_Widget.raise() too for both floating and tabbed.
+            elif dock_widget.isFloating():
+                floating_container = dock_widget.floatingDockContainer()
+                floating_container.activateWindow()
+            elif dock_widget.isTabbed():
+                dock_widget.setAsCurrentTab()
+            else:
+                self._logger.error(f"Unknown type of dock container to show")
 
         return dock_widget
-
 
     def add_local_component(self, component_class:Type[ScrutinyGUIBaseLocalComponent]) -> None:
         """Add a component to the dashboard. Called by the ComponentSidebar"""
@@ -139,110 +154,10 @@ class Dashboard(QWidget):
         if ads_dock_widget is not None:
             self._add_widget_to_default_location(ads_dock_widget)
 
-    def _get_global_component(self, component_class:Type[ScrutinyGUIBaseGlobalComponent] ) -> Optional[ScrutinyGUIBaseGlobalComponent]:
-        if component_class not in self._global_components:
-            self._global_components[component_class] = None
-        return self._global_components[component_class]
-
-    def _create_new_component(self, component_class:Type[ScrutinyGUIBaseComponent]) -> Optional[QtAds.CDockWidget]:
-        """Create a new component and initializes it
-        :param component_class: The class that represent the component (inhreiting ScrutinyGUIBaseComponent) 
-        """
-        if issubclass(component_class, ScrutinyGUIBaseGlobalComponent):
-            if self._get_global_component(component_class) is not None:
-                raise RuntimeError(f"Global component {component_class.__name__} already exists")
-            name = component_class.__name__
-        
-        elif issubclass(component_class, ScrutinyGUIBaseLocalComponent):
-            def make_instance_name(component_class:Type[ScrutinyGUIBaseComponent], instance_number:int) -> str:
-                return f'{component_class.__name__}_{instance_number}'
-
-            instance_number = 0
-            name = make_instance_name(component_class, instance_number)
-            while name in self._component_instances:
-                instance_number+=1
-                name = make_instance_name(component_class, instance_number)
-        else:
-            raise NotImplementedError("Unknown component type")
-        
-        try:
-            widget = component_class(self._main_window, name, self._main_window.get_watchable_registry(), self._main_window.get_server_manager())
-        except Exception as e:
-            tools.log_exception(self._logger, e, f"Failed to create a dashboard component of type {component_class.__name__}")    
-            return None
-        
-        dock_widget = QtAds.CDockWidget(component_class.get_name())
-        self._configure_new_dock_widget(dock_widget)
-        if widget.instance_name in self._dock_manager.dockWidgetsMap():
-            self._logger.error(f"Duplicate dashboard instance name {widget.instance_name}.")
-        dock_widget.setObjectName(widget.instance_name) # Name required to be unique by QT ADS.
-        dock_widget.setFeature(QtAds.CDockWidget.DockWidgetDeleteOnClose, True)
-        dock_widget.setWidget(widget)
-        dock_widget.visibilityChanged.connect(widget.visibilityChanged) # Pass down the event
-
-        try:
-            self._logger.debug(f"Setuping component {widget.instance_name}")
-            widget.setup()
-            
-        except Exception as e:
-            tools.log_exception(self._logger, e, f"Exception while setuping component of type {component_class.__name__} (instance name: {widget.instance_name}).")
-            with tools.SuppressException():
-                widget.teardown()
-            widget.deleteLater()
-            dock_widget.deleteLater()
-            return None
-
-        def ready_if_not_deleted() -> None:
-            # If the component is created but unused (deleted at func exit), this could happend
-            if shiboken6.isValid(widget):
-                widget.ready()
-
-        InvokeQueued(ready_if_not_deleted)
-
-        def destroy_widget() -> None:
-            """Closure for this widget deletion"""
-            print(f"destroy {widget.instance_name}")
-            if name in self._component_instances:
-                del self._component_instances[name]
-            
-            if issubclass(component_class, ScrutinyGUIBaseGlobalComponent):
-                self._global_components[component_class] = None
-
-            if not shiboken6.isValid(widget):
-                self._logger.warning("Cannot teardown widget, already deleted")
-                return
-
-            try:
-                self._logger.debug(f"Tearing down component {widget.instance_name}")
-                widget.teardown()
-            except Exception as e:
-                tools.log_exception(self._logger, e, f"Exception while tearing down component {component_class.__name__} (instance name: {widget.instance_name})")
-                return
-            finally:
-                widget.deleteLater()
-
-        self._component_instances[name] = widget
-        if issubclass(component_class, ScrutinyGUIBaseGlobalComponent):
-            assert isinstance(widget, ScrutinyGUIBaseGlobalComponent)
-            self._global_components[component_class] = widget
-            
-        dock_widget.closeRequested.connect(destroy_widget)
-        return dock_widget
-        
-    def _add_widget_to_default_location(self, dock_widget:QtAds.CDockWidget) -> None:
-        component = cast(ScrutinyGUIBaseComponent, dock_widget.widget())
-        if component is None:
-            self._logger.error("Dock widget has no component widget")
-            return
-        if isinstance(component, ScrutinyGUIBaseGlobalComponent):
-            self._dock_manager.addAutoHideDockWidget(QtAds.SideBarRight, dock_widget)
-        else:
-            self._dock_manager.addDockWidgetTab(QtAds.TopDockWidgetArea, dock_widget)
-    
-
     def make_default_dashboard(self) -> None:
-        pass
-
+        self.clear()
+        self.create_or_show_global_component(VarListComponent, show = False)
+        self.create_or_show_global_component(MetricsComponent, show = False)
 
     def exit(self) -> None:
         self._dock_manager.deleteLater()
@@ -290,10 +205,10 @@ class Dashboard(QWidget):
         """
         dock_widgets = self._dock_manager.dockWidgetsMap()
         for title, dock_widget in dock_widgets.items():
-            dock_widget.closeDockWidget()   # Widgets are supposed to be "deleteOnClose". Will trigger the destroy callback that will call each component teardown()
-
+            self._dock_manager.removeDockWidget(dock_widget)
+            
     def open(self) -> None:
-        """Open and reload a dashboard file. Clears the actual dashboard"""
+        """Select a file form the filesystem and reload a dashboard from it"""
         filepath = prompt.get_open_filepath_from_last_save_dir(self, self.FILE_EXT)
         if filepath is None:
             return
@@ -307,6 +222,139 @@ class Dashboard(QWidget):
             prompt.error_msgbox(self, "File too big", f"File {filepath} has a size of {filesize} bytes. This is unusual for a dashboard.\n Will not load. (max={self.MAX_FILE_SIZE_TO_LOAD}).")
             return
         
+        self._restore_from_file(filepath)
+    
+# endregion
+
+# region Internal 
+    def _configure_new_dock_widget(self, widget:QtAds.CDockWidget) -> None:
+        if app_settings().opengl_enabled:
+            prepare_for_opengl(widget)
+
+    def _create_new_component(self, component_class:Type[ScrutinyGUIBaseComponent]) -> Optional[QtAds.CDockWidget]:
+        """Create a new component and initializes it
+        :param component_class: The class that represent the component (inhreiting ScrutinyGUIBaseComponent) 
+        """
+        if issubclass(component_class, ScrutinyGUIBaseGlobalComponent):
+            searched_widget = self._dock_manager.findDockWidget(component_class.__name__)
+            if searched_widget is not None:
+                raise RuntimeError(f"Global component {component_class.__name__} already exists")
+            name = component_class.__name__
+        
+        elif issubclass(component_class, ScrutinyGUIBaseLocalComponent):
+            def make_instance_name(component_class:Type[ScrutinyGUIBaseComponent], instance_number:int) -> str:
+                return f'{component_class.__name__}_{instance_number}'
+
+            instance_number = 0
+            name = make_instance_name(component_class, instance_number)
+            while name in self._component_instances:
+                instance_number+=1
+                name = make_instance_name(component_class, instance_number)
+        else:
+            raise NotImplementedError("Unknown component type")
+        
+        try:
+            widget = component_class(self._main_window, name, self._main_window.get_watchable_registry(), self._main_window.get_server_manager())
+        except Exception as e:
+            tools.log_exception(self._logger, e, f"Failed to create a dashboard component of type {component_class.__name__}")    
+            return None
+        
+        dock_widget = ScrutinyDockWidget(component_class.get_name())
+        self._configure_new_dock_widget(dock_widget)
+        if widget.instance_name in self._dock_manager.dockWidgetsMap():
+            self._logger.error(f"Duplicate dashboard instance name {widget.instance_name}.")
+        dock_widget.setObjectName(widget.instance_name) # Name required to be unique by QT ADS.
+        dock_widget.setFeature(QtAds.CDockWidget.DockWidgetDeleteOnClose, True)
+        dock_widget.setWidget(widget)
+        dock_widget.visibilityChanged.connect(widget.visibilityChanged) # Pass down the event
+
+        try:
+            self._logger.debug(f"Setuping component {widget.instance_name}")
+            widget.setup()
+            
+        except Exception as e:
+            tools.log_exception(self._logger, e, f"Exception while setuping component of type {component_class.__name__} (instance name: {widget.instance_name}).")
+            with tools.SuppressException():
+                widget.teardown()
+            widget.deleteLater()
+            dock_widget.deleteLater()
+            return None
+
+        def ready_if_not_deleted() -> None:
+            # If the component is created but unused (deleted at func exit), this could happend
+            if shiboken6.isValid(widget):
+                widget.ready()
+        self._component_instances[name] = widget            
+
+        InvokeQueued(ready_if_not_deleted)
+
+        return dock_widget
+    
+    def _create_placeholder_dock_widget(self, title:Optional[str] = None) -> QtAds.CDockWidget:
+        # We use placeholder dock widget to trigger the creation of splitters and windows with QTAds.
+        # There is no public API to create the layout without inserting a widget
+        if title is None:
+            title = "placeholder"
+        dock_widget = QtAds.CDockWidget(title)
+        dock_widget.setObjectName(uuid4().hex)
+        self._configure_new_dock_widget(dock_widget)
+        return dock_widget
+
+    def _create_dock_widget_from_component_serialized(self, s_component:dashboard_file_format.SerializableComponent) -> Optional[QtAds.CDockWidget]:
+        component_class = ScrutinyGUIBaseComponent.class_from_type_id(s_component.type_id)
+        if component_class is None:
+            self._logger.warning(f"Unknown dashboard component : id={s_component.type_id}")
+            return None
+
+        if issubclass(component_class, ScrutinyGUIBaseGlobalComponent):
+            component_dock_widget = self.create_or_show_global_component(component_class)
+        else:
+            component_dock_widget = self._create_new_component(component_class)
+        
+        if component_dock_widget is not None:
+            component_dock_widget.tabWidget().setText(s_component.title)
+        return component_dock_widget
+
+    def _add_widget_to_default_location(self, dock_widget:QtAds.CDockWidget) -> None:
+        component = cast(ScrutinyGUIBaseComponent, dock_widget.widget())
+        if component is None:
+            self._logger.error("Dock widget has no component widget")
+            return
+        if isinstance(component, ScrutinyGUIBaseGlobalComponent):
+            self._dock_manager.addAutoHideDockWidget(QtAds.SideBarRight, dock_widget)
+        else:
+            self._dock_manager.addDockWidgetTab(QtAds.TopDockWidgetArea, dock_widget)
+
+    def _destroy_widget(self, dock_widget:QtAds.CDockWidget) -> None:
+        """Handle deletion of widget. Either when "close" is clicked or programatically removed with dock_manager.removeDockWidget()"""
+        component = dock_widget.widget()
+        if component is None:
+            return
+        
+        if not isinstance(component, ScrutinyGUIBaseComponent):
+            return
+
+        if component.instance_name in self._component_instances:
+            del self._component_instances[component.instance_name]
+
+        if not shiboken6.isValid(component):
+            self._logger.warning("Cannot teardown widget, already deleted")
+            return
+
+        try:
+            self._logger.debug(f"Tearing down component {component.instance_name}")
+            component.teardown()
+        except Exception as e:
+            tools.log_exception(self._logger, e, f"Exception while tearing down component {component.__class__.__name__} (instance name: {component.instance_name})")
+            return
+        finally:
+            component.deleteLater()
+
+# endregion
+
+# region Restore
+    def _restore_from_file(self, filepath:Path) -> None:
+        """reload a dashboard from a file. Clears the actual dashboard"""
         try:
             with open(filepath, 'rb') as f:
                 json_decoded = json.load(f)
@@ -327,45 +375,6 @@ class Dashboard(QWidget):
             self._restore_splitpane_recursive(window.container.root_splitter, first_ads_dock_area=placeholder.dockAreaWidget())
             self._restore_sidebar_components(ads_floating_container.dockContainer(), window.container.sidebar_components)
             placeholder.deleteDockWidget()
-
-    def _configure_new_dock_widget(self, widget:QtAds.CDockWidget) -> None:
-        if app_settings().opengl_enabled:
-            prepare_for_opengl(widget)
-    
-    def _create_placeholder_dock_widget(self, title:Optional[str] = None) -> QtAds.CDockWidget:
-        # We use placeholder dock widget to trigger the creation of splitters and windows with QTAds.
-        # There is no public API to create the layout without inserting a widget
-        if title is None:
-            title = "placeholder"
-        dock_widget = QtAds.CDockWidget(title)
-        dock_widget.setObjectName(uuid4().hex)
-        self._configure_new_dock_widget(dock_widget)
-        return dock_widget
-
-
-    def _find_parent_splitter(self, dock_area:QtAds.CDockAreaWidget) -> Optional[QtAds.CDockSplitter]:
-        """Finds the splitter that owns a dock area"""
-        parent = dock_area.parent()
-        while parent is not None:
-            if isinstance(parent, QtAds.CDockSplitter):
-                return parent
-            parent = parent.parent()
-        return None
-
-    def _create_dock_widget_from_component_serialized(self, s_component:dashboard_file_format.SerializableComponent) -> Optional[QtAds.CDockWidget]:
-        component_class = ScrutinyGUIBaseComponent.class_from_type_id(s_component.type_id)
-        if component_class is None:
-            self._logger.warning(f"Unknown dashboard component : id={s_component.type_id}")
-            return None
-
-        if issubclass(component_class, ScrutinyGUIBaseGlobalComponent):
-            component_dock_widget = self.show_or_create_global_component(component_class)
-        else:
-            component_dock_widget = self._create_new_component(component_class)
-        
-        if component_dock_widget is not None:
-            component_dock_widget.tabWidget().setText(s_component.title)
-        return component_dock_widget
 
     def _restore_splitpane_recursive(self,
                            s_splitter:dashboard_file_format.SerializableSplitter, 
@@ -430,7 +439,7 @@ class Dashboard(QWidget):
             if splitter is not None:
                 mutable_data.splitter_sizes.append(SplitterAndSizePair(splitter, s_splitter.sizes))
             else:
-                self._logger.error(f"Cannot find splitter containing area {area}. Dashboard sizes might be wrong")
+                self._logger.error(f"Cannot find the splitter containing area {area}. This may cause the dashboard sizes to be wrong")
         
         # Placeholder are laid out, the dock areas exists. Now fill the dock areas with either a splitter or a component.
         for i in range(children_count):
@@ -484,3 +493,25 @@ class Dashboard(QWidget):
                 dock_container          # On what container we add it
                 )
             ads_autohide_dock_container.setSize(s_sidebar_component.size)   # vertical/horizontal handled internally
+
+    def _find_parent_splitter(self, dock_area:QtAds.CDockAreaWidget) -> Optional[QtAds.CDockSplitter]:
+        """Finds the splitter that owns a dock area"""
+        parent = dock_area.parent()
+        while parent is not None:
+            if isinstance(parent, QtAds.CDockSplitter):
+                return parent
+            parent = parent.parent()
+        return None
+# endregion
+
+
+    def keyPressEvent(self, event:QKeyEvent):
+        modifiers = event.modifiers()
+        if modifiers == Qt.KeyboardModifier.ControlModifier:
+            if event.key() == Qt.Key.Key_W:
+                dock_widget = self._dock_manager.focusedDockWidget()
+                print(dock_widget)
+                if dock_widget is not None:
+                    self._dock_manager.removeDockWidget(dock_widget)
+            
+        return super().keyPressEvent(event)

@@ -129,9 +129,10 @@ class MainWindow(QMainWindow):
         self.addToolBar(Qt.ToolBarArea.LeftToolBarArea, self._component_sidebar)
 
         self._component_sidebar.insert_local_component.connect(self._dashboard.add_local_component)
-        self._component_sidebar.show_global_component.connect(self._dashboard.show_or_create_global_component)
+        self._component_sidebar.show_global_component.connect(self._dashboard.create_or_show_global_component)
 
         hlayout.addWidget(self._dashboard)
+        self._dashboard.make_default_dashboard()
         
     def start_server_manager(self) -> None:
         self._status_bar.emulate_connect_click()
@@ -144,7 +145,7 @@ class MainWindow(QMainWindow):
         super().closeEvent(event)
         
     def _dashboard_clear_click(self) -> None:
-        self._dashboard.clear()
+        self._dashboard.make_default_dashboard()
 
     def _dashboard_save_click(self) -> None:
         self._dashboard.save()
