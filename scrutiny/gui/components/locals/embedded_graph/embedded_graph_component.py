@@ -11,6 +11,7 @@ from pathlib import Path
 import functools
 from datetime import datetime
 import logging
+import enum
 
 from PySide6.QtWidgets import (
     QVBoxLayout, QLabel, QWidget, QSplitter, QPushButton, QScrollArea, QHBoxLayout, QMenu, QTabWidget, QCheckBox, QMessageBox
@@ -44,6 +45,11 @@ from scrutiny.tools import validation
 from scrutiny.tools.typing import *
 from scrutiny.gui.tools.invoker import InvokeInQtThread
 from scrutiny.gui.core.export_chart_csv import export_chart_csv_threaded
+
+
+class DisplaySource(enum.Enum):
+    ACQUIRED = enum.auto()
+    RELOADED = enum.auto()
 
 class State:
 
@@ -81,6 +87,8 @@ class State:
 class EmbeddedGraphState:
     has_content:bool
     """Chartview ha a graph being displayed"""
+    content_source:Optional[DisplaySource]
+    """Tells where the content being displayed right now comes from. """
     waiting_on_graph:bool
     """Waiting on an acquisition to complete"""
     chart_toolbar_wanted:bool
@@ -231,6 +239,7 @@ class EmbeddedGraph(ScrutinyGUIBaseLocalComponent):
         layout.setContentsMargins(margins)
         self._state = EmbeddedGraphState(
             has_content=False,
+            content_source=None,
             waiting_on_graph=False,
             chart_toolbar_wanted=True,
             has_failure_message=False,
@@ -441,6 +450,13 @@ class EmbeddedGraph(ScrutinyGUIBaseLocalComponent):
             if hold_time_ms is None:
                 hold_time_ms = 0
 
+            # Extract the list of watchable from the right pane. 
+            # Ignore if the content is coming from a reloaded graph. The goal is to restore a graph config, not reload what was brosed.
+            # Allow "None" (graph in construction) or "ACQUIRED" (has an active graph coming from the acquire button)
+            signals:List[State.AxisContent] = []
+            if self._state.content_source != DisplaySource.RELOADED:    # "None" or "Acquired" will go through
+                signals = [axis_content_to_state(sig) for sig in self._signal_tree.get_signals()]
+
             return {
                 'config' : {
                     'name' : self._graph_config_widget.get_txt_acquisition_name().text(),
@@ -457,7 +473,7 @@ class EmbeddedGraph(ScrutinyGUIBaseLocalComponent):
                         'operand3' : self._graph_config_widget.get_txtw_trigger_operand3().get_state(),
                     }
                 },
-                'signals' : [axis_content_to_state(sig) for sig in self._signal_tree.get_signals()]
+                'signals' : signals
             }
         return cast(Dict[Any, Any], make_state())
 
@@ -641,6 +657,7 @@ class EmbeddedGraph(ScrutinyGUIBaseLocalComponent):
         
         self._signal_tree.unlock()
         self._state.has_content = False
+        self._state.content_source = None
         self._displayed_acquisition = None
         self._apply_internal_state()
 
@@ -657,7 +674,7 @@ class EmbeddedGraph(ScrutinyGUIBaseLocalComponent):
         self._state.has_failure_message = False
         self._apply_internal_state()
 
-    def _display_acquisition(self, acquisition:DataloggingAcquisition) -> None:
+    def _display_acquisition(self, acquisition:DataloggingAcquisition, source:DisplaySource) -> None:
         """Display a datalogging acquisition in the chartview"""
         # Empty the chart area
         self._clear_graph()
@@ -668,6 +685,7 @@ class EmbeddedGraph(ScrutinyGUIBaseLocalComponent):
         self._state.has_failure_message = False
         self._state.waiting_on_graph = False
         self._state.has_content = True
+        self._state.content_source = source
 
         # Todo, we could reload a SFD when downloading an acquisiton from a different SFD
         self._displayed_acquisition = acquisition
@@ -1173,7 +1191,7 @@ class EmbeddedGraph(ScrutinyGUIBaseLocalComponent):
                 return 
 
             assert acquisition is not None
-            self._display_acquisition(acquisition)
+            self._display_acquisition(acquisition, source=DisplaySource.ACQUIRED)
 
         self.server_manager.schedule_client_request(
             user_func=bg_thread_download_data, 
@@ -1241,7 +1259,7 @@ class EmbeddedGraph(ScrutinyGUIBaseLocalComponent):
 
         def qt_thread_show(acq:Optional[DataloggingAcquisition], error:Optional[Exception]) -> None:
             if acq is not None and error is None:
-                self._display_acquisition(acq)
+                self._display_acquisition(acq, source=DisplaySource.RELOADED)
             else:
                 self._display_graph_error("Cannot show graph: " + str(error))
         

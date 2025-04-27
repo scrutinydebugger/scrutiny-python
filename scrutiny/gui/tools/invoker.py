@@ -18,8 +18,8 @@ from scrutiny.tools.thread_enforcer import enforce_thread
 from typing import Callable, Optional, TypeVar, cast
 from PySide6.QtCore import QObject, Signal, Qt, QTimer
 from PySide6.QtWidgets import QApplication
-class CrossThreadInvoker(QObject):
 
+class CrossThreadInvoker(QObject):
     called_signal = Signal()
     _instance:Optional["CrossThreadInvoker"] = None
 

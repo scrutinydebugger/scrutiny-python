@@ -244,6 +244,7 @@ def run_in_thread(fn:Callable[..., T], sync_var:Optional[ThreadSyncer[T]]=None) 
     fn2 = fn if sync_var is None else sync_var.executor_func(fn)
     thread = threading.Thread(target = fn2, daemon=True)
     thread.start()
+    
 @dataclass
 class MutableInt:
     """Helper to pass a int by reference"""
