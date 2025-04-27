@@ -89,6 +89,7 @@ class MainWindow(QMainWindow):
         self._menu_bar.buttons.info_about.triggered.connect(self.show_about)
         self._menu_bar.buttons.dashboard_clear.triggered.connect(self._dashboard_clear_click)
         self._menu_bar.buttons.dashboard_save.triggered.connect(self._dashboard_save_click)
+        self._menu_bar.buttons.dashboard_save_as.triggered.connect(self._dashboard_save_as_click)
         self._menu_bar.buttons.dashboard_open.triggered.connect(self._dashboard_open_click)
 
         self._menu_bar.buttons.dashboard_clear.setDisabled(False)
@@ -133,6 +134,8 @@ class MainWindow(QMainWindow):
 
         hlayout.addWidget(self._dashboard)
         self._dashboard.make_default_dashboard()
+
+        self._dashboard.signals.active_file_changed.connect(self._dashboard_active_file_changed_slot)
         
     def start_server_manager(self) -> None:
         self._status_bar.emulate_connect_click()
@@ -149,6 +152,9 @@ class MainWindow(QMainWindow):
 
     def _dashboard_save_click(self) -> None:
         self._dashboard.save()
+    
+    def _dashboard_save_as_click(self) -> None:
+        self._dashboard.save_as()
 
     def _dashboard_open_click(self) -> None:
         self._dashboard.open()
@@ -158,3 +164,10 @@ class MainWindow(QMainWindow):
 
     def get_watchable_registry(self) -> WatchableRegistry:
         return self._watchable_registry
+
+    def _dashboard_active_file_changed_slot(self) -> None:
+        file = self._dashboard.get_active_file()
+        if file is None:
+            self.setWindowTitle("")
+        else:
+            self.setWindowTitle(file.name)

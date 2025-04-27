@@ -16,7 +16,7 @@ from datetime import datetime
 from pathlib import Path
 
 from PySide6.QtWidgets import QWidget, QVBoxLayout, QHBoxLayout
-from PySide6.QtCore import Qt, QSize
+from PySide6.QtCore import Qt, QSize, QObject, Signal
 from PySide6.QtGui import QKeyEvent
 
 import PySide6QtAds  as QtAds   # type: ignore
@@ -32,10 +32,8 @@ from scrutiny.gui.app_settings import app_settings
 from scrutiny.gui.tools.invoker import InvokeQueued
 
 from scrutiny.gui.components.globals.varlist.varlist_component import VarListComponent
-from scrutiny.gui.components.locals.watch.watch_component import WatchComponent
-from scrutiny.gui.components.locals.continuous_graph.continuous_graph_component import ContinuousGraphComponent
-from scrutiny.gui.components.locals.embedded_graph.embedded_graph_component import EmbeddedGraph
 from scrutiny.gui.components.globals.metrics.metrics_component import MetricsComponent
+
 from scrutiny.gui.dashboard import dashboard_file_format
 
 from scrutiny.gui.tools import prompt
@@ -81,6 +79,10 @@ class BuildSplitterRecursiveImmutableData:
     top_level : bool
 
 class Dashboard(QWidget):
+    class _Signals(QObject):
+        active_file_changed = Signal()
+
+
     FILE_EXT = ".scdb"
     FILE_FORMAT_VERSION = 1
     MAX_FILE_SIZE_TO_LOAD = 64*1024*1024
@@ -89,10 +91,15 @@ class Dashboard(QWidget):
     _dock_manager:QtAds.CDockManager
     _component_instances:Dict[str, ScrutinyGUIBaseComponent]
     _logger:logging.Logger
+    _signals:_Signals
+
+    _active_file:Optional[Path]
     
     def __init__(self, main_window:"MainWindow") -> None:
         super().__init__(main_window)
         self._main_window = main_window
+        self._active_file = None
+        self._signals = self._Signals()
 
         self._logger = logging.getLogger(self.__class__.__name__)
         self._component_instances = {}
@@ -124,6 +131,13 @@ class Dashboard(QWidget):
         layout.addWidget(dock_conainer)
 
 # region Public API
+
+    @property
+    def signals(self) -> _Signals:
+        return self._signals
+
+    def get_active_file(self) -> Optional[Path]:
+        return self._active_file
 
     def create_or_show_global_component(self, component_class:Type[ScrutinyGUIBaseGlobalComponent], show:bool = True) -> Optional[QtAds.CDockWidget]:
         """Either create a new global component or highlight it if it already exists"""
@@ -167,16 +181,38 @@ class Dashboard(QWidget):
         self.clear()
         self.create_or_show_global_component(VarListComponent, show = False)
         self.create_or_show_global_component(MetricsComponent, show = False)
+        self._set_active_file(None)
 
     def exit(self) -> None:
         self._dock_manager.deleteLater()
 
-    def save(self) -> None:
-        """Export the actual dashboard to a file that can be reloaded later"""
+    def save_as(self) -> None:
+        """Save the active dashboard to a new file. Ask the user for the file"""
         filepath = prompt.get_save_filepath_from_last_save_dir(self, self.FILE_EXT)
         if filepath is None:
             return
         
+        self._save_dashboard(filepath)
+    
+    def save(self) -> None:
+        """Save the active dashboard. Overwrite the active file or do a save_as if no dashboard is active (open) """
+        if self._active_file is not None:
+            if os.path.isfile(self._active_file):
+                overwrite = prompt.warning_yes_no_question(
+                    parent=self,
+                    title="File already exist",
+                    msg = f"File {self._active_file.name} already exist. Overwrite?"
+                    )
+                
+                if overwrite:
+                    self._save_dashboard(self._active_file)
+                else:
+                    self.save_as()
+        else:
+            self.save_as()
+
+    def _save_dashboard(self, filepath:Path) -> None:
+        """Export the actual dashboard to a file that can be reloaded later"""
         try:
             dashboard_struct = dashboard_file_format.SerializableDashboard(
                 main_container = dashboard_file_format.serialize_container(self._dock_manager),
@@ -202,6 +238,7 @@ class Dashboard(QWidget):
         try:
             with open(filepath, 'wb') as f:
                 f.write(dashboard_json.encode('utf8'))
+            self._set_active_file(filepath)
         except Exception as e:
             prompt.exception_msgbox(title="Failed to save dashboard", parent=self, exception=e, message="Failed to save dashboard")
             tools.log_exception(self._logger, e, "Failed to save")
@@ -236,6 +273,15 @@ class Dashboard(QWidget):
 # endregion
 
 # region Internal 
+    def _set_active_file(self, filepath:Optional[Path]) -> None:
+        changed = False
+        if filepath != self._active_file:
+            changed = True
+        self._active_file = filepath
+        
+        if changed:
+            self._signals.active_file_changed.emit()
+
     def _configure_new_dock_widget(self, widget:QtAds.CDockWidget) -> None:
         if app_settings().opengl_enabled:
             prepare_for_opengl(widget)
@@ -395,6 +441,8 @@ class Dashboard(QWidget):
             self._restore_splitpane_recursive(window.container.root_splitter, first_ads_dock_area=placeholder.dockAreaWidget())
             self._restore_sidebar_components(ads_floating_container.dockContainer(), window.container.sidebar_components)
             placeholder.deleteDockWidget()
+        
+        self._set_active_file(filepath)
 
     def _restore_splitpane_recursive(self,
                            s_splitter:dashboard_file_format.SerializableSplitter, 

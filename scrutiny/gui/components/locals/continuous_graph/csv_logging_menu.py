@@ -135,24 +135,15 @@ class CsvLoggingMenuWidget(QWidget):
             msgbox_text += f'  - And {diff} others\n'
 
         msgbox_text += '\n Do you want to delete them?'
-        msgbox = QMessageBox(self)
-        msgbox.setIcon(QMessageBox.Icon.Warning)
-        msgbox.setWindowTitle("Filename conflict")
-        msgbox.setText(msgbox_text)
-        msgbox.setStandardButtons(QMessageBox.StandardButton.No | QMessageBox.StandardButton.Yes)
-        msgbox.setDefaultButton(QMessageBox.StandardButton.No)
 
-        msgbox.setModal(True)
-        reply = msgbox.exec()
+        override = prompt.warning_yes_no_question(self, msg=msgbox_text, title="Filename conflict")
 
-        if reply == QMessageBox.StandardButton.Yes:
+        if override:
             for file in conflicting_files:
                 os.unlink(file)
             return True
-        elif reply == QMessageBox.StandardButton.No:
-            return False
         else:
-            raise NotImplementedError("Unsupported response")
+            return False
     
     def get_state(self) -> SerializableState:
         return {
