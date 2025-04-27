@@ -30,6 +30,7 @@ from scrutiny.gui.components.base_component import ScrutinyGUIBaseComponent
 from scrutiny.gui.tools.opengl import prepare_for_opengl
 from scrutiny.gui.app_settings import app_settings
 from scrutiny.gui.tools.invoker import InvokeQueued
+from scrutiny.gui.core.persistent_data import gui_persistent_data
 
 from scrutiny.gui.components.globals.varlist.varlist_component import VarListComponent
 from scrutiny.gui.components.globals.metrics.metrics_component import MetricsComponent
@@ -86,6 +87,7 @@ class Dashboard(QWidget):
     FILE_EXT = ".scdb"
     FILE_FORMAT_VERSION = 1
     MAX_FILE_SIZE_TO_LOAD = 64*1024*1024
+    RECENT_HISTORY_SIZE=10
 
     _main_window:"MainWindow"
     _dock_manager:QtAds.CDockManager

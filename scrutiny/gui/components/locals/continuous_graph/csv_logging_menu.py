@@ -19,7 +19,7 @@ from PySide6.QtWidgets import (QHBoxLayout, QWidget, QVBoxLayout, QSizePolicy,
 from PySide6.QtCore import Qt
 
 from scrutiny.gui.tools import prompt
-from scrutiny.gui.core.preferences import gui_preferences
+from scrutiny.gui.core.persistent_data import gui_persistent_data
 from scrutiny.sdk.listeners.csv_logger import CSVLogger, CSVConfig
 from scrutiny.tools.typing import *
 from scrutiny.sdk.listeners.csv_logger import CSVLogger, CSVConfig
@@ -193,7 +193,7 @@ class CsvLoggingMenuWidget(QWidget):
             folder = self._txt_folder.text(),
             filename = self._txt_filename_pattern.text(),
             lines_per_file = self._spin_max_line_per_file.value(),
-            datetime_format=gui_preferences.global_namespace().long_datetime_format(),
+            datetime_format=gui_persistent_data.global_namespace().long_datetime_format(),
             csv_config=csv_config,
             convert_bool_to_int=True,
             logger=logging_logger,

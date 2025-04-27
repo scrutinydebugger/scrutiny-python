@@ -12,7 +12,7 @@ from PySide6.QtGui import  QStandardItem, QContextMenuEvent, QKeyEvent, QMouseEv
 from PySide6.QtCore import Signal, QObject, Qt, QModelIndex, QPoint
 
 from scrutiny.sdk import datalogging
-from scrutiny.gui.core.preferences import gui_preferences
+from scrutiny.gui.core.persistent_data import gui_persistent_data
 from scrutiny.gui.widgets.base_tree import BaseTreeModel, BaseTreeView
 from scrutiny.gui import assets
 
@@ -46,7 +46,7 @@ class AcquisitionStorageEntryTreeModel(BaseTreeModel):
 
     @classmethod
     def row_from_storage_entry(cls, entry:datalogging.DataloggingStorageEntry) -> List[QStandardItem]:
-        datatime_format_str = gui_preferences.global_namespace().long_datetime_format()
+        datatime_format_str = gui_persistent_data.global_namespace().long_datetime_format()
         row = [
             QStandardItem(entry.timestamp.strftime(datatime_format_str)),
             QStandardItem(entry.name)

@@ -37,7 +37,7 @@ from scrutiny.gui.widgets.base_chart import (
 from scrutiny.gui.components.locals.continuous_graph.csv_logging_menu import CsvLoggingMenuWidget
 from scrutiny.gui.components.locals.continuous_graph.realtime_line_series import RealTimeScrutinyLineSeries
 from scrutiny.gui.components.locals.continuous_graph.graph_statistics import GraphStatistics
-from scrutiny.gui.core.preferences import gui_preferences
+from scrutiny.gui.core.persistent_data import gui_persistent_data
 from scrutiny.sdk.listeners.csv_logger import CSVLogger
 
 from scrutiny.tools.typing import *
@@ -541,7 +541,7 @@ class ContinuousGraphComponent(ScrutinyGUIBaseLocalComponent):
                 try:
                     self._csv_logger = self._csv_log_menu.make_csv_logger(logging_logger=self.logger)
                     self._configure_and_start_csv_logger()
-                    gui_preferences.global_namespace().set_last_save_dir(self._csv_logger.get_folder())
+                    gui_persistent_data.global_namespace().set_last_save_dir(self._csv_logger.get_folder())
                 except Exception as e:
                     self._csv_logger = None
                     self._report_error(f"Cannot start CSV logging. {e}" )

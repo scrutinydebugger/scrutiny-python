@@ -7,7 +7,7 @@
 #   Copyright (c) 2021 Scrutiny Debugger
 
 from test.gui.base_gui_test import ScrutinyBaseGuiTest
-from scrutiny.gui.core.preferences import AppPreferenceManager, AppPreferenceManager
+from scrutiny.gui.core.persistent_data import AppPersistentDataManager, AppPersistentDataManager
 from tempfile import TemporaryDirectory
 from pathlib import Path
 import json
@@ -15,7 +15,7 @@ import json
 class TestGuiPreferences(ScrutinyBaseGuiTest):
     def test_save_load(self):
         with TemporaryDirectory() as d:
-            manager = AppPreferenceManager(Path(d))
+            manager = AppPersistentDataManager(Path(d))
             xxx = manager.get_namespace('XXX')
             yyy = manager.get_namespace('YYY')
 
@@ -32,7 +32,7 @@ class TestGuiPreferences(ScrutinyBaseGuiTest):
 
             manager.save()
 
-            manager2 = AppPreferenceManager(Path(d))
+            manager2 = AppPersistentDataManager(Path(d))
             xxx = manager2.get_namespace('XXX')
             yyy = manager2.get_namespace('YYY')
 
@@ -75,7 +75,7 @@ class TestGuiPreferences(ScrutinyBaseGuiTest):
             pass
         obj = TestClass()
         with TemporaryDirectory() as d:
-            manager = AppPreferenceManager(Path(d))
+            manager = AppPersistentDataManager(Path(d))
 
             for v in [2, None, 'asd', 3.14, obj]:
                 with self.assertRaises(TypeError, msg=f"v={v}"):
@@ -97,7 +97,7 @@ class TestGuiPreferences(ScrutinyBaseGuiTest):
 
     def test_clear_on_corrupted(self):
         with TemporaryDirectory() as d:
-            manager = AppPreferenceManager(Path(d))
+            manager = AppPersistentDataManager(Path(d))
             manager.global_namespace().set("asdasd", "hello")
             self.assertEqual(manager.global_namespace().get('asdasd'), 'hello')
             manager.save()
@@ -105,12 +105,12 @@ class TestGuiPreferences(ScrutinyBaseGuiTest):
             with open(manager.get_preferences_file(), 'w') as f:
                 f.write("I am not json")
             
-            manager2 = AppPreferenceManager(Path(d))
+            manager2 = AppPersistentDataManager(Path(d))
             self.assertIsNone(manager2.global_namespace().get('asdasd'))
 
     def test_clear_empty_namespaces(self):
         with TemporaryDirectory() as d:
-            manager = AppPreferenceManager(Path(d))
+            manager = AppPersistentDataManager(Path(d))
             manager.get_namespace("asd")
             manager.save()
 

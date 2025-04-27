@@ -6,7 +6,7 @@
 #
 #   Copyright (c) 2021 Scrutiny Debugger
 
-__all__ = ['AppPreferences', 'MainAppPreferenceManager']
+__all__ = ['AppPersistentData', 'MainAppPersistentDataManager']
 
 from pathlib import Path
 import os
@@ -23,7 +23,7 @@ PREFERENCE_VAL_TYPE = Union[str, int, bool, float, None]
 GLOBAL_NAMESPACE = 'global'
 
 
-class AppPreferences:
+class AppPersistentData:
     _namespace_name:str
     _valdict:Dict[str, PREFERENCE_VAL_TYPE]
 
@@ -119,16 +119,16 @@ class AppPreferences:
     def update_from_dict(self, val:Dict[str, PREFERENCE_VAL_TYPE]) -> None:
         return self._valdict.update(val)
 
-class AppPreferenceManager:
+class AppPersistentDataManager:
     FILENAME = 'preferences.json'
-    _namespaces:Dict[str, AppPreferences]
+    _namespaces:Dict[str, AppPersistentData]
     _logger:logging.Logger
     _storage_folder:Path
 
-    _global_instance:Optional["AppPreferenceManager"] = None
+    _global_instance:Optional["AppPersistentDataManager"] = None
 
     @classmethod
-    def get(cls) -> "AppPreferenceManager":
+    def get(cls) -> "AppPersistentDataManager":
         if cls._global_instance is None:
             cls._global_instance = cls(get_gui_storage())
         return cls._global_instance
@@ -152,7 +152,7 @@ class AppPreferenceManager:
                     assert isinstance(preference_dict, dict)
                     
                     if namespace_name not in self._namespaces:
-                        self._namespaces[namespace_name] = AppPreferences(namespace_name)
+                        self._namespaces[namespace_name] = AppPersistentData(namespace_name)
                     self._namespaces[namespace_name].update_from_dict(preference_dict)
 
             except (json.JSONDecodeError, AssertionError, FileNotFoundError ) as e:
@@ -189,15 +189,15 @@ class AppPreferenceManager:
     def get_preferences_file(self) -> Path:
         return self._storage_folder / self.FILENAME
 
-    def get_namespace(self, name:str) -> AppPreferences:
+    def get_namespace(self, name:str) -> AppPersistentData:
         """Load or create a namespace"""
         if name not in self._namespaces:
-            self._namespaces[name] = AppPreferences(name)
+            self._namespaces[name] = AppPersistentData(name)
         return self._namespaces[name]
     
-    def global_namespace(self) -> AppPreferences:
+    def global_namespace(self) -> AppPersistentData:
         """Return the global namespace"""
         return self.get_namespace(GLOBAL_NAMESPACE)
 
 
-gui_preferences = AppPreferenceManager(get_gui_storage())
+gui_persistent_data = AppPersistentDataManager(get_gui_storage())

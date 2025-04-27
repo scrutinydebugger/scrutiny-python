@@ -13,7 +13,7 @@ from PySide6.QtGui import  QCloseEvent
 from PySide6.QtCore import Qt, QRect
 from PySide6.QtWidgets import QMainWindow 
 
-from scrutiny.gui.core.preferences import gui_preferences
+from scrutiny.gui.core.persistent_data import gui_persistent_data
 from scrutiny.gui.app_settings import app_settings
 from scrutiny.gui.tools.invoker import InvokeQueued
 
@@ -144,7 +144,7 @@ class MainWindow(QMainWindow):
         self._server_manager.exit()
         self._watchable_registry.clear()
         self._dashboard.exit()
-        gui_preferences.save()  # Not supposed to raise
+        gui_persistent_data.save()  # Not supposed to raise
         super().closeEvent(event)
         
     def _dashboard_clear_click(self) -> None:

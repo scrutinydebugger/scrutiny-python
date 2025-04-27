@@ -15,7 +15,7 @@ from scrutiny.gui.widgets.validable_line_edit import ValidableLineEdit
 from scrutiny.gui.widgets.feedback_label import FeedbackLabel
 from scrutiny.gui.tools.validators import IpPortValidator, NotEmptyValidator
 from scrutiny.gui.core import WidgetState
-from scrutiny.gui.core.preferences import gui_preferences, AppPreferences
+from scrutiny.gui.core.persistent_data import gui_persistent_data, AppPersistentData
 from typing import Optional, Dict, Type, cast, Callable, Tuple, List
 import logging
 import traceback
@@ -366,14 +366,14 @@ class DeviceConfigDialog(QDialog):
     _feedback_label:FeedbackLabel
     _btn_ok:QPushButton
     _btn_cancel:QPushButton
-    _preferences:AppPreferences
+    _preferences:AppPersistentData
 
     def __init__(self, 
                  parent:Optional[QWidget]=None,  
                  apply_callback:Optional[Callable[["DeviceConfigDialog"], None]]=None 
                  ) -> None:
         super().__init__(parent)
-        self._preferences = gui_preferences.get_namespace(self.__class__.__name__)
+        self._preferences = gui_persistent_data.get_namespace(self.__class__.__name__)
         self._apply_callback = apply_callback
         self.logger = logging.getLogger(self.__class__.__name__)
         self.setMinimumWidth(250)
