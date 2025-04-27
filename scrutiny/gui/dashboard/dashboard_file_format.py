@@ -1,3 +1,12 @@
+#    dashboard_file_format.py
+#        Definitions of the serialized data representing a dashboard written into files when
+#        saving
+#
+#   - License : MIT - See LICENSE file.
+#   - Project :  Scrutiny Debugger (github.com/scrutinydebugger/scrutiny-python)
+#
+#   Copyright (c) 2021 Scrutiny Debugger
+
 from dataclasses import dataclass
 import enum
 

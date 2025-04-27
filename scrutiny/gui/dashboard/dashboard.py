@@ -1,3 +1,12 @@
+#    dashboard.py
+#        The Scrutiny Dashboard. Main feature allowing to display Components.
+#        Uses Qt Advanced Docking System. Supports save/reload
+#
+#   - License : MIT - See LICENSE file.
+#   - Project :  Scrutiny Debugger (github.com/scrutinydebugger/scrutiny-python)
+#
+#   Copyright (c) 2021 Scrutiny Debugger
+
 import logging
 from dataclasses import dataclass
 import os
