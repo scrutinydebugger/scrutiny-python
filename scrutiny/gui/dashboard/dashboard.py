@@ -316,12 +316,13 @@ class Dashboard(QWidget):
             component = cast(Optional[ScrutinyGUIBaseComponent], component_dock_widget.widget())
             assert component is not None
             
+            component_name = f"\"{s_component.title}\" (type={component_class.__name__})"
             try:
                 fully_valid = component.load_state(s_component.state)
                 if not fully_valid:
-                    self._logger.warning(f"State of component \"{s_component.title}\" (type={component_class.__name__}) was not fully reloaded. Content was not valid")
+                    self._logger.warning(f"State of component {component_name} was not fully reloaded. Some content was not valid")
             except Exception as e:
-                tools.log_exception(self._logger, e, f"Failed to reload state of component \"{s_component.title}\" (type={component_class.__name__})")
+                tools.log_exception(self._logger, e, f"Failed to reload the state of component {component_name}")
 
         return component_dock_widget
 
