@@ -29,7 +29,8 @@ class MenuBar(QMenuBar):
        
         dashboard_menu = self.addMenu('Dashboard')
         self.buttons.dashboard_open = dashboard_menu.addAction("Open", QKeySequence.StandardKey.Open)
-        self.buttons.dashboard_save = dashboard_menu.addAction("Save", QKeySequence.StandardKey.SaveAs)
+        self.buttons.dashboard_save = dashboard_menu.addAction("Save", QKeySequence.StandardKey.Save)
+        self.buttons.dashboard_save = dashboard_menu.addAction("Save as", QKeySequence.StandardKey.SaveAs)
         self.buttons.dashboard_clear = dashboard_menu.addAction("Clear",)
 
         server_menu =  self.addMenu('Server')

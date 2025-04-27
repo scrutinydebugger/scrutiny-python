@@ -37,7 +37,7 @@ from scrutiny import tools
 if TYPE_CHECKING:
     from scrutiny.gui.main_window import MainWindow
 
-class ScrutinyDockWidget(QtAds.CDockWidget):
+class ScrutinyDockWidget(QtAds.CDockWidget):    # type: ignore
 
     tools.copy_type(QtAds.CDockWidget)
     def __init__(self, *args:Any, **kwargs:Any) -> None:
@@ -48,14 +48,14 @@ class ScrutinyDockWidget(QtAds.CDockWidget):
         # When our tab is being shown, auto set the focus to the dock widget. Allow the user to do Ctrl+W, W, W, W
         self.tabWidget().activeTabChanged.connect(set_focus, Qt.ConnectionType.QueuedConnection)
 
-    def keyPressEvent(self, event:QKeyEvent):
+    def keyPressEvent(self, event:QKeyEvent) -> None:
         modifiers = event.modifiers()
         if modifiers == Qt.KeyboardModifier.ControlModifier:
             if event.key() == Qt.Key.Key_W:
                 self.dockManager().removeDockWidget(self)
                 event.accept()
             
-        return super().keyPressEvent(event)
+        super().keyPressEvent(event)
 
 @dataclass 
 class SplitterAndSizePair:
@@ -183,7 +183,7 @@ class Dashboard(QWidget):
             for ads_floating_dock_container in ads_floating_dock_containers:
                 dashboard_struct.windows.append(dashboard_file_format.serialize_floating_container(ads_floating_dock_container))
 
-            dashboard_json = json.dumps(dashboard_struct.to_dict(), indent=2)
+            dashboard_json = json.dumps(dashboard_struct.to_dict(), indent=None, separators=(',', ':'))
 
         except Exception as e:
             tools.log_exception(self._logger, e, "Internal error while saving the dashboard")
@@ -313,6 +313,14 @@ class Dashboard(QWidget):
         
         if component_dock_widget is not None:
             component_dock_widget.tabWidget().setText(s_component.title)
+            component = cast(Optional[ScrutinyGUIBaseComponent], component_dock_widget.widget())
+            assert component is not None
+            
+            try:
+                component.load_state(s_component.state)
+            except Exception as e:
+                tools.log_exception(self._logger, e, f"Failed to reload state of component \"{s_component.title}\" (type={component_class.__name__})")
+
         return component_dock_widget
 
     def _add_widget_to_default_location(self, dock_widget:QtAds.CDockWidget) -> None:

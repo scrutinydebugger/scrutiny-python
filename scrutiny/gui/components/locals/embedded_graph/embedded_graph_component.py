@@ -10,20 +10,25 @@ from dataclasses import dataclass
 from pathlib import Path
 import functools
 from datetime import datetime
+import logging
 
-from PySide6.QtWidgets import QVBoxLayout, QLabel, QWidget, QSplitter, QPushButton, QScrollArea, QHBoxLayout, QMenu, QTabWidget, QCheckBox, QMessageBox
+from PySide6.QtWidgets import (
+    QVBoxLayout, QLabel, QWidget, QSplitter, QPushButton, QScrollArea, QHBoxLayout, QMenu, QTabWidget, QCheckBox, QMessageBox
+)
 from PySide6.QtCore import Qt, QPointF, QRectF
 from PySide6.QtGui import QContextMenuEvent, QKeyEvent, QResizeEvent
 
 from scrutiny import sdk
 from scrutiny.sdk import EmbeddedDataType
 from scrutiny.sdk.datalogging import (
-    DataloggingConfig, DataloggingRequest, DataloggingAcquisition, XAxisType, FixedFreqSamplingRate, DataloggerState, DataloggingStorageEntry
+    DataloggingConfig, DataloggingRequest, DataloggingAcquisition, XAxisType, FixedFreqSamplingRate,
+    DataloggerState, DataloggingStorageEntry, TriggerCondition
 )
 from scrutiny.sdk.client import ScrutinyClient
 
 from scrutiny.gui import assets
 from scrutiny.gui.tools import prompt
+from scrutiny.gui.widgets.watchable_line_edit import WatchableLineEdit
 from scrutiny.gui.components.locals.base_local_component import ScrutinyGUIBaseLocalComponent
 from scrutiny.gui.components.locals.embedded_graph.graph_config_widget import GraphConfigWidget
 from scrutiny.gui.components.locals.embedded_graph.graph_browse_list_widget import GraphBrowseListWidget
@@ -31,13 +36,45 @@ from scrutiny.gui.components.locals.embedded_graph.chart_status_overlay import C
 from scrutiny.gui.widgets.base_chart import (
     ScrutinyChart, ScrutinyChartView, ScrutinyChartToolBar,  ScrutinyLineSeries, ScrutinyValueAxisWithMinMax
     )
-from scrutiny.gui.widgets.graph_signal_tree import GraphSignalTree, ChartSeriesWatchableStandardItem, AxisStandardItem
+from scrutiny.gui.widgets.graph_signal_tree import GraphSignalTree, ChartSeriesWatchableStandardItem, AxisStandardItem, AxisContent
 from scrutiny.gui.widgets.feedback_label import FeedbackLabel
 
 from scrutiny import tools
+from scrutiny.tools import validation
 from scrutiny.tools.typing import *
 from scrutiny.gui.tools.invoker import InvokeInQtThread
 from scrutiny.gui.core.export_chart_csv import export_chart_csv_threaded
+
+class State:
+
+    class Watchable(TypedDict):
+        fqn:str
+        text:str
+
+    class AxisContent(TypedDict):
+        text:str
+        signals:List["State.Watchable"]
+
+    class Trigger(TypedDict):
+        position:int
+        hold_time_ms:float
+        condition:str
+        operand1:WatchableLineEdit.DictState
+        operand2:WatchableLineEdit.DictState
+        operand3:WatchableLineEdit.DictState
+
+
+    class Config(TypedDict):
+        name: str
+        timeout_sec: float
+        decimation: int
+        xaxis_type: str
+        xaxis_watchable: WatchableLineEdit.DictState
+        trigger: "State.Trigger"
+
+    class ComponentState(TypedDict):
+        config:"State.Config"
+        signals:List["State.AxisContent"]
 
 
 @dataclass
@@ -387,11 +424,129 @@ class EmbeddedGraph(ScrutinyGUIBaseLocalComponent):
         self._teared_down = True
 
     def get_state(self) -> Dict[Any, Any]:
-        return {}
+        def make_state() -> State.ComponentState:
+            def axis_content_to_state(v:AxisContent) -> State.AxisContent:
+                return {
+                    'text' : v.axis_name,
+                    'signals' : [
+                        {'fqn' : signal_item.fqn, 'text' : signal_item.text()} for signal_item in v.signal_items
+                    ]
+                }
+            
+            timeout_sec = self._graph_config_widget.get_acquisition_timeout_sec()
+            if timeout_sec is None:
+                timeout_sec = 0
+            
+            hold_time_ms = self._graph_config_widget.get_hold_time_millisec()
+            if hold_time_ms is None:
+                hold_time_ms = 0
 
-    def load_state(self, state:Dict[Any, Any]) -> None:
-        pass
-    
+            return {
+                'config' : {
+                    'name' : self._graph_config_widget.get_txt_acquisition_name().text(),
+                    'timeout_sec' : timeout_sec,
+                    'decimation' : self._graph_config_widget.get_decimation(),
+                    'xaxis_type' : self._graph_config_widget.get_selected_xaxis_type().to_str(),
+                    'xaxis_watchable' : self._graph_config_widget.get_txtw_xaxis_signal().get_state(),
+                    'trigger' : {
+                        'position' : self._graph_config_widget.get_trigger_position(),
+                        'hold_time_ms' : hold_time_ms,
+                        'condition': self._graph_config_widget.get_selected_trigger_condition().to_str(),
+                        'operand1' : self._graph_config_widget.get_txtw_trigger_operand1().get_state(),
+                        'operand2' : self._graph_config_widget.get_txtw_trigger_operand2().get_state(),
+                        'operand3' : self._graph_config_widget.get_txtw_trigger_operand3().get_state(),
+                    }
+                },
+                'signals' : [axis_content_to_state(sig) for sig in self._signal_tree.get_signals()]
+            }
+        return cast(Dict[Any, Any], make_state())
+
+    def load_state(self, state_untyped:Dict[Any, Any]) -> None:
+        state = cast(State.ComponentState, state_untyped)
+
+        validation.assert_dict_key(state, 'config', dict)
+        
+        config = state['config']
+        logger = self.logger
+        log_and_suppress_exceptions = tools.LogException( 
+            logger=logger, 
+            exc=Exception, 
+            msg="Invalid state to reload", 
+            str_level=logging.WARNING,
+            suppress_exception=True)
+        
+        with log_and_suppress_exceptions:
+            validation.assert_dict_key(config, 'name', str)
+            self._graph_config_widget.get_txt_acquisition_name().setText(config['name'])
+        
+        with log_and_suppress_exceptions:
+            validation.assert_dict_key(config, 'timeout_sec', (float, int))
+            self._graph_config_widget.get_txt_acquisition_timeout().setText(str(config['timeout_sec']))
+
+        with log_and_suppress_exceptions:
+            validation.assert_dict_key(config, 'decimation', int)
+            self._graph_config_widget.get_spin_decimation().setValue(config['decimation'])
+
+        with log_and_suppress_exceptions:
+            validation.assert_dict_key(config, 'xaxis_type', str)
+            xaxis_type = XAxisType.from_str(config['xaxis_type'])
+            self._graph_config_widget.set_axis_type(xaxis_type)
+
+        with log_and_suppress_exceptions:
+            validation.assert_dict_key(config, 'xaxis_watchable', dict)
+            self._graph_config_widget._txtw_xaxis_signal.load_state(config['xaxis_watchable'])
+
+        with log_and_suppress_exceptions:
+            validation.assert_dict_key(config, 'trigger.position', int)
+            self._graph_config_widget.get_spin_trigger_position().setValue(config['trigger']["position"])
+        
+        with log_and_suppress_exceptions:
+            validation.assert_dict_key(config, 'trigger.hold_time_ms', (int, float))
+            self._graph_config_widget.get_txt_hold_time_ms().setText(str(config['trigger']["hold_time_ms"]))
+
+        with log_and_suppress_exceptions:
+            validation.assert_dict_key(config, 'trigger.condition', str)
+            condition = TriggerCondition.from_str(config['trigger']["condition"])
+            self._graph_config_widget.set_selected_trigger_condition(condition)
+
+        with log_and_suppress_exceptions:
+            validation.assert_dict_key(config, 'trigger.operand1', dict)
+            self._graph_config_widget.get_txtw_trigger_operand1().load_state(config['trigger']["operand1"])
+
+        with log_and_suppress_exceptions:
+            validation.assert_dict_key(config, 'trigger.operand2', dict)
+            self._graph_config_widget.get_txtw_trigger_operand2().load_state(config['trigger']["operand2"])
+
+        with log_and_suppress_exceptions:
+            validation.assert_dict_key(config, 'trigger.operand3', dict)
+            self._graph_config_widget.get_txtw_trigger_operand3().load_state(config['trigger']["operand3"])
+
+        
+        validation.assert_dict_key(state, 'signals', list)
+        signal_tree_model = self._signal_tree.model()
+        signal_tree_model.removeRows(0, signal_tree_model.rowCount())
+        try:
+            for axis_content in state['signals']:
+                validation.assert_dict_key(axis_content, 'text', str)
+                validation.assert_dict_key(axis_content, 'signals', list)
+                axis_item = signal_tree_model.add_axis(axis_content["text"])
+                
+                for signal in axis_content["signals"]:
+                    validation.assert_dict_key(signal, 'fqn', str)
+                    validation.assert_dict_key(signal, 'text', str)
+                    parsed = self.watchable_registry.FQN.parse(signal["fqn"])
+                    series_item = ChartSeriesWatchableStandardItem(
+                        fqn=signal["fqn"],
+                        watchable_type=parsed.watchable_type,
+                        text=signal["text"]
+                    )
+                    axis_item.appendRow(signal_tree_model.make_watchable_item_row(series_item))
+        except Exception as e:
+            signal_tree_model.removeRows(0, signal_tree_model.rowCount())
+            self.logger.warning(f"Invalid signal list. {e}")
+            raise e
+
+        
     def _apply_internal_state(self) -> None:
         """Update all the widgets based on our internal state variables"""
         self._btn_acquire.setEnabled(self._state.enable_acquire_button())

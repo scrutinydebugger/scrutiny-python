@@ -316,7 +316,7 @@ class GraphConfigWidget(QWidget):
         if sampling_rate_hz is None:
             return None
         
-        decimation = self._spin_decimation.value()
+        decimation = self.get_decimation()
         effective_rate = sampling_rate_hz / decimation
         signal_datatypes = self._get_signal_dtype_fn()
         encoding = self._device_info.datalogging_capabilities.encoding
@@ -376,7 +376,7 @@ class GraphConfigWidget(QWidget):
             # Compute effective sampling rate and estimated duration
             sampling_rate_hz = self.get_selected_sampling_rate_hz()
             if sampling_rate_hz is not None:
-                decimation = self._spin_decimation.value()
+                decimation = self.get_decimation()
                 effective_rate = sampling_rate_hz / decimation
                 effective_sampling_rate_label_txt = tools.format_eng_unit(effective_rate, decimal=1, unit="Hz")
 
@@ -451,9 +451,9 @@ class GraphConfigWidget(QWidget):
         
         config = DataloggingConfig(
             sampling_rate=current_sampling_rate,
-            decimation=self._spin_decimation.value(),
+            decimation=self.get_decimation(),
             name=acquisition_name,
-            timeout=float(self._txt_acquisition_timeout.text())
+            timeout=acquisition_timeout_sec
         )
 
         trigger_condition = cast(Optional[TriggerCondition], self._cmb_trigger_condition.currentData())
@@ -506,7 +506,7 @@ class GraphConfigWidget(QWidget):
             output.error = "Invalid hold time"
             return output
 
-        trigger_position_pu = min(max( (self._spin_trigger_position.value())/100, 0), 1)
+        trigger_position_pu = min(max( (self.get_trigger_position())/100, 0), 1)
         config.configure_trigger(
             condition=trigger_condition,
             hold_time=hold_time_sec,
@@ -545,12 +545,18 @@ class GraphConfigWidget(QWidget):
         result = self.validate_and_get_config()
         return result.valid
 
-    def get_hold_time_sec(self) -> Optional[float]:
+    def get_hold_time_millisec(self) -> Optional[float]:
         if not self._txt_hold_time_ms.validate_expect_valid():
             return None
-        val = float(self._txt_hold_time_ms.text())/1000
+        val = float(self._txt_hold_time_ms.text())
         return val
     
+    def get_hold_time_sec(self) -> Optional[float]:
+        val = self.get_hold_time_millisec()
+        if val is None:
+            return None
+        return val/1000
+
     def get_acquisition_timeout_sec(self) -> Optional[float]:
         if not self._txt_acquisition_timeout.validate_expect_valid():
             return None
@@ -587,18 +593,30 @@ class GraphConfigWidget(QWidget):
 
     def get_spin_decimation(self) -> QSpinBox:
         return self._spin_decimation
+    
+    def get_decimation(self) -> int:
+        return self._spin_decimation.value()
 
     def get_lbl_effective_sampling_rate(self) -> QLabel:
         return self._lbl_effective_sampling_rate
 
     def get_spin_trigger_position(self) -> QSpinBox:
         return self._spin_trigger_position
+    
+    def get_trigger_position(self) -> int:
+        return min(max( (self._spin_trigger_position.value()), 0), 100)
 
     def get_txt_acquisition_timeout(self) -> ValidableLineEdit:
         return self._txt_acquisition_timeout
 
     def get_cmb_trigger_condition(self) -> QComboBox:
         return self._cmb_trigger_condition
+    
+    def get_selected_trigger_condition(self) -> TriggerCondition:
+        return cast(TriggerCondition, self._cmb_trigger_condition.currentData())
+
+    def set_selected_trigger_condition(self, v:TriggerCondition) -> None:
+        self._cmb_trigger_condition.setCurrentIndex(self._cmb_trigger_condition.findData(v))
 
     def get_txtw_trigger_operand1(self) -> WatchableLineEdit:
         return self._txtw_trigger_operand1
@@ -608,6 +626,9 @@ class GraphConfigWidget(QWidget):
     
     def get_txtw_trigger_operand3(self) -> WatchableLineEdit:
         return self._txtw_trigger_operand3
+    
+    def get_txtw_xaxis_signal(self) -> WatchableLineEdit:
+        return self._txtw_xaxis_signal
 
     def get_txt_hold_time_ms(self) -> ValidableLineEdit:
         return self._txt_hold_time_ms
@@ -617,3 +638,6 @@ class GraphConfigWidget(QWidget):
     
     def get_cmb_xaxis_type(self) -> QComboBox:
         return self._cmb_xaxis_type
+
+    def get_selected_xaxis_type(self) -> XAxisType:
+        return cast(XAxisType, self._cmb_xaxis_type.currentData())

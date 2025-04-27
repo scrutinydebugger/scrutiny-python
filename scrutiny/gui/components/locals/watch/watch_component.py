@@ -24,8 +24,9 @@ from scrutiny.gui.widgets.watchable_tree import WatchableTreeWidget, WatchableSt
 from scrutiny.gui.components.locals.watch.watch_tree_model import WatchComponentTreeModel, ValueStandardItem
 from scrutiny.tools import format_exception
 
+
 import logging
-from typing import Dict, Any, Union, cast, Optional, Tuple, Callable, List
+from scrutiny.tools.typing import *
 
 class WatchComponentTreeWidget(WatchableTreeWidget):
     NEW_FOLDER_DEFAULT_NAME = "New Folder"
@@ -218,6 +219,26 @@ class WatchComponentTreeWidget(WatchableTreeWidget):
         return super().closeEditor(editor, hint)
 
 
+class State:
+    TYPE_WATCHABLE = 'w'
+    TYPE_FOLDER = 'f'
+
+    KEY_TYPE = 'type'
+    KEY_TEXT = 'txt'
+    KEY_FQN = 'fqn'
+    KEY_WATCHABLE_TYPE = 'wtype'
+    KEY_CHILDREN = 'children'
+    KEY_EXPANDED = 'expand'
+
+    class Folder(TypedDict):
+        type:str
+        children:List[Union["State.Watchable", "State.Folder" ]]
+
+    class Watchable(TypedDict):
+        type:str
+        fqn:str
+        text:str
+
 
 class WatchComponent(ScrutinyGUIBaseLocalComponent):
     instance_name : str
@@ -267,10 +288,96 @@ class WatchComponent(ScrutinyGUIBaseLocalComponent):
 
 
     def get_state(self) -> Dict[Any, Any]:
-        return {}
+        def _get_children_recursive(parent:Optional[FolderStandardItem]=None) -> Generator[Union[State.Folder, State.Watchable], None, None]:
+            row_count = self._tree_model.rowCount() if parent is None else parent.rowCount()
+            parent_index = QModelIndex() if parent is None else parent.index()
+
+            for i in range(row_count):
+                item = self._get_item(parent_index, i)
+                if isinstance(item, WatchableStandardItem):
+                    yield cast(State.Watchable, {
+                        State.KEY_TYPE : State.TYPE_WATCHABLE,
+                        State.KEY_WATCHABLE_TYPE : item.watchable_type.to_str(),
+                        State.KEY_TEXT : item.text(),
+                        State.KEY_FQN : item.fqn
+                    })
+                elif isinstance(item, FolderStandardItem):
+                    yield cast(State.Folder,{
+                      State.KEY_TYPE : State.TYPE_FOLDER,
+                      State.KEY_TEXT : item.text(),
+                      State.KEY_EXPANDED : self._tree.isExpanded(item.index()),
+                      State.KEY_CHILDREN : list(_get_children_recursive(item))  
+                    })
+        return {
+            'root' : list(_get_children_recursive())
+        }
 
     def load_state(self, state:Dict[Any, Any]) -> None:
         pass
+    
+#    def load_state(self, state:Dict[Any, Any]) -> None:
+#        # FIXME : Does not work properly.
+#        
+#        self._tree_model.clear()
+#
+#        def load_node_recursive(children_list:List[Union[State.Folder, State.Watchable]], parent_node:Optional[FolderStandardItem]=None) -> None:
+#            if not isinstance(children_list, list):
+#                raise ValueError("Children should be a list")
+#
+#            for child in children_list:
+#                if State.KEY_TYPE not in child:
+#                    raise ValueError(f"Missing key {State.KEY_TYPE} on node")
+#                
+#                # ============= Folder ============
+#                if child[State.KEY_TYPE] == State.TYPE_FOLDER:
+#                    for k in [State.KEY_TEXT]:
+#                        if k not in child:
+#                            raise KeyError(f"Missing key {k} on node")
+#                    
+#                    row = self._tree_model.make_folder_row(
+#                        name = child[State.KEY_TEXT],
+#                        fqn=None,
+#                        editable = True
+#                    )
+#                    self._tree_model.add_row_to_parent(parent_node, -1, row)
+#
+#                    expanded = child.get(State.KEY_EXPANDED, False)
+#                    new_parent_node = row[self._tree_model.nesting_col()]
+#                    if expanded:
+#                        self._tree.expand(new_parent_node.index())
+#                    else:
+#                        self._tree.collapse(new_parent_node.index())
+#                    
+#                    children = child.get(State.KEY_CHILDREN, [])
+#                    load_node_recursive(children, new_parent_node)
+#            
+#                # ============ Watchable ===========
+#                elif child[State.KEY_TYPE] == State.TYPE_WATCHABLE:
+#                    for k in [State.KEY_TEXT, State.KEY_FQN, State.KEY_WATCHABLE_TYPE]:
+#                        if k not in child:
+#                            raise KeyError(f"Missing key {k} on node")
+#                    
+#                    row = self._tree_model.make_watchable_row(
+#                        name = child[State.KEY_TEXT],
+#                        editable = True,
+#                        watchable_type = child[State.KEY_WATCHABLE_TYPE],
+#                        fqn = child[State.KEY_FQN],
+#                        extra_columns=self._tree_model.get_watchable_columns()  # Todo, should not have to pass this explicitly
+#                    )
+#                    self._tree_model.add_row_to_parent(parent_node, -1, row)
+#                else:
+#                    raise ValueError(f"Unsupported node type : {child[State.KEY_TYPE]}")
+#
+#        try:
+#            if 'root' not in state:
+#                raise KeyError("Missing root key")
+#            load_node_recursive(state['root'])
+#        except Exception as e:
+#            self.logger.warning(f'Invalid state to reload. {e}')
+#        
+#        self.update_all_watchable_state()
+
+
 
     def _get_item(self, parent:QModelIndex, row_index:int) -> Optional[BaseWatchableRegistryTreeStandardItem]:
         """Get the item pointed by the index and the row (column is assumed 0). Handles the no-parent case

@@ -130,7 +130,6 @@ class WatchComponentTreeModel(WatchableTreeModel):
         return True
     
 
-    
     def _make_serializable_tree_descriptor(self, top_level_item:BaseWatchableRegistryTreeStandardItem, sortkey:int=0) -> SerializableTreeDescriptor:
         """Generate a serializable description of a tree without references"""
         assert top_level_item is not None

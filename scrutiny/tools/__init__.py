@@ -183,17 +183,20 @@ class LogException:
     str_level:Optional[int]
     traceback_level:Optional[int]
     exc:List[Type[BaseException]]
+    suppress_exception:bool
 
     def __init__(self, 
                  logger:logging.Logger, 
                  exc:Union[List[Type[BaseException]], Type[BaseException]],
                  msg:Optional[str] = None,
                  str_level:Optional[int]=logging.ERROR, 
-                 traceback_level:Optional[int]=logging.DEBUG) -> None:
+                 traceback_level:Optional[int]=logging.DEBUG,
+                 suppress_exception:bool = False) -> None:
         self.logger = logger
         self.str_level = str_level
         self.traceback_level = traceback_level
         self.msg = msg
+        self.suppress_exception = suppress_exception
         if not isinstance(exc, list):
             exc = [exc]
         self.exc = exc
@@ -205,10 +208,14 @@ class LogException:
                  exc_type: Optional[Type[BaseException]], 
                  exc_val: Optional[BaseException], 
                  exc_tb: Optional[types.TracebackType]) -> bool:
-        if exc_val is not None:
-            if exc_type in self.exc:
+        if exc_val is not None and exc_type is not None:
+            process = False
+            for supported_exc_type in self.exc:
+                if exc_type == supported_exc_type or issubclass(exc_type, supported_exc_type):
+                    process = True
+            if process:
                 log_exception(self.logger, exc_val, self.msg, self.str_level, self.traceback_level)
-                return True
+                return True if self.suppress_exception else False
             
         return False
 

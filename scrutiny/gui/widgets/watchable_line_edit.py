@@ -6,6 +6,8 @@
 #
 #   Copyright (c) 2021 Scrutiny Debugger
 
+__all__ = ['WatchableLineEdit']
+
 import enum
 from dataclasses import dataclass
 
@@ -27,7 +29,16 @@ class WatchableFQNAndName:
     fqn:str
     name:str
 
+
+
+
 class WatchableLineEdit(QLineEdit):
+
+    class DictState(TypedDict):
+        mode:Literal['text', 'watchable']
+        text_content:str
+        watchable_fqn:str
+        watchable_name:str
 
     class Mode(enum.Enum):
         TEXT = enum.auto()
@@ -205,3 +216,51 @@ class WatchableLineEdit(QLineEdit):
     
     def is_watchable_mode(self) -> bool:
         return self._mode == self.Mode.WATCHABLE
+    
+    def get_state(self) -> DictState:
+        """Export state to a dict"""
+        if self.is_text_mode():
+            return  {
+                'mode' : 'text',
+                'text_content' : self.text(),
+                'watchable_fqn':"",
+                'watchable_name':""
+            }
+        elif self.is_watchable_mode():
+            assert self._loaded_watchable is not None
+            return  {
+                'mode' : 'watchable',
+                'text_content' : "",
+                'watchable_fqn':self._loaded_watchable.fqn,
+                'watchable_name':self._loaded_watchable.name
+            }
+        else:
+            raise NotImplementedError(f"Unknown mode for {self.__class__.__name__}")
+    
+    def load_state(self, v:DictState) -> None:
+        """Reload state from a dict."""
+        try:
+            assert 'mode' in v
+
+            if v['mode'] == 'text':
+                assert 'text_content' in v
+                assert isinstance(v['text_content'], str)
+
+                self.set_text_mode()
+                self.setText(v['text_content'])
+            elif v['mode'] == 'watchable':
+                assert 'watchable_fqn' in v
+                assert 'watchable_name' in v
+                assert isinstance(v['watchable_fqn'], str)
+                assert isinstance(v['watchable_name'], str)
+
+                try:
+                    parsed = WatchableRegistry.FQN.parse(v['watchable_fqn'])
+                except Exception:
+                    return
+                self.set_watchable_mode(parsed.watchable_type, parsed.path, v['watchable_name'])
+            else:
+                return
+        except AssertionError:
+            raise ValueError("Invalid state dictionnary")
+           
