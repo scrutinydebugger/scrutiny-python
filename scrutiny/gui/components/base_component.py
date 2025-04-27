@@ -91,5 +91,5 @@ class ScrutinyGUIBaseComponent(QWidget):
         pass
 
     @abstractmethod
-    def load_state(self, state:Dict[Any, Any]) -> None:
+    def load_state(self, state:Dict[Any, Any]) -> bool:
         pass

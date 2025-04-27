@@ -25,6 +25,13 @@ from scrutiny.tools.typing import *
 from scrutiny.sdk.listeners.csv_logger import CSVLogger, CSVConfig
 
 class CsvLoggingMenuWidget(QWidget):
+    class SerializableState(TypedDict):
+        enable:bool
+        folder:str
+        prefix:str
+        line_per_files:int
+
+
     _chk_enable:QCheckBox
     _txt_folder:QLineEdit
     _txt_filename_pattern:QLineEdit
@@ -147,6 +154,41 @@ class CsvLoggingMenuWidget(QWidget):
         else:
             raise NotImplementedError("Unsupported response")
     
+    def get_state(self) -> SerializableState:
+        return {
+            'enable' : self._chk_enable.isChecked(),
+            'folder' : self._txt_folder.text(),
+            'line_per_files' : self._spin_max_line_per_file.value(),
+            'prefix' : self._txt_filename_pattern.text()
+        }
+    
+    def load_state(self, state:SerializableState) -> bool:
+        fully_valid = True
+        if 'enable' in state and isinstance(state['enable'], bool):
+            self._chk_enable.setChecked(state['enable'])
+        else:
+            fully_valid = False
+
+        if 'folder' in state and isinstance(state['folder'], str):
+            if os.path.isdir(state['folder']):
+                self._txt_folder.setText(state['folder'])
+            else:
+                self._txt_folder.setText("")
+        else:
+            fully_valid = False
+        
+        if 'line_per_files' in state and isinstance(state['line_per_files'], int):
+            self._spin_max_line_per_file.setValue(state['line_per_files'])
+        else:
+            fully_valid = fully_valid
+        
+        if 'prefix' in state and isinstance(state['prefix'], str):
+            self._txt_filename_pattern.setText(state['prefix'])
+        else:
+            fully_valid = fully_valid
+        
+        return fully_valid
+
     def make_csv_logger(self, logging_logger:Optional[logging.Logger] = None)  -> CSVLogger:
         # Validation happens inside the constructor
         self.validate()

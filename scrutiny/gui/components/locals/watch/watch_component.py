@@ -312,8 +312,8 @@ class WatchComponent(ScrutinyGUIBaseLocalComponent):
             'root' : list(_get_children_recursive())
         }
 
-    def load_state(self, state:Dict[Any, Any]) -> None:
-        pass
+    def load_state(self, state:Dict[Any, Any]) -> bool:
+        return True
     
 #    def load_state(self, state:Dict[Any, Any]) -> None:
 #        # FIXME : Does not work properly.

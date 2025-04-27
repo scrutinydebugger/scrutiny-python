@@ -184,6 +184,7 @@ class LogException:
     traceback_level:Optional[int]
     exc:List[Type[BaseException]]
     suppress_exception:bool
+    exception_logged:bool
 
     def __init__(self, 
                  logger:logging.Logger, 
@@ -197,6 +198,7 @@ class LogException:
         self.traceback_level = traceback_level
         self.msg = msg
         self.suppress_exception = suppress_exception
+        self.exception_logged = False
         if not isinstance(exc, list):
             exc = [exc]
         self.exc = exc
@@ -215,6 +217,7 @@ class LogException:
                     process = True
             if process:
                 log_exception(self.logger, exc_val, self.msg, self.str_level, self.traceback_level)
+                self.exception_logged=True
                 return True if self.suppress_exception else False
             
         return False
@@ -244,7 +247,7 @@ def run_in_thread(fn:Callable[..., T], sync_var:Optional[ThreadSyncer[T]]=None) 
     fn2 = fn if sync_var is None else sync_var.executor_func(fn)
     thread = threading.Thread(target = fn2, daemon=True)
     thread.start()
-    
+
 @dataclass
 class MutableInt:
     """Helper to pass a int by reference"""

@@ -477,15 +477,14 @@ class EmbeddedGraph(ScrutinyGUIBaseLocalComponent):
             }
         return cast(Dict[Any, Any], make_state())
 
-    def load_state(self, state_untyped:Dict[Any, Any]) -> None:
+    def load_state(self, state_untyped:Dict[Any, Any]) -> bool:
         state = cast(State.ComponentState, state_untyped)
-
+        fully_valid = True
         validation.assert_dict_key(state, 'config', dict)
         
         config = state['config']
-        logger = self.logger
         log_and_suppress_exceptions = tools.LogException( 
-            logger=logger, 
+            logger=self.logger, 
             exc=Exception, 
             msg="Invalid state to reload", 
             str_level=logging.WARNING,
@@ -562,6 +561,10 @@ class EmbeddedGraph(ScrutinyGUIBaseLocalComponent):
             self.logger.warning(f"Invalid signal list. {e}")
             raise e
 
+        if log_and_suppress_exceptions.exception_logged:
+            fully_valid = False
+
+        return fully_valid
         
     def _apply_internal_state(self) -> None:
         """Update all the widgets based on our internal state variables"""

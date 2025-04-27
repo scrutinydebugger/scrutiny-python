@@ -237,5 +237,5 @@ class VarListComponent(ScrutinyGUIBaseGlobalComponent):
     def get_state(self) -> Dict[Any, Any]:
         return {}
 
-    def load_state(self, state: Dict[Any, Any]) -> None:
-        pass
+    def load_state(self, state: Dict[Any, Any]) -> bool:
+        return True

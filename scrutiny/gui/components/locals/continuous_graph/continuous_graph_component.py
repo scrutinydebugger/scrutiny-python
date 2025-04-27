@@ -11,6 +11,7 @@ import functools
 import math
 from pathlib import Path
 from dataclasses import dataclass
+import logging
 
 from PySide6.QtGui import QContextMenuEvent, QKeyEvent
 from PySide6.QtWidgets import (QHBoxLayout, QSplitter, QWidget, QVBoxLayout,  QMenu,
@@ -19,6 +20,7 @@ from PySide6.QtCore import Qt, QItemSelectionModel, QPointF, QTimer, QRectF
 
 from scrutiny import sdk
 from scrutiny import tools
+from scrutiny.tools import validation
 from scrutiny.gui import assets
 from scrutiny.gui.app_settings import app_settings
 from scrutiny.gui.tools import prompt
@@ -27,7 +29,7 @@ from scrutiny.gui.core.definitions import WidgetState
 from scrutiny.gui.core.watchable_registry import WatchableRegistryNodeNotFoundError, ValueUpdate
 from scrutiny.gui.widgets.feedback_label import FeedbackLabel
 from scrutiny.gui.components.locals.base_local_component import ScrutinyGUIBaseLocalComponent
-from scrutiny.gui.widgets.graph_signal_tree import GraphSignalTree, ChartSeriesWatchableStandardItem
+from scrutiny.gui.widgets.graph_signal_tree import GraphSignalTree, ChartSeriesWatchableStandardItem, AxisContent
 from scrutiny.gui.core.export_chart_csv import export_chart_csv_threaded, make_csv_headers
 from scrutiny.gui.widgets.base_chart import (
     ScrutinyLineSeries, ScrutinyValueAxisWithMinMax, ScrutinyChartView, ScrutinyChart,
@@ -39,6 +41,23 @@ from scrutiny.gui.core.preferences import gui_preferences
 from scrutiny.sdk.listeners.csv_logger import CSVLogger
 
 from scrutiny.tools.typing import *
+
+class State:
+
+    class Watchable(TypedDict):
+        fqn:str
+        text:str
+
+    class AxisContent(TypedDict):
+        text:str
+        signals:List["State.Watchable"]
+
+    class ComponentState(TypedDict):
+        signals:List["State.AxisContent"]
+        graph_width_sec:int
+        csv_logging:CsvLoggingMenuWidget.SerializableState
+
+
 
 @dataclass
 class ContinuousGraphState:
@@ -327,10 +346,74 @@ class ContinuousGraphComponent(ScrutinyGUIBaseLocalComponent):
         self.watchable_registry.unregister_watcher(self._watcher_id())
 
     def get_state(self) -> Dict[Any, Any]:
-        return {}
+        def make_state() -> State.ComponentState:
+            def axis_content_to_state(v:AxisContent) -> State.AxisContent:
+                    return {
+                        'text' : v.axis_name,
+                        'signals' : [
+                            {'fqn' : signal_item.fqn, 'text' : signal_item.text()} for signal_item in v.signal_items
+                        ]
+                    }
+            
+            signals = [axis_content_to_state(sig) for sig in self._signal_tree.get_signals()]
+            
+            return {
+                'signals' : signals,
+                'graph_width_sec' : self._spinbox_graph_max_width.value(),
+                'csv_logging' : self._csv_log_menu.get_state()
+            }
 
-    def load_state(self, state:Dict[Any, Any]) -> None:
-        pass
+        return cast(Dict[Any, Any], make_state())
+
+    def load_state(self, state_untyped:Dict[Any, Any]) -> bool:
+        state = cast(State.ComponentState, state_untyped)
+        fully_valid = True
+        
+        log_and_suppress_exceptions = tools.LogException( 
+            logger=self.logger, 
+            exc=Exception, 
+            msg="Invalid state to reload", 
+            str_level=logging.WARNING,
+            suppress_exception=True)
+
+        with log_and_suppress_exceptions:
+            validation.assert_dict_key(state, 'csv_logging', dict)
+            if self._csv_log_menu.load_state(state["csv_logging"]) == False:
+                fully_valid = False
+        
+        with log_and_suppress_exceptions:
+            validation.assert_dict_key(state, 'graph_width_sec', int)
+            self._spinbox_graph_max_width.setValue(state['graph_width_sec'])
+
+        with log_and_suppress_exceptions:
+            validation.assert_dict_key(state, 'signals', list)
+            signal_tree_model = self._signal_tree.model()
+            signal_tree_model.removeRows(0, signal_tree_model.rowCount())
+            try:
+                for axis_content in state['signals']:
+                    validation.assert_dict_key(axis_content, 'text', str)
+                    validation.assert_dict_key(axis_content, 'signals', list)
+                    axis_item = signal_tree_model.add_axis(axis_content["text"])
+                    
+                    for signal in axis_content["signals"]:
+                        validation.assert_dict_key(signal, 'fqn', str)
+                        validation.assert_dict_key(signal, 'text', str)
+                        parsed = self.watchable_registry.FQN.parse(signal["fqn"])
+                        series_item = ChartSeriesWatchableStandardItem(
+                            fqn=signal["fqn"],
+                            watchable_type=parsed.watchable_type,
+                            text=signal["text"]
+                        )
+                        axis_item.appendRow(signal_tree_model.make_watchable_item_row(series_item))
+            except Exception as e:
+                signal_tree_model.removeRows(0, signal_tree_model.rowCount())
+                self.logger.warning(f"Invalid signal list. {e}")
+                raise e
+
+        if log_and_suppress_exceptions.exception_logged:
+            fully_valid = False
+
+        return fully_valid
 
     def visibilityChanged(self, visible:bool) -> None:
         """Called when the dashboard component is either hidden or showed"""

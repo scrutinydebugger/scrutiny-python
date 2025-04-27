@@ -317,7 +317,9 @@ class Dashboard(QWidget):
             assert component is not None
             
             try:
-                component.load_state(s_component.state)
+                fully_valid = component.load_state(s_component.state)
+                if not fully_valid:
+                    self._logger.warning(f"State of component \"{s_component.title}\" (type={component_class.__name__}) was not fully reloaded. Content was not valid")
             except Exception as e:
                 tools.log_exception(self._logger, e, f"Failed to reload state of component \"{s_component.title}\" (type={component_class.__name__})")
 
