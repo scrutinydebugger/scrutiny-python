@@ -7,6 +7,7 @@
 #   Copyright (c) 2021 Scrutiny Debugger
 
 import logging
+from pathlib import Path
 
 from PySide6.QtWidgets import  QWidget, QHBoxLayout
 from PySide6.QtGui import  QCloseEvent
@@ -86,16 +87,14 @@ class MainWindow(QMainWindow):
         self._menu_bar = MenuBar()
         self.setMenuBar(self._menu_bar)
 
-        self._menu_bar.buttons.info_about.triggered.connect(self.show_about)
-        self._menu_bar.buttons.dashboard_clear.triggered.connect(self._dashboard_clear_click)
-        self._menu_bar.buttons.dashboard_save.triggered.connect(self._dashboard_save_click)
-        self._menu_bar.buttons.dashboard_save_as.triggered.connect(self._dashboard_save_as_click)
-        self._menu_bar.buttons.dashboard_open.triggered.connect(self._dashboard_open_click)
+        self._menu_bar.signals.info_about_click.connect(self.show_about)
+        self._menu_bar.signals.dashboard_clear_click.connect(self._dashboard_clear_click)
+        self._menu_bar.signals.dashboard_save_click.connect(self._dashboard_save_click)
+        self._menu_bar.signals.dashboard_save_as_click.connect(self._dashboard_save_as_click)
+        self._menu_bar.signals.dashboard_open_click.connect(self._dashboard_open_click)
+        self._menu_bar.signals.dashboard_recent_open.connect(self._dashboard_recent_open_click)
 
-        self._menu_bar.buttons.dashboard_clear.setDisabled(False)
-        self._menu_bar.buttons.dashboard_open.setDisabled(False)
-        self._menu_bar.buttons.dashboard_save.setDisabled(False)
-        self._menu_bar.buttons.server_launch_local.setDisabled(True)
+        self._menu_bar.set_dashboard_recents(self._dashboard.read_history())
 
         if app_settings().auto_connect:
             InvokeQueued(self.start_server_manager)
@@ -159,6 +158,9 @@ class MainWindow(QMainWindow):
     def _dashboard_open_click(self) -> None:
         self._dashboard.open()
 
+    def _dashboard_recent_open_click(self, filepath:str) -> None:
+        self._dashboard.open(Path(filepath))
+
     def get_server_manager(self) -> ServerManager:
         return self._server_manager
 
@@ -171,3 +173,5 @@ class MainWindow(QMainWindow):
             self.setWindowTitle("")
         else:
             self.setWindowTitle(file.name)
+        
+        self._menu_bar.set_dashboard_recents(self._dashboard.read_history())

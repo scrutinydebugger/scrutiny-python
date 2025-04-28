@@ -19,7 +19,7 @@ from scrutiny.gui.globals import get_gui_storage
 import typing
 from scrutiny.tools.typing import *
 
-PREFERENCE_VAL_TYPE = Union[str, int, bool, float, None]
+PREFERENCE_VAL_TYPE = Union[str, int, bool, float, None, List[str], List[int], List[bool], List[float]]
 GLOBAL_NAMESPACE = 'global'
 
 
@@ -86,6 +86,12 @@ class AppPersistentData:
             return default
         return int(val)
     
+    def get_list_str(self, key:str, default:List[str]) -> List[str]:
+        val = self.get(key)
+        if not isinstance(val, list):
+            return default
+        return [v for v in val if isinstance(v, str)]   # Silently drop bad values
+    
     def set_if_not_str(self, key:str, default:str) -> None:
         v = self.get(key)
         if not isinstance(v, str):
@@ -94,9 +100,21 @@ class AppPersistentData:
 
     def set(self, key:str, val:PREFERENCE_VAL_TYPE) -> None:
         validation.assert_type(key, 'key', str)
-        validation.assert_type(val, 'val', (typing.get_args(PREFERENCE_VAL_TYPE)))
+        validation.assert_type(val, 'val', (str, int, float, bool, type(None), list))
+        if isinstance(val, list) and len(val) > 0:  # Enforce list of same type. No mix
+            type0 = type(val[0])
+            validation.assert_type(val[0], 'val[0]', (str, int, float, bool, type(None)))
+            for v in val:
+                validation.assert_type(v, 'val[N]', type0)
+
         self._valdict[key] = val
     
+    def set_list_str(self, key:str, val:List[str]) -> None:
+        validation.assert_type(val, 'val', list)
+        for v in val:
+            validation.assert_type(v, 'val[N]', str)
+        self.set(key, val)
+
     def set_str(self, key:str, val:str) -> None:
         validation.assert_type(val, 'val', str)
         self.set(key, val)

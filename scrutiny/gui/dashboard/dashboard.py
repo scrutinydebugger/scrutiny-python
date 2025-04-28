@@ -88,6 +88,7 @@ class Dashboard(QWidget):
     FILE_FORMAT_VERSION = 1
     MAX_FILE_SIZE_TO_LOAD = 64*1024*1024
     RECENT_HISTORY_SIZE=10
+    STORAGE_NAMESPACE="dashboard"
 
     _main_window:"MainWindow"
     _dock_manager:QtAds.CDockManager
@@ -140,6 +141,35 @@ class Dashboard(QWidget):
 
     def get_active_file(self) -> Optional[Path]:
         return self._active_file
+    
+    def read_history(self) -> List[Path]:
+        """Read a list of recently opened files from the persistent storage"""
+        ns = gui_persistent_data.get_namespace(self.STORAGE_NAMESPACE)
+        history_as_str = ns.get_list_str('history', [])
+        seen:Set[str] = set()
+        history:List[Path] = []
+        for path in history_as_str:
+            if os.path.isfile(path) and path not in seen:
+                seen.add(path)
+                history.append(Path(path))
+
+        if len(history) > self.RECENT_HISTORY_SIZE:
+            history = history[0: self.RECENT_HISTORY_SIZE]
+        return history
+    
+    def set_history(self, history:List[Path]) -> None:
+        """Writes the list of recently opened files in the persistent storage"""
+        seen:Set[Path] = set()
+        history_str:List[str] = []
+        for path in history:
+            if os.path.isfile(path) and path not in seen:
+                seen.add(path)
+                history_str.append(str(path))
+
+        if len(history_str) > self.RECENT_HISTORY_SIZE:
+            history_str = history_str[0: self.RECENT_HISTORY_SIZE]
+        ns = gui_persistent_data.get_namespace(self.STORAGE_NAMESPACE)
+        ns.set_list_str('history', history_str)
 
     def create_or_show_global_component(self, component_class:Type[ScrutinyGUIBaseGlobalComponent], show:bool = True) -> Optional[QtAds.CDockWidget]:
         """Either create a new global component or highlight it if it already exists"""
@@ -169,7 +199,7 @@ class Dashboard(QWidget):
             elif dock_widget.isTabbed():
                 dock_widget.setAsCurrentTab()
             else:
-                self._logger.error(f"Unknown type of dock container to show")
+                pass # Alone in the main container.
 
         return dock_widget
 
@@ -255,11 +285,12 @@ class Dashboard(QWidget):
         for title, dock_widget in dock_widgets.items():
             self._dock_manager.removeDockWidget(dock_widget)
             
-    def open(self) -> None:
+    def open(self, filepath:Optional[Path]=None) -> None:
         """Select a file form the filesystem and reload a dashboard from it"""
-        filepath = prompt.get_open_filepath_from_last_save_dir(self, self.FILE_EXT)
         if filepath is None:
-            return
+            filepath = prompt.get_open_filepath_from_last_save_dir(self, self.FILE_EXT)
+            if filepath is None:
+                return
         
         if not os.path.isfile(filepath):
             prompt.error_msgbox(self, "File not found", f"File {filepath} does not exist")
@@ -275,6 +306,8 @@ class Dashboard(QWidget):
 # endregion
 
 # region Internal 
+
+
     def _set_active_file(self, filepath:Optional[Path]) -> None:
         changed = False
         if filepath != self._active_file:
@@ -282,6 +315,10 @@ class Dashboard(QWidget):
         self._active_file = filepath
         
         if changed:
+            if filepath is not None:
+                history = self.read_history()
+                history.insert(0, filepath)
+                self.set_history(history) # duplicates auto-removed
             self._signals.active_file_changed.emit()
 
     def _configure_new_dock_widget(self, widget:QtAds.CDockWidget) -> None:
