@@ -19,7 +19,7 @@ from PySide6.QtWidgets import QWidget, QVBoxLayout, QHBoxLayout
 from PySide6.QtCore import Qt, QSize, QObject, Signal
 from PySide6.QtGui import QKeyEvent
 
-import PySide6QtAds  as QtAds   # type: ignore
+import PySide6QtAds  as QtAds
 import shiboken6
 
 import scrutiny
@@ -45,7 +45,7 @@ from scrutiny import tools
 if TYPE_CHECKING:
     from scrutiny.gui.main_window import MainWindow
 
-class ScrutinyDockWidget(QtAds.CDockWidget):    # type: ignore
+class ScrutinyDockWidget(QtAds.CDockWidget):
 
     tools.copy_type(QtAds.CDockWidget)
     def __init__(self, *args:Any, **kwargs:Any) -> None:
@@ -587,7 +587,6 @@ class Dashboard(QWidget):
         """Reads a dict struct coming from a dashboard file and restore all the ADS autohide widgets (sidebar buttons).
         Done per container. Each window has a top container.
         """
-
         for s_sidebar_component in s_sidebar_components:    # For each sidebar component for that container
             component_dock_widget = self._create_dock_widget_from_component_serialized(s_sidebar_component.component)
             if component_dock_widget is None:   # None if the scrutiny component is unknown

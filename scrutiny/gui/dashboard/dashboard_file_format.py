@@ -10,7 +10,7 @@
 from dataclasses import dataclass
 import enum
 
-import PySide6QtAds  as QtAds   # type: ignore
+import PySide6QtAds  as QtAds
 from PySide6.QtCore import Qt, QSize
 from PySide6.QtWidgets import QSplitter
 
@@ -136,24 +136,24 @@ class SidebarLocation(enum.Enum):
         return cls(v)
     
     @classmethod
-    def from_ads(cls, v:int) -> "SidebarLocation":
+    def from_ads(cls, v:QtAds.SideBarLocation) -> "SidebarLocation":
         lookup = {
-            QtAds.SideBarLeft.value : cls.LEFT,
-            QtAds.SideBarTop.value : cls.TOP,
-            QtAds.SideBarBottom.value : cls.BOTTOM,
-            QtAds.SideBarRight.value : cls.RIGHT,
+            QtAds.SideBarLeft : cls.LEFT,
+            QtAds.SideBarTop : cls.TOP,
+            QtAds.SideBarBottom : cls.BOTTOM,
+            QtAds.SideBarRight : cls.RIGHT,
         }
 
         return lookup[v]
     
-    def to_ads(self) -> QtAds.ads.SideBarLocation:
+    def to_ads(self) -> QtAds.SideBarLocation:
         lookup = {
             self.__class__.LEFT.value : QtAds.SideBarLeft,
             self.__class__.TOP.value : QtAds.SideBarTop,
             self.__class__.BOTTOM.value : QtAds.SideBarBottom,
             self.__class__.RIGHT.value : QtAds.SideBarRight,
         }
-        return cast(QtAds.ads.SideBarLocation, lookup[self.value])
+        return lookup[self.value]
     
     def is_left_right(self) -> bool:
         return self.value in (self.__class__.LEFT.value, self.__class__.RIGHT.value)
@@ -407,7 +407,7 @@ def _get_sidebar_components_from_container(container:QtAds.CDockContainerWidget)
         scrutiny_component = cast(ScrutinyGUIBaseComponent, ads_dock_widget.widget())
         sidebar_location = SidebarLocation.from_ads(ads_autohide_container.sideBarLocation())
 
-        size_hw = cast(QSize, ads_dock_widget.dockAreaWidget().size())
+        size_hw = ads_dock_widget.dockAreaWidget().size()
         size = size_hw.width() if sidebar_location.is_left_right() else size_hw.height()
         sidebar_component = SerializableSideBarComponent(
             sidebar_location=sidebar_location,
@@ -434,7 +434,7 @@ def _get_container_splitter_recursive(parent:Union[QtAds.CDockSplitter, QtAds.CD
         )
 
         for i in range(splitter.count()):
-            children = _get_container_splitter_recursive(splitter.widget(i))
+            children = _get_container_splitter_recursive( cast(Union[QtAds.CDockSplitter, QtAds.CDockAreaWidget], splitter.widget(i)))
             out.content.append(children)
         return out
     elif isinstance(parent, QtAds.CDockAreaWidget):
@@ -459,7 +459,7 @@ def _get_container_splitter_recursive(parent:Union[QtAds.CDockSplitter, QtAds.CD
 
 def serialize_container(dock_container:QtAds.CDockContainerWidget) -> SerializableContainer:
     return SerializableContainer(
-        root_splitter=cast(SerializableSplitter, _get_container_splitter_recursive(dock_container.rootSplitter())),
+        root_splitter=cast(SerializableSplitter, _get_container_splitter_recursive(dock_container.rootSplitter())),     # type: ignore
         sidebar_components=_get_sidebar_components_from_container(dock_container)
     )
 
