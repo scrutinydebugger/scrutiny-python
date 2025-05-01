@@ -177,6 +177,7 @@ class Dashboard(QWidget):
         dock_widget = self._dock_manager.findDockWidget(component_class.__name__)   # try to find
 
         # Create 
+        autohide_container : Optional[QtAds.CAutoHideDockContainer] = None
         if dock_widget is None:    # Create
             dock_widget = self._create_new_component(component_class)
             if dock_widget is None:
@@ -187,11 +188,13 @@ class Dashboard(QWidget):
             auto_hide_container.setSize(component.sizeHint().width())
 
         if show:
+            # Workaround for bug #739 : https://github.com/githubuser0xFFFF/Qt-Advanced-Docking-System/issues/739
+            is_autohide = dock_widget.dockAreaWidget().isAutoHide()     # Do not use dock_widdget.isAutoHide(), see bug above
+
             # The user may have moved it, no assumption on type of container.
-            if dock_widget.isAutoHide():
+            if is_autohide:
                 auto_hide_container = dock_widget.autoHideDockContainer()
                 auto_hide_container.collapseView(False)
-            
             # We could use dock_Widget.raise() too for both floating and tabbed.
             elif dock_widget.isFloating():
                 floating_container = dock_widget.floatingDockContainer()
@@ -199,15 +202,16 @@ class Dashboard(QWidget):
             elif dock_widget.isTabbed():
                 dock_widget.setAsCurrentTab()
             else:
-                pass # Alone in the main container.
+                pass # Alone in the main container or an unknown condition.
 
         return dock_widget
 
-    def add_local_component(self, component_class:Type[ScrutinyGUIBaseLocalComponent]) -> None:
+    def add_local_component(self, component_class:Type[ScrutinyGUIBaseLocalComponent]) -> Optional[QtAds.CDockWidget]:
         """Add a component to the dashboard. Called by the ComponentSidebar"""
         ads_dock_widget = self._create_new_component(component_class=component_class)
         if ads_dock_widget is not None:
             self._add_widget_to_default_location(ads_dock_widget)
+        return ads_dock_widget
 
     def make_default_dashboard(self) -> None:
         self.clear()
@@ -218,32 +222,7 @@ class Dashboard(QWidget):
     def exit(self) -> None:
         self._dock_manager.deleteLater()
 
-    def save_as(self) -> None:
-        """Save the active dashboard to a new file. Ask the user for the file"""
-        filepath = prompt.get_save_filepath_from_last_save_dir(self, self.FILE_EXT)
-        if filepath is None:
-            return
-        
-        self._save_dashboard(filepath)
-    
-    def save(self) -> None:
-        """Save the active dashboard. Overwrite the active file or do a save_as if no dashboard is active (open) """
-        if self._active_file is not None:
-            if os.path.isfile(self._active_file):
-                overwrite = prompt.warning_yes_no_question(
-                    parent=self,
-                    title="File already exist",
-                    msg = f"File {self._active_file.name} already exist. Overwrite?"
-                    )
-                
-                if overwrite:
-                    self._save_dashboard(self._active_file)
-                else:
-                    self.save_as()
-        else:
-            self.save_as()
-
-    def _save_dashboard(self, filepath:Path) -> None:
+    def save(self, filepath:Path, exceptions:bool = False) -> None:
         """Export the actual dashboard to a file that can be reloaded later"""
         try:
             dashboard_struct = dashboard_file_format.SerializableDashboard(
@@ -265,6 +244,8 @@ class Dashboard(QWidget):
         except Exception as e:
             tools.log_exception(self._logger, e, "Internal error while saving the dashboard")
             prompt.exception_msgbox(title="Error while saving", parent=self, exception=e, message="Internal error while saving the dashboard")
+            if exceptions:
+                raise e
             return
         
         try:
@@ -274,7 +255,34 @@ class Dashboard(QWidget):
         except Exception as e:
             prompt.exception_msgbox(title="Failed to save dashboard", parent=self, exception=e, message="Failed to save dashboard")
             tools.log_exception(self._logger, e, "Failed to save")
+            if exceptions:
+                raise e
             return
+
+    def save_with_prompt(self, exceptions:bool = False) -> None:
+        """Save the active dashboard to a new file. Ask the user for the file"""
+        filepath = prompt.get_save_filepath_from_last_save_dir(self, self.FILE_EXT)
+        if filepath is None:
+            return
+        
+        return self.save(filepath, exceptions)
+    
+    def save_active_or_prompt(self, exceptions:bool = False) -> None:
+        """Save the active dashboard. Overwrite the active file or do a save_as if no dashboard is active (open) """
+        if self._active_file is not None:
+            if os.path.isfile(self._active_file):
+                overwrite = prompt.warning_yes_no_question(
+                    parent=self,
+                    title="File already exist",
+                    msg = f"File {self._active_file.name} already exist. Overwrite?"
+                    )
+                
+                if overwrite:
+                    self.save(self._active_file, exceptions)
+                else:
+                    self.save_with_prompt(exceptions)
+        else:
+            self.save_with_prompt(exceptions)
 
     def clear(self) -> None:
         """Removes everything from the dashboard. 
@@ -285,23 +293,33 @@ class Dashboard(QWidget):
         for title, dock_widget in dock_widgets.items():
             self._dock_manager.removeDockWidget(dock_widget)
             
-    def open(self, filepath:Optional[Path]=None) -> None:
+    def open_with_prompt(self, exceptions:bool = False) -> None:
         """Select a file form the filesystem and reload a dashboard from it"""
+        filepath = prompt.get_open_filepath_from_last_save_dir(self, self.FILE_EXT)
         if filepath is None:
-            filepath = prompt.get_open_filepath_from_last_save_dir(self, self.FILE_EXT)
-            if filepath is None:
-                return
+            return 
         
+        return self.open(filepath, exceptions)
+
+    def open(self, filepath:Path, exceptions:bool = False)  -> None:
         if not os.path.isfile(filepath):
             prompt.error_msgbox(self, "File not found", f"File {filepath} does not exist")
-            return
+            if exceptions:
+                raise FileNotFoundError(f"File {filepath} does not exist")
+            return 
         
         filesize = os.path.getsize(filepath)
         if filesize > self.MAX_FILE_SIZE_TO_LOAD:
-            prompt.error_msgbox(self, "File too big", f"File {filepath} has a size of {filesize} bytes. This is unusual for a dashboard.\n Will not load. (max={self.MAX_FILE_SIZE_TO_LOAD}).")
-            return
+            msg = f"File {filepath} has a size of {filesize} bytes. This is unusual for a dashboard.\n Will not load. (max={self.MAX_FILE_SIZE_TO_LOAD})."
+            prompt.error_msgbox(self, "File too big", msg)
+            if exceptions:
+                raise RuntimeError(msg)
+            return 
         
-        self._restore_from_file(filepath)
+        self._restore_from_file(filepath, exceptions)
+
+    def dock_manager(self) -> QtAds.CDockManager:
+        return self._dock_manager
     
 # endregion
 
@@ -458,7 +476,7 @@ class Dashboard(QWidget):
 # endregion
 
 # region Restore
-    def _restore_from_file(self, filepath:Path) -> None:
+    def _restore_from_file(self, filepath:Path, exceptions:bool = False) -> None:
         """reload a dashboard from a file. Clears the actual dashboard"""
         try:
             with open(filepath, 'rb') as f:
@@ -467,6 +485,8 @@ class Dashboard(QWidget):
         except Exception as e:
             prompt.exception_msgbox(title="Failed to open dashboard", parent=self, exception=e, message="Failed to parse the dashboard file. JSON is invalid")
             tools.log_exception(self._logger, e, "Failed to open")
+            if exceptions:
+                raise e
             return 
         
         self.clear()

@@ -53,7 +53,7 @@ class SerializableComponent:
     def __post_init__(self) -> None:
         assert isinstance(self.title, str)
         assert isinstance(self.type_id, str)
-        assert isinstance(self.state, dict)        
+        assert isinstance(self.state, dict)
 
 
 @dataclass
@@ -136,7 +136,7 @@ class SidebarLocation(enum.Enum):
         return cls(v)
     
     @classmethod
-    def from_ads(cls, v:QtAds.SideBarLocation) -> "SidebarLocation":
+    def from_ads(cls, v:QtAds.ads.SideBarLocation) -> "SidebarLocation":
         lookup = {
             QtAds.SideBarLeft : cls.LEFT,
             QtAds.SideBarTop : cls.TOP,
@@ -146,7 +146,7 @@ class SidebarLocation(enum.Enum):
 
         return lookup[v]
     
-    def to_ads(self) -> QtAds.SideBarLocation:
+    def to_ads(self) -> QtAds.ads.SideBarLocation:
         lookup = {
             self.__class__.LEFT.value : QtAds.SideBarLeft,
             self.__class__.TOP.value : QtAds.SideBarTop,

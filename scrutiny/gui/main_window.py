@@ -150,13 +150,13 @@ class MainWindow(QMainWindow):
         self._dashboard.make_default_dashboard()
 
     def _dashboard_save_click(self) -> None:
-        self._dashboard.save()
+        self._dashboard.save_active_or_prompt()
     
     def _dashboard_save_as_click(self) -> None:
-        self._dashboard.save_as()
+        self._dashboard.save_with_prompt()
 
     def _dashboard_open_click(self) -> None:
-        self._dashboard.open()
+        self._dashboard.open_with_prompt()
 
     def _dashboard_recent_open_click(self, filepath:str) -> None:
         self._dashboard.open(Path(filepath))
