@@ -81,7 +81,7 @@ class BuildSplitterRecursiveImmutableData:
     top_level : bool
 
 class ScrutinyDockWidgetTab(QtAds.CDockWidgetTab):
-    def contextMenuEvent(self, event:QContextMenuEvent):
+    def contextMenuEvent(self, event:QContextMenuEvent) -> None:
         event.accept()
         menu = QMenu(self)
         dock_widget =self.dockWidget()
@@ -92,7 +92,7 @@ class ScrutinyDockWidgetTab(QtAds.CDockWidgetTab):
         
         if isinstance(component, ScrutinyGUIBaseLocalComponent):
             action_rename = menu.addAction(assets.load_tiny_icon(assets.Icons.TextEdit), "Rename")
-            def rename():
+            def rename() -> None:
                 print(f"rename {component.instance_name}")
             action_rename.triggered.connect(rename)
 
@@ -100,7 +100,7 @@ class ScrutinyDockWidgetTab(QtAds.CDockWidgetTab):
         detach_action = menu.addAction(assets.load_tiny_icon(assets.Icons.Window), "Detach")
         detach_action.triggered.connect(self.dockWidget().setFloating)
         close_action = menu.addAction(assets.load_tiny_icon(assets.Icons.RedX), "Close")
-        def close_callback():
+        def close_callback() -> None:
             if dock_widget.isClosed():
                 return
             dock_area = self.dockAreaWidget()
@@ -114,9 +114,8 @@ class ScrutinyDockWidgetTab(QtAds.CDockWidgetTab):
         
 
 class CustomFactory(QtAds.CDockComponentsFactory):
-    storage = []
-    def createDockWidgetTab(self, dock_wdiget:QtAds.CDockWidget):
-        tab = ScrutinyDockWidgetTab(dock_wdiget)
+    def createDockWidgetTab(self, dock_wdiget:QtAds.CDockWidget) -> QtAds.CDockWidgetTab:
+        tab = ScrutinyDockWidgetTab(dock_wdiget, None)
         # No reference of the python object is kept in the PyQtADS layer.
         # If we don't store it here, python garbage collector will destroy it
         # QtAds thinks it has ownership and will use it blindly
