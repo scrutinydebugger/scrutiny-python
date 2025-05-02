@@ -15,9 +15,9 @@ import json
 from datetime import datetime
 from pathlib import Path
 
-from PySide6.QtWidgets import QWidget, QVBoxLayout, QHBoxLayout
-from PySide6.QtCore import Qt, QSize, QObject, Signal
-from PySide6.QtGui import QKeyEvent
+from PySide6.QtWidgets import QWidget, QVBoxLayout, QHBoxLayout, QMenu
+from PySide6.QtCore import Qt, QSize, QObject, Signal, QTimer
+from PySide6.QtGui import QKeyEvent, QContextMenuEvent
 
 import PySide6QtAds  as QtAds
 import shiboken6
@@ -26,24 +26,25 @@ import scrutiny
 from scrutiny.gui.components.locals.base_local_component import ScrutinyGUIBaseLocalComponent
 from scrutiny.gui.components.globals.base_global_component import ScrutinyGUIBaseGlobalComponent
 from scrutiny.gui.components.base_component import ScrutinyGUIBaseComponent
-
-from scrutiny.gui.tools.opengl import prepare_for_opengl
-from scrutiny.gui.app_settings import app_settings
-from scrutiny.gui.tools.invoker import InvokeQueued
-from scrutiny.gui.core.persistent_data import gui_persistent_data
-
 from scrutiny.gui.components.globals.varlist.varlist_component import VarListComponent
 from scrutiny.gui.components.globals.metrics.metrics_component import MetricsComponent
 
 from scrutiny.gui.dashboard import dashboard_file_format
+from scrutiny.gui.app_settings import app_settings
+from scrutiny.gui.core.persistent_data import gui_persistent_data
 
-from scrutiny.gui.tools import prompt
-
-from scrutiny.tools.typing import *
 from scrutiny import tools
+from scrutiny.gui.tools import prompt
+from scrutiny.gui.tools.opengl import prepare_for_opengl
+from scrutiny.gui.tools.invoker import InvokeQueued
+from scrutiny.gui.tools.shiboken_ref_keeper import ShibokenRefKeeper
+from scrutiny.tools.typing import *
+from scrutiny.gui import assets
 
 if TYPE_CHECKING:
     from scrutiny.gui.main_window import MainWindow
+
+SHIBOKEN_STORAGE = ShibokenRefKeeper()
 
 class ScrutinyDockWidget(QtAds.CDockWidget):
 
@@ -79,6 +80,52 @@ class BuildSplitterRecursiveImmutableData:
     name_suffix:str
     top_level : bool
 
+class ScrutinyDockWidgetTab(QtAds.CDockWidgetTab):
+    def contextMenuEvent(self, event:QContextMenuEvent):
+        event.accept()
+        menu = QMenu(self)
+        dock_widget =self.dockWidget()
+        if dock_widget is None:
+            return
+        dock_widget.setAsCurrentTab()
+        component = cast(ScrutinyGUIBaseComponent, dock_widget.widget())
+        
+        if isinstance(component, ScrutinyGUIBaseLocalComponent):
+            action_rename = menu.addAction(assets.load_tiny_icon(assets.Icons.TextEdit), "Rename")
+            def rename():
+                print(f"rename {component.instance_name}")
+            action_rename.triggered.connect(rename)
+
+
+        detach_action = menu.addAction(assets.load_tiny_icon(assets.Icons.Window), "Detach")
+        detach_action.triggered.connect(self.dockWidget().setFloating)
+        close_action = menu.addAction(assets.load_tiny_icon(assets.Icons.RedX), "Close")
+        def close_callback():
+            if dock_widget.isClosed():
+                return
+            dock_area = self.dockAreaWidget()
+            if dock_area is None:
+                return            
+            dock_area.dockManager().removeDockWidget(dock_widget)
+       
+        close_action.triggered.connect(close_callback)
+        menu.popup(self.mapToGlobal(event.pos()))
+        
+        
+
+class CustomFactory(QtAds.CDockComponentsFactory):
+    storage = []
+    def createDockWidgetTab(self, dock_wdiget:QtAds.CDockWidget):
+        tab = ScrutinyDockWidgetTab(dock_wdiget)
+        # No reference of the python object is kept in the PyQtADS layer.
+        # If we don't store it here, python garbage collector will destroy it
+        # QtAds thinks it has ownership and will use it blindly
+        # QtAds will also delete the internal C++ object on widget deletion. 
+        # Periodic prunes of the storage will then delete the python object
+        SHIBOKEN_STORAGE.insert(tab)    
+        return tab
+        
+
 class Dashboard(QWidget):
     class _Signals(QObject):
         active_file_changed = Signal()
@@ -95,6 +142,8 @@ class Dashboard(QWidget):
     _component_instances:Dict[str, ScrutinyGUIBaseComponent]
     _logger:logging.Logger
     _signals:_Signals
+
+    _shiboken_prune_timer:QTimer
 
     _active_file:Optional[Path]
     
@@ -113,6 +162,12 @@ class Dashboard(QWidget):
         QtAds.CDockManager.setConfigFlag(QtAds.CDockManager.XmlCompressionEnabled, False)
         QtAds.CDockManager.setAutoHideConfigFlags(QtAds.CDockManager.DefaultAutoHideConfig)
         self._dock_manager = QtAds.CDockManager(dock_conainer)
+        self.factory = CustomFactory()
+        QtAds.CDockComponentsFactory.setFactory(CustomFactory())
+        
+        self._shiboken_prune_timer = QTimer()
+        self._shiboken_prune_timer.setInterval(2000)
+        self._shiboken_prune_timer.timeout.connect(SHIBOKEN_STORAGE.prune)
 
         def configure_new_window(win:QtAds.CFloatingDockContainer) -> None:
             flags = win.windowFlags()
@@ -132,6 +187,8 @@ class Dashboard(QWidget):
 
         layout = QHBoxLayout(self)
         layout.addWidget(dock_conainer)
+        self._shiboken_prune_timer.start()
+
 
 # region Public API
 

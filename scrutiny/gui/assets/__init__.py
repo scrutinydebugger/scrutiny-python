@@ -100,6 +100,7 @@ class Icons(enum.Enum):
     TestHRect="test-hrect"
     Trigger="trigger"
     TextEdit="text-edit"
+    Window="window"
 
 def icon_filename(name:Icons, format:IconFormat, iconset:IconSet=IconSet.Default) -> Path:
     possible_formats = {
