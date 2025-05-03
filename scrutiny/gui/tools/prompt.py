@@ -57,9 +57,9 @@ def get_save_folderpath_from_last_save_dir(parent:QWidget, title:str="Save", sav
     gui_persistent_data.global_namespace().set_last_save_dir(Path(foldername))
     return Path(foldername)
 
-def warning_yes_no_question(parent:QWidget, msg:str, title:str) -> bool:
+def yes_no_question(parent:QWidget, msg:str, title:str, icon:QMessageBox.Icon = QMessageBox.Icon.Question) -> bool:
     msgbox = QMessageBox(parent)
-    msgbox.setIcon(QMessageBox.Icon.Warning)
+    msgbox.setIcon(icon)
     msgbox.setWindowTitle(title)
     msgbox.setText(msg)
     msgbox.setStandardButtons(QMessageBox.StandardButton.No | QMessageBox.StandardButton.Yes)
@@ -69,3 +69,6 @@ def warning_yes_no_question(parent:QWidget, msg:str, title:str) -> bool:
     reply = msgbox.exec()
 
     return (reply == QMessageBox.StandardButton.Yes)
+
+def warning_yes_no_question(parent:QWidget, msg:str, title:str) -> bool:
+    return yes_no_question(parent, msg, title, QMessageBox.Icon.Warning)

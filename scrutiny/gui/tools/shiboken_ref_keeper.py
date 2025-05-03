@@ -1,3 +1,13 @@
+#    shiboken_ref_keeper.py
+#        A simple tool that keeps a reference of a QT object until the internal C++ object
+#        is deleted.
+#        Required to pass local python objects to modules that does not take ownership of
+#        the object
+#
+#   - License : MIT - See LICENSE file.
+#   - Project :  Scrutiny Debugger (github.com/scrutinydebugger/scrutiny-python)
+#
+#   Copyright (c) 2021 Scrutiny Debugger
 
 from typing import Dict
 from PySide6.QtCore import QObject

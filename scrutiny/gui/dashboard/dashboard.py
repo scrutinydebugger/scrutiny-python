@@ -142,7 +142,7 @@ def tab_context_menu(owner:QWidget,
     
     if unpin:
         if is_autohide:
-            unpin_action = menu.addAction("Unpin")
+            unpin_action = menu.addAction(assets.load_tiny_icon(assets.Icons.Unpin), "Unpin")
             def unpin_slot() -> None:
                 dock_widget.setAutoHide(False, QtAds.SideBarNone)
             unpin_action.triggered.connect(unpin_slot)
@@ -300,6 +300,13 @@ class Dashboard(QWidget):
     @property
     def signals(self) -> _Signals:
         return self._signals
+    
+    def local_components_count(self) -> int:
+        count = 0
+        for component in self._component_instances.values():
+            if isinstance(component, ScrutinyGUIBaseLocalComponent):
+                count += 1
+        return count
 
     def get_active_file(self) -> Optional[Path]:
         return self._active_file

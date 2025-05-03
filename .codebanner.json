@@ -600,9 +600,6 @@
         "scrutiny/gui/widgets/base_chart.py": {
             "docstring": "Some customized extensions of the QT Charts for the Scrutiny GUI"
         },
-        "scrutiny/gui/core/preferences.py": {
-            "docstring": "An interface to the user preferences"
-        },
         "scrutiny/gui/themes/default_theme.py": {
             "docstring": "A color theme that serves as a base for other theme and loaded by default"
         },
@@ -713,6 +710,15 @@
         },
         "scrutiny/gui/dashboard/dashboard_file_format.py": {
             "docstring": "Definitions of the serialized data representing a dashboard written into files when saving"
+        },
+        "test/gui/test_dashboard.py": {
+            "docstring": "A test suite that validate the dashboard logic"
+        },
+        "scrutiny/gui/core/persistent_data.py": {
+            "docstring": "A collection of GUI-wide dictionaries that are persistent across process execution. Organized by namespaces"
+        },
+        "scrutiny/gui/tools/shiboken_ref_keeper.py": {
+            "docstring": "A simple tool that keeps a reference of a QT object until the internal C++ object is deleted.\n Required to pass local python objects to modules that does not take ownership of the object"
         }
     }
 }

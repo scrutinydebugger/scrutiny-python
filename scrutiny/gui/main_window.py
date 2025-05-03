@@ -17,6 +17,7 @@ from PySide6.QtWidgets import QMainWindow
 from scrutiny.gui.core.persistent_data import gui_persistent_data
 from scrutiny.gui.app_settings import app_settings
 from scrutiny.gui.tools.invoker import InvokeQueued
+from scrutiny.gui.tools import prompt
 
 from scrutiny.gui.dialogs.about_dialog import AboutDialog
 from scrutiny.gui.widgets.component_sidebar import ComponentSidebar
@@ -27,7 +28,6 @@ from scrutiny.gui.dashboard.dashboard import Dashboard
 
 from scrutiny.gui.components.locals.base_local_component import ScrutinyGUIBaseLocalComponent
 from scrutiny.gui.components.globals.base_global_component import ScrutinyGUIBaseGlobalComponent
-from scrutiny.gui.components.base_component import ScrutinyGUIBaseComponent
 from scrutiny.gui.components.globals.varlist.varlist_component import VarListComponent
 from scrutiny.gui.components.locals.watch.watch_component import WatchComponent
 from scrutiny.gui.components.locals.continuous_graph.continuous_graph_component import ContinuousGraphComponent
@@ -155,10 +155,18 @@ class MainWindow(QMainWindow):
     def _dashboard_save_as_click(self) -> None:
         self._dashboard.save_with_prompt()
 
+    def _save_before_open_question(self) -> None:
+        if self._dashboard.local_components_count() > 0:
+            require_save = prompt.yes_no_question(self, "Do you want to save the actual dashboard?", "Save?")
+            if require_save:
+                self._dashboard.save_with_prompt()
+
     def _dashboard_open_click(self) -> None:
+        self._save_before_open_question()
         self._dashboard.open_with_prompt()
 
     def _dashboard_recent_open_click(self, filepath:str) -> None:
+        self._save_before_open_question()
         self._dashboard.open(Path(filepath))
 
     def get_server_manager(self) -> ServerManager:

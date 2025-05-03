@@ -102,6 +102,7 @@ class Icons(enum.Enum):
     TextEdit="text-edit"
     Window="window"
     Pin="pin"
+    Unpin="unpin"
     SidebarLeft="sidebar-left"
     SidebarRight="sidebar-right"
     SidebarTop="sidebar-top"

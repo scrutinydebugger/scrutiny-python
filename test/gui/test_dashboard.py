@@ -1,3 +1,11 @@
+#    test_dashboard.py
+#        A test suite that validate the dashboard logic
+#
+#   - License : MIT - See LICENSE file.
+#   - Project :  Scrutiny Debugger (github.com/scrutinydebugger/scrutiny-python)
+#
+#   Copyright (c) 2021 Scrutiny Debugger
+
 import os
 import tempfile
 from pathlib import Path
