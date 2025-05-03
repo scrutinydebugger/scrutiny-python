@@ -2,11 +2,12 @@ from enum import Enum
 from typing import List, ClassVar, Optional, Dict, overload, Sequence, TypeAlias, Any, Callable
 import typing
 
-if not hasattr(typing, 'override'):
-    def override(func: Callable[..., Any]) -> Callable[..., Any]:   # type ignore
-        return func
+if hasattr(typing, 'override'):
+    override = typing.override
 else:
-    override = typing.override  # type: ignore
+    # Let's stub it for python <= 3.11
+    def override(func: Callable[..., Any]) -> Callable[..., Any]:   # type: ignore
+        return func
 
 
 from PySide6.QtCore import QSize, QObject, QEvent, Signal, Qt, QSettings, QRect, QXmlStreamWriter, QPoint, QXmlStreamReader
