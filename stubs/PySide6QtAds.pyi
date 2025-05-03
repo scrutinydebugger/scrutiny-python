@@ -1,11 +1,9 @@
 from enum import Enum
-from typing import List, ClassVar, Optional, Dict, overload, Sequence, TypeAlias, Any, Callable
-
+from typing import List, ClassVar, Optional, Dict, overload, Sequence, TypeAlias
 
 from PySide6.QtCore import QSize, QObject, QEvent, Signal, Qt, QSettings, QRect, QXmlStreamWriter, QPoint, QXmlStreamReader
 from PySide6.QtWidgets import QWidget, QFrame, QToolBar, QSplitter, QMenu, QAbstractButton, QLabel, QToolButton, QScrollArea, QPushButton
 from PySide6.QtGui import QIcon, QAction, QColor
-
 
 class ads:
     class DockWidgetArea(Enum):

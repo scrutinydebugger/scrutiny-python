@@ -1,3 +1,5 @@
+import scrutiny
+import scrutiny.sdk
 from scrutiny.sdk.client import ScrutinyClient
 
 hostname = 'localhost'
