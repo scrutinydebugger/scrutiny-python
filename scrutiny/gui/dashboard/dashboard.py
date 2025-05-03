@@ -110,10 +110,10 @@ def tab_context_menu(owner:QWidget,
         pin_to_action = menu.addAction(assets.load_tiny_icon(assets.Icons.Pin), "Pin to")
         pin_to_menu = QMenu(menu)
         pin_to_action.setMenu(pin_to_menu)
-        pin_to_left_action = pin_to_menu.addAction("Left")
-        pin_to_right_action = pin_to_menu.addAction("Right")
-        pin_to_top_action = pin_to_menu.addAction("Top")
-        pin_to_bottom_action = pin_to_menu.addAction("Bottom")
+        pin_to_left_action = pin_to_menu.addAction(assets.load_tiny_icon(assets.Icons.SidebarLeft), "Left")
+        pin_to_right_action = pin_to_menu.addAction(assets.load_tiny_icon(assets.Icons.SidebarRight), "Right")
+        pin_to_top_action = pin_to_menu.addAction(assets.load_tiny_icon(assets.Icons.SidebarTop), "Top")
+        pin_to_bottom_action = pin_to_menu.addAction(assets.load_tiny_icon(assets.Icons.SidebarBottom), "Bottom")
 
         def pin_left_slot() -> None:
             dock_widget.setAutoHide(True, QtAds.SideBarLeft)

@@ -102,6 +102,10 @@ class Icons(enum.Enum):
     TextEdit="text-edit"
     Window="window"
     Pin="pin"
+    SidebarLeft="sidebar-left"
+    SidebarRight="sidebar-right"
+    SidebarTop="sidebar-top"
+    SidebarBottom="sidebar-bottom"
 
 def icon_filename(name:Icons, format:IconFormat, iconset:IconSet=IconSet.Default) -> Path:
     possible_formats = {
