@@ -1,11 +1,13 @@
 from enum import Enum
 from typing import List, ClassVar, Optional, Dict, overload, Sequence, TypeAlias, Any, Callable
+import typing
 
-try:
-    from typing import override
-except ImportError:
+if not hasattr(typing, 'override'):
     def override(func: Callable[..., Any]) -> Callable[..., Any]:   # type ignore
         return func
+else:
+    override = typing.override  # type: ignore
+
 
 from PySide6.QtCore import QSize, QObject, QEvent, Signal, Qt, QSettings, QRect, QXmlStreamWriter, QPoint, QXmlStreamReader
 from PySide6.QtWidgets import QWidget, QFrame, QToolBar, QSplitter, QMenu, QAbstractButton, QLabel, QToolButton, QScrollArea, QPushButton
