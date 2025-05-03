@@ -8,6 +8,7 @@
 
 from PySide6.QtWidgets import QDialog, QFormLayout, QLabel, QWidget, QVBoxLayout, QGroupBox, QSizePolicy
 from PySide6.QtCore import Qt
+import os
 
 import PySide6
 import PySide6.QtCore
@@ -56,10 +57,11 @@ class AboutDialog(QDialog):
         self.setLayout(layout)
 
         fields = [
+            ("Scrutiny location", os.path.dirname(scrutiny.__file__)),
             ("Scrutiny version", scrutiny.__version__),
             ("Python version", "%d.%d.%d" % (sys.version_info.major, sys.version_info.minor, sys.version_info.micro)),
             ("QT version", getattr(PySide6.QtCore, "__version__", "N/A")),
-            ("PySide6 version", PySide6.__version__),
+            ("PySide6 version", PySide6.__version__)
         ]
 
         for i in range(len(fields)):

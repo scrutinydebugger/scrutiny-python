@@ -15,11 +15,11 @@ import json
 from datetime import datetime
 from pathlib import Path
 
-from PySide6.QtWidgets import QWidget, QVBoxLayout, QHBoxLayout, QMenu
+from PySide6.QtWidgets import QWidget, QVBoxLayout, QHBoxLayout, QMenu, QInputDialog, QLineEdit
 from PySide6.QtCore import Qt, QSize, QObject, Signal, QTimer
-from PySide6.QtGui import QKeyEvent, QContextMenuEvent
+from PySide6.QtGui import QKeyEvent, QContextMenuEvent, QMouseEvent
 
-import PySide6QtAds  as QtAds
+import PySide6QtAds as QtAds
 import shiboken6
 
 import scrutiny
@@ -43,8 +43,6 @@ from scrutiny.gui import assets
 
 if TYPE_CHECKING:
     from scrutiny.gui.main_window import MainWindow
-
-SHIBOKEN_STORAGE = ShibokenRefKeeper()
 
 class ScrutinyDockWidget(QtAds.CDockWidget):
 
@@ -80,55 +78,170 @@ class BuildSplitterRecursiveImmutableData:
     name_suffix:str
     top_level : bool
 
-class ScrutinyDockWidgetTab(QtAds.CDockWidgetTab):
-    def contextMenuEvent(self, event:QContextMenuEvent) -> None:
-        event.accept()
-        menu = QMenu(self)
-        dock_widget =self.dockWidget()
-        if dock_widget is None:
-            return
-        dock_widget.setAsCurrentTab()
-        component = cast(ScrutinyGUIBaseComponent, dock_widget.widget())
-        
+
+def tab_context_menu(owner:QWidget,
+        dock_widget:QtAds.CDockWidget,
+        rename:bool = True,
+        detach:bool = True,
+        pin_to:bool = True,
+        unpin:bool = True,
+        close:bool = True) -> QMenu:
+    menu = QMenu(owner)
+    dock_widget.setAsCurrentTab()
+    component = cast(ScrutinyGUIBaseComponent, dock_widget.widget())
+    is_autohide = dock_widget.dockAreaWidget().isAutoHide()    # Check dockarea. dock_widget.isautoHide is buggy. See bug #739
+
+    if rename:
         if isinstance(component, ScrutinyGUIBaseLocalComponent):
             action_rename = menu.addAction(assets.load_tiny_icon(assets.Icons.TextEdit), "Rename")
-            def rename() -> None:
-                print(f"rename {component.instance_name}")
-            action_rename.triggered.connect(rename)
-
-
+            def rename_slot() -> None:
+                if dock_widget.isClosed():
+                    return
+                new_name, changed = QInputDialog.getText(owner,  "Rename tab", "New name", echo=QLineEdit.EchoMode.Normal, text=dock_widget.windowTitle())
+                if changed:
+                    dock_widget.setWindowTitle(new_name)
+            action_rename.triggered.connect(rename_slot)
+    
+    if detach:
         detach_action = menu.addAction(assets.load_tiny_icon(assets.Icons.Window), "Detach")
-        detach_action.triggered.connect(self.dockWidget().setFloating)
+        detach_action.triggered.connect(dock_widget.setFloating)
+
+    if pin_to:
+        pin_to_action = menu.addAction(assets.load_tiny_icon(assets.Icons.Pin), "Pin to")
+        pin_to_menu = QMenu(menu)
+        pin_to_action.setMenu(pin_to_menu)
+        pin_to_left_action = pin_to_menu.addAction("Left")
+        pin_to_right_action = pin_to_menu.addAction("Right")
+        pin_to_top_action = pin_to_menu.addAction("Top")
+        pin_to_bottom_action = pin_to_menu.addAction("Bottom")
+
+        def pin_left_slot() -> None:
+            dock_widget.setAutoHide(True, QtAds.SideBarLeft)
+        def pin_right_slot() -> None:
+            dock_widget.setAutoHide(True, QtAds.SideBarRight)
+        def pin_top_slot() -> None:
+            dock_widget.setAutoHide(True, QtAds.SideBarTop)
+        def pin_bottom_slot() -> None:
+            dock_widget.setAutoHide(True, QtAds.SideBarBottom)
+
+        pin_to_left_action.triggered.connect(pin_left_slot)
+        pin_to_right_action.triggered.connect(pin_right_slot)
+        pin_to_top_action.triggered.connect(pin_top_slot)
+        pin_to_bottom_action.triggered.connect(pin_bottom_slot)
+
+        if is_autohide:
+            location = dock_widget.autoHideLocation()
+            if location == QtAds.SideBarLeft:
+                pin_to_left_action.setDisabled(True)
+            if location == QtAds.SideBarRight:
+                pin_to_right_action.setDisabled(True)
+            if location == QtAds.SideBarTop:
+                pin_to_top_action.setDisabled(True)
+            if location == QtAds.SideBarBottom:
+                pin_to_bottom_action.setDisabled(True)
+    
+    if unpin:
+        if is_autohide:
+            unpin_action = menu.addAction("Unpin")
+            def unpin_slot() -> None:
+                dock_widget.setAutoHide(False, QtAds.SideBarNone)
+            unpin_action.triggered.connect(unpin_slot)
+
+    
+    if close:
         close_action = menu.addAction(assets.load_tiny_icon(assets.Icons.RedX), "Close")
-        def close_callback() -> None:
+        def close_slot() -> None:
             if dock_widget.isClosed():
                 return
-            dock_area = self.dockAreaWidget()
+            dock_area = dock_widget.dockAreaWidget()
             if dock_area is None:
                 return            
             dock_area.dockManager().removeDockWidget(dock_widget)
-       
-        close_action.triggered.connect(close_callback)
-        menu.popup(self.mapToGlobal(event.pos()))
-        
+        close_action.triggered.connect(close_slot)
+    
+    return menu
+
+class ScrutinyDockWidgetSideTab(QtAds.ads.CAutoHideTab):
+    def contextMenuEvent(self, event:QContextMenuEvent) -> None:
+        event.accept()
+        dock_widget = self.dockWidget()
+        if dock_widget is None:
+            return
+
+        menu = tab_context_menu(self, dock_widget)
+        if len(menu.actions()) > 0:
+            menu.popup(self.mapToGlobal(event.pos()))
+
+class ScrutinyDockAreaTitleBar(QtAds.CDockAreaTitleBar):
+    def contextMenuEvent(self, event:QContextMenuEvent) -> None:
+        pass    # No menu on the title bar. Remove the default "Close Group". Not necessary. Don't bloat the UI
+
+    def mouseDoubleClickEvent(self, event:QMouseEvent) -> None:
+        pass    # Prevent default behavior that can detach a window
+
+class ScrutinyDockWidgetTab(QtAds.CDockWidgetTab):
+    def mouseDoubleClickEvent(self, event:QMouseEvent) -> None:
+        # Force do nothing. 
+        # Prevent the default behavior of detaching the window.
+        # a flag can prevent that behavior in 4.4.0 
+        # (https://github.com/githubuser0xFFFF/Qt-Advanced-Docking-System/commit/7245dced8452ad8aa62297b9a00d47ffe43c4a5e)
+        # We don't have it in Python as of today
+        pass    
+
+    def contextMenuEvent(self, event:QContextMenuEvent) -> None:
+        event.accept()
+        dock_widget = self.dockWidget()
+        if dock_widget is None:
+            return
+
+        menu = tab_context_menu(self, dock_widget)
+        if len(menu.actions()) > 0:
+            menu.popup(self.mapToGlobal(event.pos()))
         
 
 class CustomFactory(QtAds.CDockComponentsFactory):
+    _shiboken_storage : ShibokenRefKeeper
+    _shiboken_prune_timer: QTimer
+    # No reference of the python object is kept in the PyQtADS layer.
+    # If we don't store it here, python garbage collector will destroy it
+    # QtAds thinks it has ownership and will use it blindly
+    # QtAds will also delete the internal C++ object on widget deletion. 
+    # Periodic prunes of the storage will then delete the python object
+
+    @tools.copy_type(QtAds.CDockComponentsFactory)
+    def __init__(self, *args:Any, **kwargs:Any) -> None:
+        super().__init__(*args, **kwargs)
+        self._shiboken_storage = ShibokenRefKeeper()
+
+        self._shiboken_prune_timer = QTimer()
+        self._shiboken_prune_timer.setInterval(2000)
+        self._shiboken_prune_timer.timeout.connect(self._shiboken_storage.prune)
+        self._shiboken_prune_timer.start()
+
     def createDockWidgetTab(self, dock_wdiget:QtAds.CDockWidget) -> QtAds.CDockWidgetTab:
         tab = ScrutinyDockWidgetTab(dock_wdiget, None)
-        # No reference of the python object is kept in the PyQtADS layer.
-        # If we don't store it here, python garbage collector will destroy it
-        # QtAds thinks it has ownership and will use it blindly
-        # QtAds will also delete the internal C++ object on widget deletion. 
-        # Periodic prunes of the storage will then delete the python object
-        SHIBOKEN_STORAGE.insert(tab)    
+        self._shiboken_storage.insert(tab)  # Keep a reference. QtAds expect the factory to be the owner, but is not responsible to delete
         return tab
-        
+    
+    def createDockAreaTitleBar(self, dock_area:QtAds.CDockAreaWidget) -> QtAds.CDockAreaTitleBar:
+        titlebar = ScrutinyDockAreaTitleBar(dock_area)
+        self._shiboken_storage.insert(titlebar) # Keep a reference. QtAds expect the factory to be the owner, but is not responsible to delete
+        return titlebar
+    
+    def createDockWidgetSideTab(self, dock_wdiget:QtAds.CDockWidget) -> QtAds.ads.CAutoHideTab:
+        sidetab = ScrutinyDockWidgetSideTab(dock_wdiget)
+        self._shiboken_storage.insert(sidetab)  # Keep a reference. QtAds expect the factory to be the owner, but is not responsible to delete
+        return sidetab
+    
+    def crea(self, dock_area:QtAds.CDockAreaWidget) -> QtAds.CDockAreaTitleBar:
+        titlebar = ScrutinyDockAreaTitleBar(dock_area)
+        self._shiboken_storage.insert(titlebar) # Keep a reference. QtAds expect the factory to be the owner, but is not responsible to delete
+        return titlebar
 
 class Dashboard(QWidget):
+    """The main GUI dashboard"""
     class _Signals(QObject):
         active_file_changed = Signal()
-
 
     FILE_EXT = ".scdb"
     FILE_FORMAT_VERSION = 1
@@ -141,9 +254,7 @@ class Dashboard(QWidget):
     _component_instances:Dict[str, ScrutinyGUIBaseComponent]
     _logger:logging.Logger
     _signals:_Signals
-
-    _shiboken_prune_timer:QTimer
-
+    
     _active_file:Optional[Path]
     
     def __init__(self, main_window:"MainWindow") -> None:
@@ -160,13 +271,9 @@ class Dashboard(QWidget):
         QtAds.CDockManager.setConfigFlag(QtAds.CDockManager.FloatingContainerHasWidgetTitle)
         QtAds.CDockManager.setConfigFlag(QtAds.CDockManager.XmlCompressionEnabled, False)
         QtAds.CDockManager.setAutoHideConfigFlags(QtAds.CDockManager.DefaultAutoHideConfig)
-        self._dock_manager = QtAds.CDockManager(dock_conainer)
         self.factory = CustomFactory()
-        QtAds.CDockComponentsFactory.setFactory(CustomFactory())
-        
-        self._shiboken_prune_timer = QTimer()
-        self._shiboken_prune_timer.setInterval(2000)
-        self._shiboken_prune_timer.timeout.connect(SHIBOKEN_STORAGE.prune)
+        QtAds.CDockComponentsFactory.setFactory(self.factory)   # Set before the dock manager is created
+        self._dock_manager = QtAds.CDockManager(dock_conainer)
 
         def configure_new_window(win:QtAds.CFloatingDockContainer) -> None:
             flags = win.windowFlags()
@@ -186,7 +293,6 @@ class Dashboard(QWidget):
 
         layout = QHBoxLayout(self)
         layout.addWidget(dock_conainer)
-        self._shiboken_prune_timer.start()
 
 
 # region Public API
@@ -233,7 +339,6 @@ class Dashboard(QWidget):
         dock_widget = self._dock_manager.findDockWidget(component_class.__name__)   # try to find
 
         # Create 
-        autohide_container : Optional[QtAds.CAutoHideDockContainer] = None
         if dock_widget is None:    # Create
             dock_widget = self._create_new_component(component_class)
             if dock_widget is None:

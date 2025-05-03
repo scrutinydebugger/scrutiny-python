@@ -101,6 +101,7 @@ class Icons(enum.Enum):
     Trigger="trigger"
     TextEdit="text-edit"
     Window="window"
+    Pin="pin"
 
 def icon_filename(name:Icons, format:IconFormat, iconset:IconSet=IconSet.Default) -> Path:
     possible_formats = {
