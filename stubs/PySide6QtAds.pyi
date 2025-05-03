@@ -1,5 +1,11 @@
 from enum import Enum
-from typing import List, ClassVar, Optional, Dict, overload, override, Sequence, TypeAlias
+from typing import List, ClassVar, Optional, Dict, overload, Sequence, TypeAlias, Any, Callable
+
+try:
+    from typing import override
+except ImportError:
+    def override(func: Callable[..., Any]) -> Callable[..., Any]:   # type ignore
+        return func
 
 from PySide6.QtCore import QSize, QObject, QEvent, Signal, Qt, QSettings, QRect, QXmlStreamWriter, QPoint, QXmlStreamReader
 from PySide6.QtWidgets import QWidget, QFrame, QToolBar, QSplitter, QMenu, QAbstractButton, QLabel, QToolButton, QScrollArea, QPushButton
