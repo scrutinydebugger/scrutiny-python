@@ -214,3 +214,10 @@ class WatchableType(str, Enum):
     def __str__(self) -> str:
         return self.value
     
+    def to_str(self) -> str:
+        return str(self)
+    
+    @classmethod
+    def from_str(cls, v:str) -> "WatchableType":
+        return WatchableType(v)
+    

@@ -55,6 +55,13 @@ class XAxisType(enum.Enum):
     Signal = 'signal'
     """X-Axis is an arbitrary signal, not time."""
 
+    def to_str(self) -> str:
+        return self.value
+    
+    @classmethod
+    def from_str(cls, v:str) -> "XAxisType":
+        return cls(v)
+
 
 class TriggerCondition(enum.Enum):
     """(Enum) The type of trigger condition to use."""
@@ -102,6 +109,12 @@ class TriggerCondition(enum.Enum):
 
         return operand_map[self]
 
+    def to_str(self) -> str:
+        return self.value
+    
+    @classmethod
+    def from_str(cls, v:str) -> "TriggerCondition":
+        return cls(v)
 
 @dataclass
 class _Signal:

@@ -100,6 +100,13 @@ class Icons(enum.Enum):
     TestHRect="test-hrect"
     Trigger="trigger"
     TextEdit="text-edit"
+    Window="window"
+    Pin="pin"
+    Unpin="unpin"
+    SidebarLeft="sidebar-left"
+    SidebarRight="sidebar-right"
+    SidebarTop="sidebar-top"
+    SidebarBottom="sidebar-bottom"
 
 def icon_filename(name:Icons, format:IconFormat, iconset:IconSet=IconSet.Default) -> Path:
     possible_formats = {

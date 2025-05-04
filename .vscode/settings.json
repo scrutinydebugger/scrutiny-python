@@ -11,6 +11,7 @@
         "editor.defaultFormatter": "ms-python.autopep8",
         "editor.formatOnSave": true
     },
+    "python.analysis.extraPaths": ["stubs"],
     "[docker]": {
         "editor.formatOnSave": false
     },

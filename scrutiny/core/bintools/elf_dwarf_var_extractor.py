@@ -206,8 +206,8 @@ class ElfDwarfVarExtractor:
             else:
                 fullpath = os.path.abspath(name)
 
-            if fullpath in fullpath_set:
-                raise RuntimeError('Duplicate compile unit name')
+            #if fullpath in fullpath_set:
+            #    raise RuntimeError('Duplicate compile unit name')
             fullpath_set.add(fullpath)
             fullpath_cu_tuple_list.append((fullpath, cu))
 

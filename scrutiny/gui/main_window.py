@@ -7,79 +7,79 @@
 #   Copyright (c) 2021 Scrutiny Debugger
 
 import logging
+from pathlib import Path
 
-from PySide6.QtWidgets import  QWidget, QVBoxLayout, QHBoxLayout
+from PySide6.QtWidgets import  QWidget, QHBoxLayout
 from PySide6.QtGui import  QCloseEvent
-from PySide6.QtCore import Qt, QRect, QTimer
+from PySide6.QtCore import Qt, QRect
 from PySide6.QtWidgets import QMainWindow 
 
-import PySide6QtAds  as QtAds   # type: ignore
-
-from scrutiny import tools
-from scrutiny.gui.core.preferences import gui_preferences
+from scrutiny.gui.core.persistent_data import gui_persistent_data
 from scrutiny.gui.app_settings import app_settings
 from scrutiny.gui.tools.invoker import InvokeQueued
-from scrutiny.gui.tools.opengl import prepare_for_opengl
+from scrutiny.gui.tools import prompt
 
 from scrutiny.gui.dialogs.about_dialog import AboutDialog
 from scrutiny.gui.widgets.component_sidebar import ComponentSidebar
 from scrutiny.gui.widgets.status_bar import StatusBar
 from scrutiny.gui.widgets.menu_bar import MenuBar
 from scrutiny.gui.dialogs.server_config_dialog import ServerConfigDialog
+from scrutiny.gui.dashboard.dashboard import Dashboard
 
-from scrutiny.gui.dashboard_components.base_component import ScrutinyGUIBaseComponent
-from scrutiny.gui.dashboard_components.debug.debug_component import DebugComponent
-from scrutiny.gui.dashboard_components.varlist.varlist_component import VarListComponent
-from scrutiny.gui.dashboard_components.watch.watch_component import WatchComponent
-from scrutiny.gui.dashboard_components.continuous_graph.continuous_graph_component import ContinuousGraphComponent
-from scrutiny.gui.dashboard_components.embedded_graph.embedded_graph_component import EmbeddedGraph
-from scrutiny.gui.dashboard_components.metrics.metrics_component import MetricsComponent
+from scrutiny.gui.components.locals.base_local_component import ScrutinyGUIBaseLocalComponent
+from scrutiny.gui.components.globals.base_global_component import ScrutinyGUIBaseGlobalComponent
+from scrutiny.gui.components.globals.varlist.varlist_component import VarListComponent
+from scrutiny.gui.components.locals.watch.watch_component import WatchComponent
+from scrutiny.gui.components.locals.continuous_graph.continuous_graph_component import ContinuousGraphComponent
+from scrutiny.gui.components.locals.embedded_graph.embedded_graph_component import EmbeddedGraph
+from scrutiny.gui.components.globals.metrics.metrics_component import MetricsComponent
 
 from scrutiny.gui.core.server_manager import ServerManager
 from scrutiny.gui.core.watchable_registry import WatchableRegistry
 
-from typing import Type, Dict
-
+from scrutiny.tools.typing import *
 
 class MainWindow(QMainWindow):
     INITIAL_W = 1200
     INITIAL_H = 900
 
-    ENABLED_COMPONENTS = [
-        DebugComponent,
+    ENABLED_GLOBALS_COMPONENTS:List[Type[ScrutinyGUIBaseGlobalComponent]] = [
         VarListComponent,
-        WatchComponent,
-        ContinuousGraphComponent,
-        EmbeddedGraph,
         MetricsComponent
     ]
 
-    _dashboard_components:Dict[str, ScrutinyGUIBaseComponent]
+    ENABLED_LOCAL_COMPONENTS:List[Type[ScrutinyGUIBaseLocalComponent]] = [
+        WatchComponent,
+        ContinuousGraphComponent,
+        EmbeddedGraph
+    ]
+    
     _logger: logging.Logger
 
     _central_widget:QWidget
-    _dock_conainer:QWidget
-    _dock_manager:QtAds.CDockManager
+    
     _component_sidebar:ComponentSidebar
     _server_config_dialog:ServerConfigDialog
     _watchable_registry:WatchableRegistry
     _server_manager:ServerManager
     _menu_bar:MenuBar
     _status_bar:StatusBar
+    _dashboard:Dashboard
 
     def __init__(self) -> None:
         super().__init__()       
-        self._dashboard_components = {}
+        
         self._logger = logging.getLogger(self.__class__.__name__)
-
+        
         self.setWindowTitle('Scrutiny Debugger')
         self.setGeometry(self.centered(self.INITIAL_W, self.INITIAL_H))
         self.setWindowState(Qt.WindowState.WindowMaximized)
 
-        self.make_main_zone()
-
         self._watchable_registry = WatchableRegistry()
         self._server_manager = ServerManager(watchable_registry=self._watchable_registry)
+        self._dashboard = Dashboard(self)
+
+        self._make_main_zone()
         
         self._status_bar = StatusBar(self, server_manager=self._server_manager)
         self.setStatusBar(self._status_bar)
@@ -87,19 +87,17 @@ class MainWindow(QMainWindow):
         self._menu_bar = MenuBar()
         self.setMenuBar(self._menu_bar)
 
-        self._menu_bar.buttons.info_about.triggered.connect(self.show_about)
-        self._menu_bar.buttons.dashboard_clear.triggered.connect(self.dashboard_clear_click)
-        self._menu_bar.buttons.dashboard_save.triggered.connect(self.dashboard_save_click)
-        self._menu_bar.buttons.dashboard_open.triggered.connect(self.dashboard_open_click)
+        self._menu_bar.signals.info_about_click.connect(self.show_about)
+        self._menu_bar.signals.dashboard_clear_click.connect(self._dashboard_clear_click)
+        self._menu_bar.signals.dashboard_save_click.connect(self._dashboard_save_click)
+        self._menu_bar.signals.dashboard_save_as_click.connect(self._dashboard_save_as_click)
+        self._menu_bar.signals.dashboard_open_click.connect(self._dashboard_open_click)
+        self._menu_bar.signals.dashboard_recent_open.connect(self._dashboard_recent_open_click)
 
-        self._menu_bar.buttons.dashboard_clear.setDisabled(True)
-        self._menu_bar.buttons.dashboard_open.setDisabled(True)
-        self._menu_bar.buttons.dashboard_save.setDisabled(True)
-        self._menu_bar.buttons.server_launch_local.setDisabled(True)
+        self._menu_bar.set_dashboard_recents(self._dashboard.read_history())
 
         if app_settings().auto_connect:
             InvokeQueued(self.start_server_manager)
-
 
     def centered(self, w:int, h:int) -> QRect:
         """Returns a rectangle centered in the screen of given width/height"""
@@ -115,7 +113,7 @@ class MainWindow(QMainWindow):
         dialog.setGeometry(self.centered(400, 200))
         dialog.show()
         
-    def make_main_zone(self) -> None:
+    def _make_main_zone(self) -> None:
         self._central_widget = QWidget()
         self._central_widget.setContentsMargins(0,0,0,0)
         self.setCentralWidget(self._central_widget)
@@ -124,116 +122,64 @@ class MainWindow(QMainWindow):
         hlayout.setContentsMargins(0,0,0,0)
         hlayout.setSpacing(0)
         
-        self._dock_conainer = QWidget()
-        QtAds.CDockManager.setConfigFlag(QtAds.CDockManager.OpaqueSplitterResize)
-        QtAds.CDockManager.setConfigFlag(QtAds.CDockManager.FloatingContainerHasWidgetTitle)
-        QtAds.CDockManager.setConfigFlag(QtAds.CDockManager.XmlCompressionEnabled, False)
-        self._dock_manager = QtAds.CDockManager(self._dock_conainer)
-        
-        def configure_new_window(win:QtAds.CFloatingDockContainer) -> None:
-            flags = win.windowFlags()
-            flags |= Qt.WindowType.WindowMinimizeButtonHint
-            flags |= Qt.WindowType.WindowCloseButtonHint
-            # Negate flags by forcing 32bits wide. Python keeps the same number of bit with operator~
-            flags &= (0xFFFFFFFF ^ Qt.WindowType.WindowStaysOnTopHint) 
-            flags &= (0xFFFFFFFF ^ Qt.WindowType.FramelessWindowHint) 
-            win.setWindowFlags(flags)
-
-        self._dock_manager.floatingWidgetCreated.connect(configure_new_window)
-        
-        dock_vlayout = QVBoxLayout(self._dock_conainer)
-        dock_vlayout.setContentsMargins(0,0,0,0)
-        
-        self._component_sidebar = ComponentSidebar(self.ENABLED_COMPONENTS)
+        self._component_sidebar = ComponentSidebar(
+            global_components=self.ENABLED_GLOBALS_COMPONENTS, 
+            local_components=self.ENABLED_LOCAL_COMPONENTS
+            )
         self.addToolBar(Qt.ToolBarArea.LeftToolBarArea, self._component_sidebar)
-        self._component_sidebar.insert_component.connect(self.add_new_component)
 
-        hlayout.addWidget(self._dock_conainer)
-        dock_vlayout.addWidget(self._dock_manager)
+        self._component_sidebar.insert_local_component.connect(self._dashboard.add_local_component)
+        self._component_sidebar.show_global_component.connect(self._dashboard.create_or_show_global_component)
+
+        hlayout.addWidget(self._dashboard)
+        self._dashboard.make_default_dashboard()
+
+        self._dashboard.signals.active_file_changed.connect(self._dashboard_active_file_changed_slot)
         
-    def get_central_widget(self) -> QWidget:
-        return self._central_widget
-
-    def add_new_component(self, component_class:Type[ScrutinyGUIBaseComponent]) -> None:
-        """Adds a new component inside the dashboard
-        :param component_class: The class that represent the component (inhreiting ScrutinyGUIBaseComponent) 
-        """
-        
-        def make_name(component_class:Type[ScrutinyGUIBaseComponent], instance_number:int) -> str:
-            return f'{component_class.__name__}_{instance_number}'
-
-        instance_number = 0
-        name = make_name(component_class, instance_number)
-        while name in self._dashboard_components:
-            instance_number+=1
-            name = make_name(component_class, instance_number)
-        
-        try:
-            widget = component_class(self, name, self._watchable_registry, self._server_manager)
-            if app_settings().opengl_enabled:
-                prepare_for_opengl(widget)  # On every widget. Flaating widget creates a new window -> Must be done on each window
-        except Exception as e:
-            tools.log_exception(self._logger, e, f"Failed to create a dashboard component of type {component_class.__name__}")    
-            return
-        dock_widget = QtAds.CDockWidget(component_class.get_name())
-        dock_widget.setFeature(QtAds.CDockWidget.DockWidgetDeleteOnClose, True)
-        dock_widget.setWidget(widget)
-        dock_widget.visibilityChanged.connect(widget.visibilityChanged) # Pass down the event
-
-        try:
-            self._logger.debug(f"Setuping component {widget.instance_name}")
-            widget.setup()
-            
-        except Exception as e:
-            tools.log_exception(self._logger, e, f"Exception while setuping component of type {component_class.__name__} (instance name: {widget.instance_name}).")
-            with tools.SuppressException():
-                widget.teardown()
-            widget.deleteLater()
-            dock_widget.deleteLater()
-            return
-
-        timer = QTimer(self)
-        timer.setSingleShot(True)
-        timer.setInterval(0)
-        timer.timeout.connect(widget.ready)
-        timer.start()
-
-
-        def destroy_widget() -> None:
-            """Closure for this widget deletion"""
-            if name in self._dashboard_components:
-                del self._dashboard_components[name]
-
-            try:
-                self._logger.debug(f"Tearing down component {widget.instance_name}")
-                widget.teardown()
-            except Exception as e:
-                tools.log_exception(self._logger, e, f"Exception while tearing down component {component_class.__name__} (instance name: {widget.instance_name})")
-                return
-            finally:
-                widget.deleteLater()
-
-        self._dashboard_components[name] = widget
-        #widget.hasFocus()
-        dock_widget.closeRequested.connect(destroy_widget)
-        self._dock_manager.addDockWidgetTab(QtAds.TopDockWidgetArea, dock_widget)
-
     def start_server_manager(self) -> None:
         self._status_bar.emulate_connect_click()
 
     def closeEvent(self, event: QCloseEvent) -> None:
         self._server_manager.exit()
         self._watchable_registry.clear()
-        self._dock_manager.deleteLater()
-        gui_preferences.save()  # Not supposed to raise
+        self._dashboard.exit()
+        gui_persistent_data.save()  # Not supposed to raise
         super().closeEvent(event)
         
-    def dashboard_clear_click(self) -> None:
-        pass
+    def _dashboard_clear_click(self) -> None:
+        self._dashboard.make_default_dashboard()
 
-    def dashboard_save_click(self) -> None:
-        # todo
-        print(self._dock_manager.saveState())
+    def _dashboard_save_click(self) -> None:
+        self._dashboard.save_active_or_prompt()
+    
+    def _dashboard_save_as_click(self) -> None:
+        self._dashboard.save_with_prompt()
 
-    def dashboard_open_click(self) -> None:
-        pass
+    def _save_before_open_question(self) -> None:
+        if self._dashboard.local_components_count() > 0:
+            require_save = prompt.yes_no_question(self, "Do you want to save the actual dashboard?", "Save?")
+            if require_save:
+                self._dashboard.save_with_prompt()
+
+    def _dashboard_open_click(self) -> None:
+        self._save_before_open_question()
+        self._dashboard.open_with_prompt()
+
+    def _dashboard_recent_open_click(self, filepath:str) -> None:
+        self._save_before_open_question()
+        self._dashboard.open(Path(filepath))
+
+    def get_server_manager(self) -> ServerManager:
+        return self._server_manager
+
+    def get_watchable_registry(self) -> WatchableRegistry:
+        return self._watchable_registry
+
+    def _dashboard_active_file_changed_slot(self) -> None:
+        file = self._dashboard.get_active_file()
+        if file is None:
+            self.setWindowTitle("")
+        else:
+            self.setWindowTitle(file.name)
+        
+        self._menu_bar.set_dashboard_recents(self._dashboard.read_history())

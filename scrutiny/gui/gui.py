@@ -10,7 +10,6 @@ import sys
 import ctypes
 
 from PySide6.QtWidgets import QApplication
-from PySide6.QtGui import QIcon
 
 import scrutiny
 from scrutiny.gui.main_window import MainWindow

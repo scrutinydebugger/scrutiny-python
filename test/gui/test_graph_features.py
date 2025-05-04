@@ -9,7 +9,7 @@
 from PySide6.QtCore import QPointF
 from test.gui.base_gui_test import ScrutinyBaseGuiTest
 
-from scrutiny.gui.dashboard_components.common.base_chart import ScrutinyLineSeries
+from scrutiny.gui.widgets.base_chart import ScrutinyLineSeries
 
 class TestGraphFeatures(ScrutinyBaseGuiTest):
     def test_series_search_closest_point(self):

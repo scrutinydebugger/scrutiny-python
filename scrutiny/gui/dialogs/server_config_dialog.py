@@ -14,7 +14,7 @@ from PySide6.QtGui import QIntValidator
 from scrutiny.gui.tools.validators import IpPortValidator, NotEmptyValidator
 from scrutiny.gui.widgets.validable_line_edit import ValidableLineEdit
 from scrutiny.gui.core.server_manager import ServerConfig
-from scrutiny.gui.core.preferences import gui_preferences, AppPreferences
+from scrutiny.gui.core.persistent_data import gui_persistent_data, AppPersistentData
 
 from typing import Callable
 
@@ -32,7 +32,7 @@ class ServerConfigDialog(QDialog):
 
     _hostname_textbox:ValidableLineEdit
     _port_textbox:ValidableLineEdit
-    _preferences:AppPreferences
+    _preferences:AppPersistentData
 
     _apply_callback:Callable[["ServerConfigDialog"], None]
 
@@ -42,7 +42,7 @@ class ServerConfigDialog(QDialog):
         self.setModal(True)
         self.setWindowTitle("Server configuration")
         self._apply_callback = apply_callback
-        self._preferences = gui_preferences.get_namespace(self.__class__.__name__)
+        self._preferences = gui_persistent_data.get_namespace(self.__class__.__name__)
 
         layout = QVBoxLayout(self)
         form = QWidget()

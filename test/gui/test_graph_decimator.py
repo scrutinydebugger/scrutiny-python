@@ -7,7 +7,7 @@
 #   Copyright (c) 2021 Scrutiny Debugger
 
 from test import ScrutinyUnitTest
-from scrutiny.gui.dashboard_components.continuous_graph.decimator import GraphMonotonicNonUniformMinMaxDecimator
+from scrutiny.gui.components.locals.continuous_graph.decimator import GraphMonotonicNonUniformMinMaxDecimator
 from PySide6.QtCore import QPointF
 
 class TestGraphMonotonicNonUniformMinMaxDecimator(ScrutinyUnitTest):

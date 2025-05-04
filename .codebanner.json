@@ -477,19 +477,16 @@
         "scrutiny/gui/core/server_manager.py": {
             "docstring": "Object that handles the communication with the server and inform the rest of the GUI about what's happening on the other side of the socket. Based on the SDK ScrutinyClient"
         },
-        "scrutiny/gui/dashboard_components/base_component.py": {
-            "docstring": "A base class for a component that can be added to the dashboard"
+        "scrutiny/gui/components/base_component.py": {
+            "docstring": "A base class for a component that can be added to the GUI (globally or on the dashboard)"
         },
-        "scrutiny/gui/dashboard_components/debug/debug_component.py": {
-            "docstring": "A component used to develop the GUI"
-        },
-        "scrutiny/gui/dashboard_components/embedded_graph/embedded_graph_component.py": {
+        "scrutiny/gui/components/locals/embedded_graph/embedded_graph_component.py": {
             "docstring": "A component to configure, trigger, view and browse embedded datalogging."
         },
-        "scrutiny/gui/dashboard_components/varlist/varlist_component.py": {
+        "scrutiny/gui/components/globals/varlist/varlist_component.py": {
             "docstring": "A component that shows the content of the watchable registry, a copy og what's available on the server"
         },
-        "scrutiny/gui/dashboard_components/watch/watch_component.py": {
+        "scrutiny/gui/components/locals/watch/watch_component.py": {
             "docstring": "A component to look at the value of watchable items broadcast by the server"
         },
         "scrutiny/sdk/pending_request.py": {
@@ -540,10 +537,10 @@
         "scrutiny/gui/core/scrutiny_drag_data.py": {
             "docstring": "Application-wide drag&drop data format. Used to drag watchables items around"
         },
-        "scrutiny/gui/dashboard_components/common/watchable_tree.py": {
+        "scrutiny/gui/widgets/watchable_tree.py": {
             "docstring": "An enhanced QTreeView with a data model dedicated to Watchables displayed in folder structure."
         },
-        "scrutiny/gui/dashboard_components/watch/watch_tree_model.py": {
+        "scrutiny/gui/components/locals/watch/watch_tree_model.py": {
             "docstring": "The data model used by the Watch component treeview"
         },
         "test/gui/fake_server_manager.py": {
@@ -570,7 +567,7 @@
         "scrutiny/gui/widgets/app_stats_display.py": {
             "docstring": "A widget to display the application stats"
         },
-        "scrutiny/gui/dashboard_components/metrics/metrics_component.py": {
+        "scrutiny/gui/components/globals/metrics/metrics_component.py": {
             "docstring": "A dashboard component that shows internal metrics for debugging purpose"
         },
         "test/gui/test_invoker.py": {
@@ -588,23 +585,20 @@
         "test/gui/manual/manual_test_graph_axis.py": {
             "docstring": "A dummy app to test the graph axis tree widget"
         },
-        "scrutiny/gui/dashboard_components/common/graph_signal_tree.py": {
+        "scrutiny/gui/widgets/graph_signal_tree.py": {
             "docstring": "The widget that allow the user to define a graph axis/signals using a 2 level tree. First level for axes, Second level for watchables"
         },
-        "scrutiny/gui/dashboard_components/common/base_tree.py": {
+        "scrutiny/gui/widgets/base_tree.py": {
             "docstring": "An extension of the QT QTreeView that suits this application. Defines some helper functions and common keyboard/mouse behaviors "
         },
-        "scrutiny/gui/dashboard_components/continuous_graph/continuous_graph_component.py": {
+        "scrutiny/gui/components/locals/continuous_graph/continuous_graph_component.py": {
             "docstring": "A component that makes a real time graphs of the values streamed by the server"
         },
         "scrutiny/tools/global_counters.py": {
             "docstring": "A file that provide some global counter atomic counter for unique ID generation"
         },
-        "scrutiny/gui/dashboard_components/common/base_chart.py": {
+        "scrutiny/gui/widgets/base_chart.py": {
             "docstring": "Some customized extensions of the QT Charts for the Scrutiny GUI"
-        },
-        "scrutiny/gui/core/preferences.py": {
-            "docstring": "An interface to the user preferences"
         },
         "scrutiny/gui/themes/default_theme.py": {
             "docstring": "A color theme that serves as a base for other theme and loaded by default"
@@ -630,10 +624,10 @@
         "scrutiny/gui/app_settings.py": {
             "docstring": "Global settings for the GUI."
         },
-        "scrutiny/gui/dashboard_components/common/export_chart_csv.py": {
+        "scrutiny/gui/core/export_chart_csv.py": {
             "docstring": "Tools to export graphs to CSV format"
         },
-        "scrutiny/gui/dashboard_components/continuous_graph/decimator.py": {
+        "scrutiny/gui/components/locals/continuous_graph/decimator.py": {
             "docstring": "A data decimator meant to handle real-time data stream (monotonic time axis)"
         },
         "scrutiny/gui/tools/prompt.py": {
@@ -666,13 +660,13 @@
         "scrutiny/gui/core/user_messages_manager.py": {
             "docstring": "A manager that handles many toast-like messages with a duration but only shows one at the time. \nMeant to be connected to the status bar and exposed to the app as a service"
         },
-        "scrutiny/gui/dashboard_components/continuous_graph/csv_logging_menu.py": {
+        "scrutiny/gui/components/locals/continuous_graph/csv_logging_menu.py": {
             "docstring": "A widget used to configure the continuous CSV logger"
         },
-        "scrutiny/gui/dashboard_components/continuous_graph/realtime_line_series.py": {
+        "scrutiny/gui/components/locals/continuous_graph/realtime_line_series.py": {
             "docstring": "A extension of the QLineSeries meants for real-time graph. It includes a decimator and some inline stats computation"
         },
-        "scrutiny/gui/dashboard_components/continuous_graph/graph_statistics.py": {
+        "scrutiny/gui/components/locals/continuous_graph/graph_statistics.py": {
             "docstring": "A statistic overlay that can be displayed on the top of a graph"
         },
         "test/gui/test_graph_features.py": {
@@ -687,7 +681,7 @@
         "test/gui/manual/manual_test_base.py": {
             "docstring": "Common setup for all manual test files that launches a standalone apps for testing GUI elements"
         },
-        "scrutiny/gui/dashboard_components/embedded_graph/graph_config_widget.py": {
+        "scrutiny/gui/components/locals/embedded_graph/graph_config_widget.py": {
             "docstring": "A widget that let a user configure a datalogging configuration (except the list of signals). Meant to be used  in the EmbeddedGraph component"
         },
         "scrutiny/gui/widgets/watchable_line_edit.py": {
@@ -696,14 +690,35 @@
         "test/gui/manual/manual_test_embedded_graph_status_overlay.py": {
             "docstring": "A manual test suite that validates how the embedded graph status overlay behaves with resizes"
         },
-        "scrutiny/gui/dashboard_components/embedded_graph/chart_status_overlay.py": {
+        "scrutiny/gui/components/locals/embedded_graph/chart_status_overlay.py": {
             "docstring": "An overlay that can be applied on a chart to display a message with an icon. USed to display errors and loading messages"
         },
-        "scrutiny/gui/dashboard_components/embedded_graph/graph_browse_list_widget.py": {
+        "scrutiny/gui/components/locals/embedded_graph/graph_browse_list_widget.py": {
             "docstring": "A widget that show to the user a list of acquisitions available on the server. Communicate with the Embedded Graph widget through signals"
         },
         "scrutiny/server/sfd_storage.py": {
             "docstring": "Declaration of the server-wide SFD storage"
+        },
+        "scrutiny/gui/components/globals/base_global_component.py": {
+            "docstring": "A base class for a component that are embedded in the gUI, not the dashboard"
+        },
+        "scrutiny/gui/components/locals/base_local_component.py": {
+            "docstring": "A base class for a component that can be added to the dashboard multiple ltimes"
+        },
+        "scrutiny/gui/dashboard/dashboard.py": {
+            "docstring": "The Scrutiny Dashboard. Main feature allowing to display Components.\n Uses Qt Advanced Docking System. Supports save/reload "
+        },
+        "scrutiny/gui/dashboard/dashboard_file_format.py": {
+            "docstring": "Definitions of the serialized data representing a dashboard written into files when saving"
+        },
+        "test/gui/test_dashboard.py": {
+            "docstring": "A test suite that validate the dashboard logic"
+        },
+        "scrutiny/gui/core/persistent_data.py": {
+            "docstring": "A collection of GUI-wide dictionaries that are persistent across process execution. Organized by namespaces"
+        },
+        "scrutiny/gui/tools/shiboken_ref_keeper.py": {
+            "docstring": "A simple tool that keeps a reference of a QT object until the internal C++ object is deleted.\n Required to pass local python objects to modules that does not take ownership of the object"
         }
     }
 }

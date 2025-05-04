@@ -17,7 +17,7 @@ app = make_manual_test_app()
 
 from PySide6.QtWidgets import QMainWindow, QWidget,  QVBoxLayout, QHBoxLayout, QGraphicsScene, QGraphicsRectItem, QGraphicsView, QPushButton, QLineEdit, QComboBox
 from PySide6.QtCore import QRect, QObject, Signal, QPoint
-from scrutiny.gui.dashboard_components.embedded_graph.chart_status_overlay import ChartStatusOverlay
+from scrutiny.gui.components.locals.embedded_graph.chart_status_overlay import ChartStatusOverlay
 from scrutiny.gui import assets
 
 class WindowWithResizeSignal(QMainWindow):
