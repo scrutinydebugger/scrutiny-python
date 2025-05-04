@@ -16,12 +16,13 @@ from PySide6.QtWidgets import QVBoxLayout
 
 from scrutiny import sdk
 from scrutiny.gui import assets
+from scrutiny.gui.widgets.watchable_tree import FolderItemSerializableData, WatchableItemSerializableData
 from scrutiny.gui.core.server_manager import ValueUpdate
 from scrutiny.gui.core.watchable_registry import WatchableRegistryNodeNotFoundError, WatcherNotFoundError
 from scrutiny.gui.components.locals.base_local_component import ScrutinyGUIBaseLocalComponent
 from scrutiny.gui.widgets.watchable_tree import WatchableTreeWidget, WatchableStandardItem, FolderStandardItem, BaseWatchableRegistryTreeStandardItem
-from scrutiny.gui.components.locals.watch.watch_tree_model import WatchComponentTreeModel, ValueStandardItem, WatchComponentTreeWidget
-from scrutiny.tools import format_exception
+from scrutiny.gui.components.locals.watch.watch_tree_model import WatchComponentTreeModel, ValueStandardItem, WatchComponentTreeWidget, SerializableTreeDescriptor
+from scrutiny import tools
 
 from scrutiny.tools.typing import *
 
@@ -30,21 +31,24 @@ class State:
     TYPE_WATCHABLE = 'w'
     TYPE_FOLDER = 'f'
 
-    KEY_TYPE = 'type'
-    KEY_TEXT = 'txt'
-    KEY_FQN = 'fqn'
-    KEY_WATCHABLE_TYPE = 'wtype'
-    KEY_CHILDREN = 'children'
-    KEY_EXPANDED = 'expand'
+    # I don't know why, but mypy doesn't understand that this is a literal without an Literal[] type hint
+    # Could not reproduce in a different file... possibly a mypy bug ?
+    KEY_TYPE:Literal['type'] = 'type'
+    KEY_TEXT:Literal['txt'] = 'txt'
+    KEY_FQN:Literal['fqn'] = 'fqn'
+    KEY_CHILDREN:Literal['children'] = 'children'
+    KEY_EXPANDED:Literal['expand'] = 'expand'
 
     class Folder(TypedDict):
         type:str
+        txt:str
+        expand:bool
         children:List[Union["State.Watchable", "State.Folder" ]]
 
     class Watchable(TypedDict):
         type:str
         fqn:str
-        text:str
+        txt:str
 
 
 class WatchComponent(ScrutinyGUIBaseLocalComponent):
@@ -104,7 +108,6 @@ class WatchComponent(ScrutinyGUIBaseLocalComponent):
                 if isinstance(item, WatchableStandardItem):
                     yield cast(State.Watchable, {
                         State.KEY_TYPE : State.TYPE_WATCHABLE,
-                        State.KEY_WATCHABLE_TYPE : item.watchable_type.to_str(),
                         State.KEY_TEXT : item.text(),
                         State.KEY_FQN : item.fqn
                     })
@@ -119,72 +122,91 @@ class WatchComponent(ScrutinyGUIBaseLocalComponent):
             'root' : list(_get_children_recursive())
         }
 
+
     def load_state(self, state:Dict[Any, Any]) -> bool:
-        return True
+        # In order to reload a state, we convert the state data into the same data structure that a drag & drop produces
+        # then we reuse the same entry point to the tree model to reload it.
+        fully_loaded = True
+        self._tree_model.removeRows(0, self._tree_model.rowCount())
+
+        try:
+            if 'root' not in state:
+                raise KeyError("Missing root key")
+            
+            if not isinstance(state['root'], list):
+                raise KeyError("Invalid root key")
+           
+            serialized_data:List[SerializableTreeDescriptor] = []
+            for state_item in state['root']:
+                serialized_data.append(self._state_node_to_dnd_serializable_node_recursive(state_item))
+
+            self._tree_model.load_serialized_tree_descriptor(
+                dest_parent_index=QModelIndex(),    # root
+                dest_row_index=-1,                  # append
+                data=serialized_data
+            )
+        except Exception as e:
+            fully_loaded = False
+            self.logger.warning(f'Invalid state to reload. {e}')
+        
+        self.update_all_watchable_state()
+        
+        return fully_loaded
+
+    def _state_node_to_dnd_serializable_node_recursive(self, state_item:Union[State.Folder, State.Watchable], level:int=0) -> SerializableTreeDescriptor:
+        """Convert a node form the state dict to a serializable node used whil drag&dropping """
+        if State.KEY_TYPE not in state_item:
+            raise ValueError(f"Missing key {State.KEY_TYPE} on node")
+        
+        # The output node
+        serializable_item:SerializableTreeDescriptor = {
+            'node' : '',    # type: ignore
+            'sortkey': level,
+            'children' : []
+        }
+        
+        # ============= Folder ============
+        if state_item[State.KEY_TYPE] == State.TYPE_FOLDER:
+            state_item = cast(State.Folder, state_item)
+            for k1 in [State.KEY_TEXT]:
+                if k1 not in state_item:
+                    raise KeyError(f"Missing key {k1} on node")
+            expanded = state_item.get(State.KEY_EXPANDED, False)
+            if not isinstance(expanded, bool):
+                expanded = False
+
+            serializable_folder:FolderItemSerializableData = {
+                'text' : state_item[State.KEY_TEXT],
+                'expanded' : expanded,
+                'fqn' : None,
+                'type' : FolderStandardItem.serialized_node_type(),
+            }
+
+            serializable_item['node'] = serializable_folder
+
+            for child_state_item in state_item.get(State.KEY_CHILDREN, []):
+                serializable_item['children'].append(self._state_node_to_dnd_serializable_node_recursive(child_state_item, level+1))
     
-#    def load_state(self, state:Dict[Any, Any]) -> None:
-#        # FIXME : Does not work properly.
-#        
-#        self._tree_model.clear()
-#
-#        def load_node_recursive(children_list:List[Union[State.Folder, State.Watchable]], parent_node:Optional[FolderStandardItem]=None) -> None:
-#            if not isinstance(children_list, list):
-#                raise ValueError("Children should be a list")
-#
-#            for child in children_list:
-#                if State.KEY_TYPE not in child:
-#                    raise ValueError(f"Missing key {State.KEY_TYPE} on node")
-#                
-#                # ============= Folder ============
-#                if child[State.KEY_TYPE] == State.TYPE_FOLDER:
-#                    for k in [State.KEY_TEXT]:
-#                        if k not in child:
-#                            raise KeyError(f"Missing key {k} on node")
-#                    
-#                    row = self._tree_model.make_folder_row(
-#                        name = child[State.KEY_TEXT],
-#                        fqn=None,
-#                        editable = True
-#                    )
-#                    self._tree_model.add_row_to_parent(parent_node, -1, row)
-#
-#                    expanded = child.get(State.KEY_EXPANDED, False)
-#                    new_parent_node = row[self._tree_model.nesting_col()]
-#                    if expanded:
-#                        self._tree.expand(new_parent_node.index())
-#                    else:
-#                        self._tree.collapse(new_parent_node.index())
-#                    
-#                    children = child.get(State.KEY_CHILDREN, [])
-#                    load_node_recursive(children, new_parent_node)
-#            
-#                # ============ Watchable ===========
-#                elif child[State.KEY_TYPE] == State.TYPE_WATCHABLE:
-#                    for k in [State.KEY_TEXT, State.KEY_FQN, State.KEY_WATCHABLE_TYPE]:
-#                        if k not in child:
-#                            raise KeyError(f"Missing key {k} on node")
-#                    
-#                    row = self._tree_model.make_watchable_row(
-#                        name = child[State.KEY_TEXT],
-#                        editable = True,
-#                        watchable_type = child[State.KEY_WATCHABLE_TYPE],
-#                        fqn = child[State.KEY_FQN],
-#                        extra_columns=self._tree_model.get_watchable_columns()  # Todo, should not have to pass this explicitly
-#                    )
-#                    self._tree_model.add_row_to_parent(parent_node, -1, row)
-#                else:
-#                    raise ValueError(f"Unsupported node type : {child[State.KEY_TYPE]}")
-#
-#        try:
-#            if 'root' not in state:
-#                raise KeyError("Missing root key")
-#            load_node_recursive(state['root'])
-#        except Exception as e:
-#            self.logger.warning(f'Invalid state to reload. {e}')
-#        
-#        self.update_all_watchable_state()
+        # ============ Watchable ===========
+        elif state_item[State.KEY_TYPE] == State.TYPE_WATCHABLE:
+            state_item = cast(State.Watchable, state_item)
+            for k2 in  [State.KEY_TEXT, State.KEY_FQN]:
+                if k2 not in state_item:
+                    raise KeyError(f"Missing key {k2} on node")
+            
+            serializable_watcahble:WatchableItemSerializableData = {
+                'text' : state_item[State.KEY_TEXT],
+                'fqn' : state_item[State.KEY_FQN],
+                'type' : WatchableStandardItem.serialized_node_type()
+            }
 
+            serializable_item['node'] = serializable_watcahble
 
+        else:
+            raise ValueError(f"Unsupported node type : {state_item[State.KEY_TYPE]}")
+        
+        return serializable_item
+        
 
     def _get_item(self, parent:QModelIndex, row_index:int) -> Optional[BaseWatchableRegistryTreeStandardItem]:
         """Get the item pointed by the index and the row (column is assumed 0). Handles the no-parent case
@@ -334,7 +356,7 @@ class WatchComponent(ScrutinyGUIBaseLocalComponent):
         def ui_callback(exception:Optional[Exception]) -> None:
             if exception is not None:
                 self.logger.warning(f"Failed to write {fqn}. {exception}")
-                self.logger.debug(format_exception(exception))
+                self.logger.debug(tools.format_exception(exception))
 
         # No need to parse strings. The server auto-converts
         # Supports : Number as strings. Hexadecimal with 0x prefix, true/false, etc.

@@ -426,7 +426,7 @@ class WatchComponentTreeModel(WatchableTreeModel):
                 return self.handle_internal_move(parent, row_index, cast(List[SerializableItemIndexDescriptor], drag_data.data_move))
             elif action == Qt.DropAction.CopyAction:
                 self.logger.debug(f"{log_prefix}: Watch external copy with {len(drag_data.data_copy)} nodes")
-                return self._handle_tree_drop(parent, row_index, cast(List[SerializableTreeDescriptor], drag_data.data_copy))
+                return self.load_serialized_tree_descriptor(parent, row_index, cast(List[SerializableTreeDescriptor], drag_data.data_copy))
             else:
                 return False
             
@@ -487,10 +487,8 @@ class WatchComponentTreeModel(WatchableTreeModel):
             return False
         
         return True
-
     
-    
-    def _handle_tree_drop(self, 
+    def load_serialized_tree_descriptor(self, 
                         dest_parent_index: Union[QModelIndex, QPersistentModelIndex],
                         dest_row_index:int,
                         data:List[SerializableTreeDescriptor]) -> bool:

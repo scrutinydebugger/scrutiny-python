@@ -106,11 +106,15 @@ class FolderStandardItem(BaseWatchableRegistryTreeStandardItem):
 
     def is_expanded(self) -> bool:
         return self._expanded
+
+    @classmethod
+    def serialized_node_type(cls) -> NodeSerializableType:
+        return cls._NODE_TYPE
     
     def to_serialized_data(self) -> FolderItemSerializableData:
         """Create a serializable version of this node (using a dict). Used for Drag&Drop"""
         return {
-            'type' : self._NODE_TYPE,
+            'type' : self.serialized_node_type(),
             'text' : self.text(),
             'expanded' : self._expanded,
             'fqn' : self._fqn
@@ -119,7 +123,7 @@ class FolderStandardItem(BaseWatchableRegistryTreeStandardItem):
     @classmethod
     def from_serializable_data(cls, data:FolderItemSerializableData) -> "FolderStandardItem":
         """Loads from a serializable dict. Used for Drag&Drop"""
-        assert data['type'] == cls._NODE_TYPE
+        assert data['type'] == cls.serialized_node_type()
         return FolderStandardItem(
             text=data['text'],
             expanded=data.get('expanded', False),
@@ -153,6 +157,10 @@ class WatchableStandardItem(BaseWatchableRegistryTreeStandardItem):
     @property
     def watchable_type(self) -> WatchableType:
         return self._watchable_type
+    
+    @classmethod
+    def serialized_node_type(cls) -> NodeSerializableType:
+        return cls._NODE_TYPE
     
     def to_serialized_data(self) -> WatchableItemSerializableData:
         """Create a serializable version of this node (using a dict). Used for Drag&Drop"""
