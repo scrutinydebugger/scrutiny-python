@@ -74,14 +74,14 @@ class WatchComponent(ScrutinyGUIBaseLocalComponent):
 
         self.expand_if_needed.connect(self._tree.expand_first_column_to_content, Qt.ConnectionType.QueuedConnection)
         
-        self._tree.expanded.connect(self.node_expanded_slot)
-        self._tree.collapsed.connect(self.node_collapsed_slot)
+        self._tree.expanded.connect(self._node_expanded_slot)
+        self._tree.collapsed.connect(self._node_collapsed_slot)
 
-        self.server_manager.signals.registry_changed.connect(self.registry_changed_slot)
+        self.server_manager.signals.registry_changed.connect(self._registry_changed_slot)
 
-        self._tree_model.rowsInserted.connect(self.row_inserted_slot)
-        self._tree_model.rowsAboutToBeRemoved.connect(self.row_about_to_be_removed_slot)
-        self._tree_model.rowsMoved.connect(self.row_moved_slot)
+        self._tree_model.rowsInserted.connect(self._row_inserted_slot)
+        self._tree_model.rowsAboutToBeRemoved.connect(self._row_about_to_be_removed_slot)
+        self._tree_model.rowsMoved.connect(self._row_moved_slot)
         self._tree.signals.value_written.connect(self._value_written_slot)
     
         self.update_all_watchable_state()
@@ -153,6 +153,19 @@ class WatchComponent(ScrutinyGUIBaseLocalComponent):
         
         return fully_loaded
 
+    def visibilityChanged(self, visible:bool) -> None:
+        """Called when the dashboard component is either hidden or showed"""
+        if self._teared_down:
+            # We're dead. Nothing to do now. 
+            # This is just the last callback telling that the dockpanel is not visible anymore before deletion
+            return
+        
+        if visible:
+            self.update_all_watchable_state()
+        else:
+            for item in self._tree_model.get_all_watchable_items():
+                self._unwatch_item(item)
+
     def _state_node_to_dnd_serializable_node_recursive(self, state_item:Union[State.Folder, State.Watchable], level:int=0) -> SerializableTreeDescriptor:
         """Convert a node form the state dict to a serializable node used whil drag&dropping """
         if State.KEY_TYPE not in state_item:
@@ -222,14 +235,15 @@ class WatchComponent(ScrutinyGUIBaseLocalComponent):
         
         return cast(Optional[BaseWatchableRegistryTreeStandardItem], self._tree_model.itemFromIndex(parent).child(row_index, nesting_col))
 
-    def registry_changed_slot(self) -> None:
-        self.resubscribe_all_rows_as_watcher()
+    def _registry_changed_slot(self) -> None:
+        self._resubscribe_all_rows_as_watcher()
         self.update_all_watchable_state()
 
     def _register_watcher_for_row(self, item:WatchableStandardItem)-> None:
+        """Take the given row and create a watcher on the registry for the row"""
         value_item = self._tree_model.get_value_item(item)
         def update_val_closure(watcher_id:Union[str, int], vals:List[ValueUpdate]) -> None:
-            return self.update_val_callback(value_item, watcher_id, vals )
+            return self._update_val_callback(value_item, watcher_id, vals )
         
         def unwatch_closure(watcher_id:Union[str, int], server_path:str, watchable_config:sdk.WatchableConfiguration) -> None:
             pass
@@ -237,8 +251,7 @@ class WatchComponent(ScrutinyGUIBaseLocalComponent):
         watcher_id = self._get_watcher_id(item)
         self.watchable_registry.register_watcher(watcher_id, update_val_closure, unwatch_closure, ignore_duplicate=True)
 
-
-    def row_inserted_slot(self, parent:QModelIndex, row_index:int, col_index:int) -> None:
+    def _row_inserted_slot(self, parent:QModelIndex, row_index:int, col_index:int) -> None:
         # This slots is called for every row inserted when new rows. Only parent when existing row
 
         def func (item:WatchableStandardItem, visible:bool) -> None:
@@ -252,8 +265,7 @@ class WatchComponent(ScrutinyGUIBaseLocalComponent):
                 self._tree.expand(item_inserted.index())
         self._tree.map_to_watchable_node(func, item_inserted)
 
-    
-    def row_about_to_be_removed_slot(self, parent:QModelIndex, row_index:int, col_index:int) -> None:
+    def _row_about_to_be_removed_slot(self, parent:QModelIndex, row_index:int, col_index:int) -> None:
         # This slot is called only on the node removed, not on the children.
         def func (item:WatchableStandardItem, visible:bool) -> None:
             watcher_id = self._get_watcher_id(item)
@@ -268,30 +280,17 @@ class WatchComponent(ScrutinyGUIBaseLocalComponent):
         item_removed = self._get_item(parent, row_index)
         self._tree.map_to_watchable_node(func, parent=item_removed)
         
-    def node_expanded_slot(self, index:QModelIndex) -> None:
+    def _node_expanded_slot(self, index:QModelIndex) -> None:
         # Added at the end of the event loop because it is a queuedConnection
         # Expanding with star requires that
         self.expand_if_needed.emit()
         self.update_all_watchable_state(start_node=self._tree_model.itemFromIndex(index))
 
-    def node_collapsed_slot(self, index:QModelIndex) -> None:
+    def _node_collapsed_slot(self, index:QModelIndex) -> None:
         self.update_all_watchable_state(start_node=self._tree_model.itemFromIndex(index))
     
-    def row_moved_slot(self, src_parent:QModelIndex, src_row:int, src_col:int, dest_parent:QModelIndex, dst_row:int) -> None:
+    def _row_moved_slot(self, src_parent:QModelIndex, src_row:int, src_col:int, dest_parent:QModelIndex, dst_row:int) -> None:
         self.update_all_watchable_state(start_node=self._tree_model.itemFromIndex(dest_parent))
-
-    def visibilityChanged(self, visible:bool) -> None:
-        """Called when the dashboard component is either hidden or showed"""
-        if self._teared_down:
-            # We're dead. Nothing to do now. 
-            # This is just the last callback telling that the dockpanel is not visible anymore before deletion
-            return
-        
-        if visible:
-            self.update_all_watchable_state()
-        else:
-            for item in self._tree_model.get_all_watchable_items():
-                self._unwatch_item(item)
     
     def _watch_item(self, item:WatchableStandardItem) -> None:
         """Internal function registering a tree line from the watchable registry"""
@@ -322,7 +321,7 @@ class WatchComponent(ScrutinyGUIBaseLocalComponent):
     def _get_watcher_id(self, item:WatchableStandardItem) -> int:
         return self._tree_model.get_watcher_id(item)
     
-    def resubscribe_all_rows_as_watcher(self) -> None:
+    def _resubscribe_all_rows_as_watcher(self) -> None:
         """Iterate all watchable row in the tree and (re)subscribe them as watchers"""
         def subscribe_func(item:WatchableStandardItem, visible:bool) -> None:
             self._register_watcher_for_row(item)
@@ -339,7 +338,7 @@ class WatchComponent(ScrutinyGUIBaseLocalComponent):
 
         self._tree.map_to_watchable_node(update_func, start_node)
 
-    def update_val_callback(self, item:ValueStandardItem, watcher_id:Union[str, int], vals:List[ValueUpdate]) -> None:
+    def _update_val_callback(self, item:ValueStandardItem, watcher_id:Union[str, int], vals:List[ValueUpdate]) -> None:
         """The function called when we receive value updates from the server"""
         assert len(vals) > 0
         can_update = True
