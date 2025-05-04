@@ -23,7 +23,7 @@ __all__ = [
 from scrutiny.sdk import WatchableType, WatchableConfiguration
 from PySide6.QtGui import  QStandardItem, QIcon, QKeyEvent
 from PySide6.QtWidgets import  QWidget
-from PySide6.QtCore import  Qt
+from PySide6.QtCore import  Qt, QModelIndex
 from scrutiny.gui import assets
 from scrutiny.gui.core.watchable_registry import WatchableRegistry, WatchableRegistryNodeContent
 from scrutiny.gui.core.scrutiny_drag_data import WatchableListDescriptor, SingleWatchableDescriptor, ScrutinyDragData
@@ -51,7 +51,7 @@ class WatchableItemSerializableData(NodeSerializableData):
 
 class FolderItemSerializableData(NodeSerializableData):
     """A serializable dict that represent a Folder tree node"""
-    pass
+    expanded:bool
 
 class BaseWatchableRegistryTreeStandardItem(QStandardItem):
     """An extension of QT QStandardItem meant to represent either a folder or a watchable
@@ -87,22 +87,32 @@ class FolderStandardItem(BaseWatchableRegistryTreeStandardItem):
     """A tree model QStandardItem that represent a folder
     
     :param text: The text to display in the view
+    :param expanded: The expanded/collapse state of that node in the tree
     :param fqn: An optional Fully Qualified Name that point to the relevant element in the Watchable Registry
     
     """
     _NODE_TYPE:NodeSerializableType='folder'
+    _expanded:bool
       # fqn is optional for folders. They might be created by the user
 
-    def __init__(self, text:str, fqn:Optional[str]=None):
+    def __init__(self, text:str, expanded:bool=False, fqn:Optional[str]=None):
         folder_icon = assets.load_tiny_icon(assets.Icons.Folder)
         super().__init__(fqn, folder_icon, text)
+        self._expanded = expanded
         self.setDropEnabled(True)
+
+    def set_expanded(self, expanded:bool) -> None:
+        self._expanded = expanded
+
+    def is_expanded(self) -> bool:
+        return self._expanded
     
     def to_serialized_data(self) -> FolderItemSerializableData:
         """Create a serializable version of this node (using a dict). Used for Drag&Drop"""
         return {
             'type' : self._NODE_TYPE,
             'text' : self.text(),
+            'expanded' : self._expanded,
             'fqn' : self._fqn
         }
 
@@ -112,6 +122,7 @@ class FolderStandardItem(BaseWatchableRegistryTreeStandardItem):
         assert data['type'] == cls._NODE_TYPE
         return FolderStandardItem(
             text=data['text'],
+            expanded=data.get('expanded', False),
             fqn=data['fqn']
         )
 
@@ -267,7 +278,7 @@ class WatchableTreeModel(BaseTreeModel):
         :param fqn: The path to the item in the :class:`WatchableRegistry<scrutiny.gui.core.watchable_registry.WatchableRegistry>`
         :editable: Makes the row editable by the user through the GUI
         """
-        item =  FolderStandardItem(name, fqn)
+        item =  FolderStandardItem(name, expanded=False, fqn=fqn)
         self.folder_item_created(item)
         return self.make_folder_row_existing_item(item, editable)
     
@@ -384,6 +395,20 @@ class WatchableTreeWidget(BaseTreeView):
         self.setUniformRowHeights(True)   # Documentation says it helps performance
         self.setAnimated(False)
         self.header().setStretchLastSection(False)
+
+
+        self.expanded.connect(self._set_expanded_slot)
+        self.collapsed.connect(self._set_collapsed_slot)
+    
+    def _set_expanded_slot(self, index:QModelIndex) -> None:
+        item = self.model().itemFromIndex(index)
+        if isinstance(item, FolderStandardItem):
+            item.set_expanded(True)
+    
+    def _set_collapsed_slot(self, index:QModelIndex) -> None:
+        item = self.model().itemFromIndex(index)
+        if isinstance(item, FolderStandardItem):
+            item.set_expanded(False)
     
     def set_header_labels(self, headers:List[str]) -> None:
         self._model.setColumnCount(len(headers))

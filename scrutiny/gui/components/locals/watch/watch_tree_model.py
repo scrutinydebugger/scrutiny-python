@@ -6,19 +6,20 @@
 #
 #   Copyright (c) 2021 Scrutiny Debugger
 
-__all__ = ['WatchComponentTreeModel']
+__all__ = ['WatchComponentTreeModel', 'WatchComponentTreeWidget', 'ValueStandardItem']
 
 import logging
 import enum
 
-from PySide6.QtCore import QMimeData, QModelIndex, QPersistentModelIndex, Qt, QModelIndex
-from PySide6.QtWidgets import QWidget
-from PySide6.QtGui import QStandardItem,QPalette
+from PySide6.QtCore import QMimeData, QModelIndex, QPersistentModelIndex, Qt,  Signal, QPoint, QObject
+from PySide6.QtWidgets import QWidget, QMenu, QAbstractItemDelegate
+from PySide6.QtGui import QStandardItem,QPalette, QContextMenuEvent, QDragMoveEvent, QDropEvent, QDragEnterEvent, QKeyEvent, QStandardItem, QAction
 
 from scrutiny.sdk.definitions import WatchableConfiguration
 from scrutiny.gui.core.scrutiny_drag_data import ScrutinyDragData, WatchableListDescriptor
 from scrutiny.gui.core.watchable_registry import WatchableRegistry
 from scrutiny.gui.widgets.watchable_tree import (
+    WatchableTreeWidget,
     WatchableTreeModel, 
     NodeSerializableData, 
     FolderStandardItem,
@@ -27,9 +28,9 @@ from scrutiny.gui.widgets.watchable_tree import (
     item_from_serializable_data
 )
 from scrutiny.gui.widgets.base_tree import SerializableItemIndexDescriptor
+from scrutiny.gui import assets
 from scrutiny.tools.global_counters import global_i64_counter
-
-from typing import List, Union, Optional, cast, Sequence, TypedDict, Generator, Iterable
+from scrutiny.tools.typing import *
 
 
 AVAILABLE_DATA_ROLE = Qt.ItemDataRole.UserRole+1
@@ -43,6 +44,198 @@ class SerializableTreeDescriptor(TypedDict):
     node:NodeSerializableData
     sortkey:int
     children:List["SerializableTreeDescriptor"]
+
+
+class WatchComponentTreeWidget(WatchableTreeWidget):
+    NEW_FOLDER_DEFAULT_NAME = "New Folder"
+
+    class _Signals(QObject):
+        value_written = Signal(str, str)    # fqn, value
+
+    signals:_Signals
+
+    def __init__(self, parent: QWidget, model:"WatchComponentTreeModel") -> None:
+        super().__init__(parent, model)
+        self.setDragEnabled(True)
+        self.setDropIndicatorShown(True)
+        self.setDragDropMode(self.DragDropMode.DragDrop)
+        self.set_header_labels(['', 'Value'])
+        self.signals = self._Signals()
+
+    def contextMenuEvent(self, event: QContextMenuEvent) -> None:
+        context_menu = QMenu(self)
+        selected_indexes_no_nested = self.model().remove_nested_indexes(self.selectedIndexes())
+        nesting_col = self.model().nesting_col()
+        selected_items_no_nested = [self.model().itemFromIndex(index) for index in selected_indexes_no_nested if index.column()==nesting_col]
+
+        parent, insert_row = self._find_new_folder_position_from_position(event.pos())
+        
+        def new_folder_action_slot() -> None:
+            self._new_folder(self.NEW_FOLDER_DEFAULT_NAME, parent, insert_row)
+        
+        def remove_actionslot() -> None:
+            for item in selected_items_no_nested:
+                self.model().removeRow(item.row(), item.index().parent())
+        
+        new_folder_action = context_menu.addAction(assets.load_tiny_icon(assets.Icons.Folder), "New Folder")
+        new_folder_action.triggered.connect(new_folder_action_slot)
+        
+        remove_action = context_menu.addAction(assets.load_tiny_icon(assets.Icons.RedX), "Remove")
+        remove_action.setEnabled( len(selected_items_no_nested) > 0 )
+        remove_action.triggered.connect(remove_actionslot)
+        
+        self.display_context_menu(context_menu, event.pos())
+        event.accept()
+        
+    def display_context_menu(self, menu:QMenu, pos:QPoint) -> None:
+        """Display a menu at given relative position, and make sure it goes below the cursor to mimic what most people are used to"""
+        actions = menu.actions()
+        at: Optional[QAction] = None
+        if len(actions) > 0:
+            pos += QPoint(0, menu.actionGeometry(actions[0]).height())
+            at = actions[0]
+        menu.popup(self.mapToGlobal(pos), at)
+        
+    def model(self) -> "WatchComponentTreeModel":
+        return cast(WatchComponentTreeModel, super().model())
+
+    def keyPressEvent(self, event: QKeyEvent) -> None:
+        if event.key() == Qt.Key.Key_Delete:
+            model = self.model()
+            indexes_without_nested_values = model.remove_nested_indexes(self.selectedIndexes()) # Avoid errors when parent is deleted before children
+            items = [model.itemFromIndex(index) for index in  indexes_without_nested_values]
+            for item in items:
+                if item is not None:
+                    parent_index=QModelIndex() # Invalid index
+                    if item.parent():
+                        parent_index = item.parent().index()
+                    model.removeRow(item.row(), parent_index)
+
+        elif event.key() in [Qt.Key.Key_Enter, Qt.Key.Key_Return] and self.state() != self.State.EditingState:
+            nesting_col = self.model().nesting_col()
+            selected_index_nesting_col = [idx for idx in self.selectedIndexes() if idx.column() == nesting_col]
+            if len(selected_index_nesting_col) == 1:
+                model = self.model()
+                item = model.itemFromIndex(selected_index_nesting_col[0])
+                if isinstance(item,WatchableStandardItem):
+                    value_item = model.get_value_item(item)
+                    self.setCurrentIndex(value_item.index())
+                    self.edit(value_item.index())
+                    
+        elif event.key() == Qt.Key.Key_N and event.modifiers() == Qt.KeyboardModifier.ControlModifier | Qt.KeyboardModifier.ShiftModifier:
+            parent, insert_row = self._find_new_folder_position_from_selection()
+            self._new_folder(self.NEW_FOLDER_DEFAULT_NAME, parent, insert_row)
+        else:
+            super().keyPressEvent(event)
+        
+    def _find_new_folder_position_from_selection(self) -> Tuple[Optional[QStandardItem], int]:
+        # Used by keyboard shortcut
+        model = self.model()
+        nesting_col = self.model().nesting_col()
+        selected_list = [index for index in self.selectedIndexes() if index.column() == nesting_col]
+        selected_index = QModelIndex()
+        insert_row = -1
+        parent:Optional[QStandardItem] = None
+        if len(selected_list) > 0:
+            selected_index = selected_list[0]
+
+        if selected_index.isValid():
+            selected_item = model.itemFromIndex(selected_index)
+            if isinstance(selected_item, WatchableStandardItem):
+                insert_row = selected_item.row()
+                parent = selected_item.parent()
+            elif isinstance(selected_item, FolderStandardItem):
+                insert_row = -1
+                parent = selected_item
+            else:
+                raise NotImplementedError(f"Unknown item type for {selected_item}")
+
+        return parent, insert_row
+
+    def _find_new_folder_position_from_position(self, position:QPoint) -> Tuple[Optional[QStandardItem], int]:
+        # Used by right-click
+        index = self.indexAt(position)
+        if not index.isValid():
+            return None, -1
+        model = self.model()
+        item = model.itemFromIndex(index)
+        assert item is not None
+
+        if isinstance(item, FolderStandardItem):
+            return item, -1
+        parent_index = index.parent()
+        if not parent_index.isValid():
+            return None, index.row()
+        return model.itemFromIndex(parent_index), index.row()
+
+    def _new_folder(self, name:str, parent:Optional[QStandardItem], insert_row:int) -> None:
+        model = self.model()
+        new_row = model.make_folder_row(name, fqn=None, editable=True)
+        model.add_row_to_parent(parent, insert_row, new_row)
+        if parent is not None:
+            self.expand(parent.index()) 
+        self.edit(new_row[0].index())
+
+    def _set_drag_and_drop_action(self, event:Union[QDragEnterEvent, QDragMoveEvent, QDropEvent]) -> None:
+        if event.source() is self:
+            event.setDropAction(Qt.DropAction.MoveAction)
+        else:
+            event.setDropAction(Qt.DropAction.CopyAction)
+
+    def dragEnterEvent(self, event: QDragEnterEvent) -> None:
+        self._set_drag_and_drop_action(event)
+        super().dragEnterEvent(event)
+        event.accept()
+        
+    def dragMoveEvent(self, event: QDragMoveEvent) -> None:        
+        self._set_drag_and_drop_action(event)
+        return super().dragMoveEvent(event)
+
+    def dropEvent(self, event: QDropEvent) -> None:
+        self._set_drag_and_drop_action(event)
+        return super().dropEvent(event)    
+
+    def map_to_watchable_node(self, 
+                            callback:Callable[[WatchableStandardItem, bool], None],
+                            parent:Optional[BaseWatchableRegistryTreeStandardItem]=None
+                            ) -> None:
+        """Apply a callback to every watchable row in the tree and tells if it is visible to the user"""
+
+        model = self.model()
+        nesting_col = model.nesting_col()
+        def recurse(item:QStandardItem, content_visible:bool) -> None:
+            if isinstance(item, WatchableStandardItem):
+                callback(item, content_visible)
+            elif isinstance(item, FolderStandardItem):
+                for i in range(item.rowCount()):
+                    recurse(item.child(i,nesting_col), content_visible and self.isExpanded(item.index()))
+            else:
+                raise NotImplementedError(f"Unsupported item type: {item}")
+        
+        if parent is not None:
+            recurse(parent, self.is_visible(parent))
+        else:   # Root node. Iter all root items
+            for i in range(model.rowCount()):
+                recurse(model.item(i, nesting_col), True)
+    
+    def closeEditor(self, editor:QWidget, hint:QAbstractItemDelegate.EndEditHint) -> None:
+        """Called when the user finishes editing a value. Press enter or blur focus"""
+        item_written = self._model.itemFromIndex(self.currentIndex())
+        model = self.model()
+        nesting_col = model.nesting_col()
+        if isinstance(item_written, ValueStandardItem):
+            watchable_item = model.itemFromIndex(item_written.index().siblingAtColumn(nesting_col))
+            if isinstance(watchable_item, WatchableStandardItem):   # paranoid check. Should never be false. Folders have no Value column
+                fqn = watchable_item.fqn
+                value = item_written.text()
+                self.signals.value_written.emit(fqn, value)
+
+        # Make arrow navigation easier because elements are nested on columns 0. 
+        # If current index is at another column, we can't go up in the tree witht he keyboard
+        self.setCurrentIndex(self.currentIndex().siblingAtColumn(nesting_col))
+        
+        return super().closeEditor(editor, hint)
+
 
 
 class WatchComponentTreeModel(WatchableTreeModel):
