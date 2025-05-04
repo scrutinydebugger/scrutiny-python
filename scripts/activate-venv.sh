@@ -31,8 +31,6 @@ if ! pip3 show wheel 2>&1 >/dev/null; then
     pip3 install wheel
     log "Upgrading pip..."
     pip3 install --upgrade pip
-    log "Upgrading setuptools..."
-    pip3 install --upgrade setuptools
 fi
 
 if ! diff "$PY_MODULE_ROOT/setup.py" "$SCRUTINY_VENV_ROOT/cache/setup.py" 2>&1 >/dev/null; then

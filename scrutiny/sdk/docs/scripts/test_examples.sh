@@ -8,11 +8,6 @@ trap  "echo 'Error. Exiting' && rm -rf ${tempdir}" ERR
 
 set -x
 
-which python3
-python3 --version
-pip list
-env
-
 echo -e "\nTesting example code..."
 
 cd $tempdir
