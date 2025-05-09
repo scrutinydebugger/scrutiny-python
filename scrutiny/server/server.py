@@ -14,10 +14,11 @@ import time
 import os
 import json
 import logging
-import traceback
 from copy import copy
 import threading
 from dataclasses import dataclass
+import signal
+import types
 
 from scrutiny.server.api import API, APIConfig
 from scrutiny.server.datastore.datastore import Datastore
@@ -57,6 +58,21 @@ DEFAULT_CONFIG: ServerConfig = {
     }
 }
 
+class SignalHandler:
+    _terminated = False
+    def __init__(self) -> None:
+        signal.signal(signal.SIGINT, self._exit_gracefully)
+        signal.signal(signal.SIGTERM, self._exit_gracefully)
+        signal.signal(signal.SIGBREAK, self._exit_gracefully)
+
+    def _exit_gracefully(self, signum:int, frame:Optional[types.FrameType]) -> None:
+        if self._terminated:
+            os._exit(1) 
+        self._terminated = True
+    
+    def must_exit(self) -> bool:
+        return self._terminated
+
 
 class ScrutinyServer:
     """The Scrutiny server that communicate with a device running libscrutiny-embedded and make
@@ -79,6 +95,7 @@ class ScrutinyServer:
     datalogging_manager: DataloggingManager
     rx_data_event:threading.Event
     start_time:float
+    stop_event:threading.Event
 
     def __init__(self, 
                  input_config: Optional[Union[str, ServerConfig]] = None,
@@ -86,6 +103,7 @@ class ScrutinyServer:
                  ) -> None:
         self.logger = logging.getLogger(self.__class__.__name__)
         self.config = copy(DEFAULT_CONFIG)
+        self.stop_event = threading.Event()
         if input_config is not None:
             if isinstance(input_config, str):
                 if not os.path.isfile(input_config):
@@ -153,23 +171,28 @@ class ScrutinyServer:
     def run(self) -> None:
         """Launch the server code. This function is blocking"""
         self.logger.info('Starting server instance "%s"' % (self.server_name))
-
+        signal_handler = SignalHandler()
+        self.stop_event.clear()
         try:
             self.init()
             while True:
+                if signal_handler.must_exit() or self.stop_event.is_set():
+                    break
                 self.process()
                 self.rx_data_event.wait(0.01)   # sleep until we have some IO or 10ms
                 self.rx_data_event.clear()
-
         except (KeyboardInterrupt, SystemExit):
-            self.close_all()
+            pass
         except Exception as e:
             tools.log_exception(self.logger, e, "Error in server", str_level=logging.CRITICAL)
-            self.close_all()
             raise
+        finally:
+            self.close_all()
+            
 
     def stop(self) -> None:
-        """ An alias for close_all"""
+        """ Stop the server """
+        self.stop_event.set()
         self.close_all()
 
     def close_all(self) -> None:
