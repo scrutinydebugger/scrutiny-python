@@ -10,6 +10,7 @@ import sys
 import ctypes
 
 from PySide6.QtWidgets import QApplication
+from PySide6.QtCore import QTimer
 
 import scrutiny
 from scrutiny.gui.main_window import MainWindow
@@ -86,6 +87,9 @@ class ScrutinyQtGUI:
         
         stylesheet = assets.load_text(['stylesheets', 'scrutiny_base.qss'])
         app.setStyleSheet(stylesheet)
+        timer = QTimer()
+        timer.setInterval(500)
+        timer.start()
 
         if self.settings.opengl_enabled:
             prepare_for_opengl(window)
