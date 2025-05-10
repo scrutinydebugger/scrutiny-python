@@ -91,7 +91,7 @@ class LogViewer(QPlainTextEdit):
     def add_line(self, line:str) -> None:
         self.add_lines([line])
     
-    def sizeHint(self):
+    def sizeHint(self) -> QSize:
         return QSize(600,300)
 
 class LocalServerManagerDialog(QDialog):

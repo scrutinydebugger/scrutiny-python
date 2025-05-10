@@ -17,6 +17,7 @@ import logging
 import threading
 import signal
 import types
+import sys
 from copy import copy
 from dataclasses import dataclass
 
@@ -63,7 +64,8 @@ class SignalHandler:
     def __init__(self) -> None:
         signal.signal(signal.SIGINT, self._exit_gracefully)
         signal.signal(signal.SIGTERM, self._exit_gracefully)
-        signal.signal(signal.SIGBREAK, self._exit_gracefully)
+        if sys.platform == 'win32':
+            signal.signal(signal.SIGBREAK, self._exit_gracefully)
 
     def _exit_gracefully(self, signum:int, frame:Optional[types.FrameType]) -> None:
         if self._terminated:

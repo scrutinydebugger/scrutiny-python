@@ -129,12 +129,15 @@ class LocalServerRunner:
 
         try:
             options = [f'api.client_interface_config.port={port}']
+            flags = 0
+            if sys.platform == 'win32':
+                flags |= subprocess.CREATE_NEW_PROCESS_GROUP    # Important for windows. Ctrl+Break will hit the parent process otherwise
             process = subprocess.Popen(
                 [sys.executable, '-m', 'scrutiny', 'server', '--options'] + options, 
                 stdout=subprocess.PIPE, 
                 stderr=subprocess.PIPE,
                 shell=False,
-                creationflags=subprocess.CREATE_NEW_PROCESS_GROUP,  # Important for windows. Ctrl+Break will hit the parent process otherwise
+                creationflags=flags,  
                 env=env)
             
             def read_stream(stream:IO[bytes], signal:SignalInstance) -> None:
