@@ -8,6 +8,7 @@ import os
 import logging
 import enum
 import signal
+import shiboken6
 
 from scrutiny.tools.typing import *
 from scrutiny.tools.thread_enforcer import enforce_thread
@@ -128,13 +129,18 @@ class LocalServerRunner:
                 env=env)
             
             def read_stream(stream:IO[bytes], signal:SignalInstance) -> None:
-                while True:
-                    line = stream.readline().decode('utf8')
-                    line = line.strip()
-                    if len(line) > 0:
-                        signal.emit(line)
-                    elif process.poll() is not None:
-                        break
+                try:
+                    while True:
+                        line = stream.readline().decode('utf8')
+                        line = line.strip()
+                        if len(line) > 0:
+                            #Prevent errors when the runner is destroyed without calling stop() prior to it
+                            if shiboken6.isValid(self._signals):    # Assumption that this is the signal source.
+                                signal.emit(line)
+                        elif process.poll() is not None:
+                            break
+                except Exception as e:
+                    tools.log_exception(self._logger, e, "Error in process stream reader")
                 
             def read_stdout() -> None:
                 assert process.stdout is not None

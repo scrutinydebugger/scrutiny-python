@@ -14,11 +14,11 @@ import time
 import os
 import json
 import logging
-from copy import copy
 import threading
-from dataclasses import dataclass
 import signal
 import types
+from copy import copy
+from dataclasses import dataclass
 
 from scrutiny.server.api import API, APIConfig
 from scrutiny.server.datastore.datastore import Datastore
