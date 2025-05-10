@@ -170,7 +170,11 @@ class LocalServerRunner:
             stderr_reader_thread.start()
 
             self._active_process = process
-            self._internal_signals.spawned.emit()   # Will change the state to STARTED in the QT thread.
+            if shiboken6.isValid(self._internal_signals):
+                self._internal_signals.spawned.emit()   # Will change the state to STARTED in the QT thread.
+            else:   # Something went wrong. App probably crashed right after starting 
+                self._logger.debug("Cannot emit spawned signal. Deleted")
+                self._stop_event.set()
 
             # Process is started and running
             while True:
@@ -202,7 +206,10 @@ class LocalServerRunner:
                 self._active_process.terminate()    # SIGTERM or Win32 Hard kill
 
         self._active_process = None
-        self._internal_signals.exit.emit()  # Will set the state to STOPPED in the QT thread
+        if shiboken6.isValid(self._internal_signals):
+            self._internal_signals.exit.emit()  # Will set the state to STOPPED in the QT thread
+        else:
+            self._logger.debug("Cannot emit exit signal. Deleted")
     
     def __del__(self) -> None:
         # Safety

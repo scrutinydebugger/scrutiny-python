@@ -7,7 +7,7 @@
 #   Copyright (c) 2021 Scrutiny Debugger
 
 import argparse
-import logging
+import sys
 
 from .base_command import BaseCommand
 from typing import Optional, List, Any, Dict, cast
@@ -26,12 +26,21 @@ class GUI(BaseCommand):
         self.parser = argparse.ArgumentParser(prog=self.get_prog())
         self.parser.add_argument("--debug-layout", action='store_true', default=False, help="Enable GUI diagnostic rendering")
         self.parser.add_argument("--auto-connect", action='store_true', default=False, help="Try to connect to a server as soon as the GUI is ready")
-        self.parser.add_argument("--no-opengl", action='store_true', default=False, help="Disable OpenGL accelerations")
+        self.parser.add_argument("--no-opengl", action='store_true', default=None, help="Disable OpenGL accelerations")
 
     def run(self) -> Optional[int]:
         from scrutiny.gui.gui import ScrutinyQtGUI
 
         args = self.parser.parse_args(self.args)
+
+        if args.no_opengl is None:
+            # Todo : Wayland doesn't like opengl. Need investigation
+            # Default enable only on windows since its the only platform I tested.
+            if sys.platform == 'win32':
+                args.no_opengl = False
+            else:
+                args.no_opengl = True
+
         gui = ScrutinyQtGUI(
             debug_layout=args.debug_layout,
             auto_connect=args.auto_connect,

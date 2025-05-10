@@ -65,7 +65,9 @@ class SignalHandler:
         signal.signal(signal.SIGINT, self._exit_gracefully)
         signal.signal(signal.SIGTERM, self._exit_gracefully)
         if sys.platform == 'win32':
-            signal.signal(signal.SIGBREAK, self._exit_gracefully)
+            # Ctrl+break. Used by the GUI to stop the server subprocess. 
+            # Only signal that works properly on Windows.
+            signal.signal(signal.SIGBREAK, self._exit_gracefully)   
 
     def _exit_gracefully(self, signum:int, frame:Optional[types.FrameType]) -> None:
         if self._terminated:

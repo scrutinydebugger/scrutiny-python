@@ -62,9 +62,8 @@ class MenuBar(QMenuBar):
         dashboard_menu.addSeparator()
         self._recent_action = dashboard_menu.addAction("Recent")
 
-
         server_menu =  self.addMenu('Server')
-        self._action_server_launch_local = server_menu.addAction("Launch local")
+        self._action_server_launch_local = server_menu.addAction("Local server")
         self._action_server_launch_local.triggered.connect(self._signals.server_launch_local_click)
 
         info_menu =  self.addMenu("Info")

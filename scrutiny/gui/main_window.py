@@ -15,6 +15,7 @@ from PySide6.QtCore import Qt, QRect
 from PySide6.QtWidgets import QMainWindow 
 
 from scrutiny.gui.core.persistent_data import gui_persistent_data
+from scrutiny.gui.core.local_server_runner import LocalServerRunner
 from scrutiny.gui.app_settings import app_settings
 from scrutiny.gui.tools.invoker import InvokeQueued
 from scrutiny.gui.tools import prompt
@@ -24,6 +25,7 @@ from scrutiny.gui.widgets.component_sidebar import ComponentSidebar
 from scrutiny.gui.widgets.status_bar import StatusBar
 from scrutiny.gui.widgets.menu_bar import MenuBar
 from scrutiny.gui.dialogs.server_config_dialog import ServerConfigDialog
+from scrutiny.gui.dialogs.local_server_manager_dialog import LocalServerManagerDialog
 from scrutiny.gui.dashboard.dashboard import Dashboard
 
 from scrutiny.gui.components.locals.base_local_component import ScrutinyGUIBaseLocalComponent
@@ -65,6 +67,8 @@ class MainWindow(QMainWindow):
     _menu_bar:MenuBar
     _status_bar:StatusBar
     _dashboard:Dashboard
+    _local_server_runner:LocalServerRunner
+    _local_server_runner_dialog: LocalServerManagerDialog
 
     def __init__(self) -> None:
         super().__init__()       
@@ -78,6 +82,8 @@ class MainWindow(QMainWindow):
         self._watchable_registry = WatchableRegistry()
         self._server_manager = ServerManager(watchable_registry=self._watchable_registry)
         self._dashboard = Dashboard(self)
+        self._local_server_runner = LocalServerRunner()
+        self._local_server_runner_dialog = LocalServerManagerDialog(self, self._local_server_runner)
 
         self._make_main_zone()
         
@@ -93,6 +99,7 @@ class MainWindow(QMainWindow):
         self._menu_bar.signals.dashboard_save_as_click.connect(self._dashboard_save_as_click)
         self._menu_bar.signals.dashboard_open_click.connect(self._dashboard_open_click)
         self._menu_bar.signals.dashboard_recent_open.connect(self._dashboard_recent_open_click)
+        self._menu_bar.signals.server_launch_local_click.connect(self._server_launch_local_click)
 
         self._menu_bar.set_dashboard_recents(self._dashboard.read_history())
 
@@ -143,6 +150,7 @@ class MainWindow(QMainWindow):
         self._server_manager.exit()
         self._watchable_registry.clear()
         self._dashboard.exit()
+        self._local_server_runner.stop()
         gui_persistent_data.save()  # Not supposed to raise
         super().closeEvent(event)
         
@@ -183,3 +191,6 @@ class MainWindow(QMainWindow):
             self.setWindowTitle(file.name)
         
         self._menu_bar.set_dashboard_recents(self._dashboard.read_history())
+
+    def _server_launch_local_click(self) -> None:
+        self._local_server_runner_dialog.show()
