@@ -10,12 +10,11 @@ import enum
 
 from PySide6.QtWidgets import QWidget, QLabel, QHBoxLayout, QSizePolicy
 from PySide6.QtCore import Qt
-from PySide6.QtGui import QCursor
 
 from scrutiny.gui import assets
 from scrutiny import tools
 
-from typing import Any
+from scrutiny.tools.typing import *
 
 class FeedbackLabel(QWidget):
 

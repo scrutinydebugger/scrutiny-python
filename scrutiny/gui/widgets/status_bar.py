@@ -11,6 +11,7 @@ from PySide6.QtWidgets import QStatusBar, QWidget, QLabel, QHBoxLayout, QSizePol
 from PySide6.QtCore import Qt, QPoint, QSize
 from PySide6.QtGui import QPixmap, QAction
 from scrutiny.gui.core.server_manager import ServerManager
+from scrutiny.gui.core.local_server_runner import LocalServerRunner
 from scrutiny.gui.core.user_messages_manager import UserMessagesManager, UserMessage
 from scrutiny.gui.dialogs.server_config_dialog import ServerConfigDialog
 from scrutiny.gui.dialogs.device_config_dialog import DeviceConfigDialog
@@ -214,11 +215,11 @@ class StatusBar(QStatusBar):
     """Flag used to ensure is single reconnection if the user change the server confiugration"""
 
     
-    def __init__(self, parent:QWidget, server_manager:ServerManager) -> None:
+    def __init__(self, parent:QWidget, server_manager:ServerManager, local_server_runner:LocalServerRunner) -> None:
         super().__init__(parent)
 
         self._server_manager=server_manager
-        self._server_config_dialog = ServerConfigDialog(self, apply_callback=self._server_config_applied)
+        self._server_config_dialog = ServerConfigDialog(self, apply_callback=self._server_config_applied, local_server_runner=local_server_runner)
         self._device_config_dialog = DeviceConfigDialog(self, apply_callback=self._device_config_applied)
         self._one_shot_auto_connect = False
 

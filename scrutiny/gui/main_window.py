@@ -87,7 +87,7 @@ class MainWindow(QMainWindow):
 
         self._make_main_zone()
         
-        self._status_bar = StatusBar(self, server_manager=self._server_manager)
+        self._status_bar = StatusBar(self, server_manager=self._server_manager, local_server_runner=self._local_server_runner)
         self.setStatusBar(self._status_bar)
 
         self._menu_bar = MenuBar()

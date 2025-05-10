@@ -50,6 +50,8 @@ class LocalServerRunner:
     """A threading event to trigger the termination of the internal thread and exit the local server """
     _active_process:Optional[subprocess.Popen[bytes]]
     """The process of the local server"""
+    _started_port:Optional[int]
+    """Port the local server is listening on. None if the server is not started"""
 
     def __init__(self) -> None:
         self._logger = logging.getLogger(self.__class__.__name__)
@@ -66,6 +68,15 @@ class LocalServerRunner:
     @property
     def signals(self) -> _Signals:
         return self._signals
+    
+    def get_state(self) -> State:
+        return self._state
+    
+    def get_port(self) -> Optional[int]:
+        if self._state != self.State.STARTED:
+            return None
+        return self._started_port
+
     
     def get_process_id(self) -> Optional[int]:
         # _active_process can be set None by another thread. 
@@ -99,6 +110,7 @@ class LocalServerRunner:
             self._logger.debug("Already started")
             return
         
+        self._started_port = port
         self._set_state(self.State.STARTING)
         self._owner_thread = threading.Thread(target=self._thread_func, daemon=True, args=[port])
         
@@ -111,6 +123,7 @@ class LocalServerRunner:
         Moves the state from STARTING/STARTED to STOPPING
         """
         self._logger.debug("Requesting to stop")
+        self._started_port = None
         self._stop_event.set()
         if self._state in (self.State.STOPPING, self.State.STOPPED):
             self._logger.debug("Already stopped")
