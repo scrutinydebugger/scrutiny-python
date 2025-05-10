@@ -44,6 +44,7 @@ class FeedbackLabel(QWidget):
         layout = QHBoxLayout(self)
         layout.addWidget(self._icon_label)
         layout.addWidget(self._text_label)
+        layout.setContentsMargins(0,0,0,0)
         self._actual_msg_type = self.MessageType.NORMAL
         self._normal_cursor = Qt.CursorShape.ArrowCursor
 

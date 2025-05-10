@@ -67,6 +67,15 @@ class LocalServerRunner:
     def signals(self) -> _Signals:
         return self._signals
     
+    def get_process_id(self) -> Optional[int]:
+        # _active_process can be set None by another thread. 
+        # Copy the ref before using to avoid race conditions
+        process = self._active_process  
+        if process is not None:
+            if process.poll() == None:
+                return process.pid
+        return None
+    
     def _exit_slot(self) -> None:
         self._set_state(self.State.STOPPED)
     

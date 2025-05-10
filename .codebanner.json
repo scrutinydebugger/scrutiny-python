@@ -719,6 +719,18 @@
         },
         "scrutiny/gui/tools/shiboken_ref_keeper.py": {
             "docstring": "A simple tool that keeps a reference of a QT object until the internal C++ object is deleted.\n Required to pass local python objects to modules that does not take ownership of the object"
+        },
+        "test/gui/test_local_server_runner.py": {
+            "docstring": "A test suite for the LocalServerRunner"
+        },
+        "test/gui/manual/manual_test_local_server_runner.py": {
+            "docstring": "A manual test to check the LocalServerManager dialog"
+        },
+        "scrutiny/gui/core/local_server_runner.py": {
+            "docstring": "A class that control a subprocess running a Scrutiny server.\n Expose simplified API and add hooks for nice integration in QT"
+        },
+        "scrutiny/gui/dialogs/local_server_manager_dialog.py": {
+            "docstring": "A dialog that interract with the app-wide LocalServerRunner.\n Let the user start/stop a local instance of the runner"
         }
     }
 }
