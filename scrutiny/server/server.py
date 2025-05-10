@@ -15,9 +15,6 @@ import os
 import json
 import logging
 import threading
-import signal
-import types
-import sys
 from copy import copy
 from dataclasses import dataclass
 
@@ -27,8 +24,9 @@ from scrutiny.server.device.device_handler import DeviceHandler, DeviceHandlerCo
 from scrutiny.server.active_sfd_handler import ActiveSFDHandler
 from scrutiny.server.datalogging.datalogging_manager import DataloggingManager
 from scrutiny import tools
+from scrutiny.tools.signals import SignalExitHandler
 
-from typing import TypedDict, Optional, Union, Dict, cast, Any
+from scrutiny.tools.typing import * 
 
 
 class ServerConfig(TypedDict, total=False):
@@ -58,24 +56,6 @@ DEFAULT_CONFIG: ServerConfig = {
         }
     }
 }
-
-class SignalHandler:
-    _terminated = False
-    def __init__(self) -> None:
-        signal.signal(signal.SIGINT, self._exit_gracefully)
-        signal.signal(signal.SIGTERM, self._exit_gracefully)
-        if sys.platform == 'win32':
-            # Ctrl+break. Used by the GUI to stop the server subprocess. 
-            # Only signal that works properly on Windows.
-            signal.signal(signal.SIGBREAK, self._exit_gracefully)   
-
-    def _exit_gracefully(self, signum:int, frame:Optional[types.FrameType]) -> None:
-        if self._terminated:
-            os._exit(1) 
-        self._terminated = True
-    
-    def must_exit(self) -> bool:
-        return self._terminated
 
 
 class ScrutinyServer:
@@ -175,12 +155,12 @@ class ScrutinyServer:
     def run(self) -> None:
         """Launch the server code. This function is blocking"""
         self.logger.info('Starting server instance "%s"' % (self.server_name))
-        signal_handler = SignalHandler()
+        exit_handler = SignalExitHandler()
         self.stop_event.clear()
         try:
             self.init()
             while True:
-                if signal_handler.must_exit() or self.stop_event.is_set():
+                if exit_handler.must_exit() or self.stop_event.is_set():
                     break
                 self.process()
                 self.rx_data_event.wait(0.01)   # sleep until we have some IO or 10ms

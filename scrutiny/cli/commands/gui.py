@@ -34,12 +34,13 @@ class GUI(BaseCommand):
         args = self.parser.parse_args(self.args)
 
         if args.no_opengl is None:
+            args.no_opengl = False
             # Todo : Wayland doesn't like opengl. Need investigation
             # Default enable only on windows since its the only platform I tested.
-            if sys.platform == 'win32':
-                args.no_opengl = False
-            else:
-                args.no_opengl = True
+            #if sys.platform == 'win32':
+            #    args.no_opengl = False
+            #else:
+            #    args.no_opengl = True
 
         gui = ScrutinyQtGUI(
             debug_layout=args.debug_layout,

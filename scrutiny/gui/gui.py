@@ -22,7 +22,8 @@ from scrutiny.gui.themes import set_theme
 from scrutiny.gui.themes.default_theme import DefaultTheme 
 from dataclasses import dataclass
 
-from typing import List, Optional
+from scrutiny.tools.typing import *
+from scrutiny.tools.signals import SignalExitHandler
 
 class ScrutinyQtGUI:
 
@@ -34,6 +35,7 @@ class ScrutinyQtGUI:
 
     _instance:Optional["ScrutinyQtGUI"] = None
     _settings:Settings
+    _exit_handler:Optional[SignalExitHandler]
 
     @classmethod
     def instance(cls) -> "ScrutinyQtGUI":
@@ -54,6 +56,7 @@ class ScrutinyQtGUI:
         if self.__class__._instance is not None:
             raise RuntimeError(f"Only a single instance of {self.__class__.__name__} can run.")
         self.__class__._instance = self
+        self._exit_handler = None
 
         self._settings = self.Settings(
             debug_layout = debug_layout,
@@ -66,6 +69,10 @@ class ScrutinyQtGUI:
     def run(self, args:List[str]) -> int:
         register_thread(QT_THREAD_NAME)
         app = QApplication(args)
+        def exit_signal_callback() -> None:
+            app.quit()
+        self._exit_handler = SignalExitHandler(exit_signal_callback)
+
         app.setWindowIcon(assets.load_medium_icon(assets.Icons.ScrutinyLogo))
         app.setApplicationDisplayName("Scrutiny Debugger")
         app.setApplicationVersion(scrutiny.__version__)
