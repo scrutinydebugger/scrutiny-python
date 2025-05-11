@@ -7,7 +7,9 @@
 #   Copyright (c) 2021 Scrutiny Debugger
 
 import sys
+import os
 import ctypes
+import logging
 
 from PySide6.QtWidgets import QApplication
 from PySide6.QtCore import QTimer
@@ -69,6 +71,19 @@ class ScrutinyQtGUI:
     
     def run(self, args:List[str]) -> int:
         register_thread(QT_THREAD_NAME)
+        logger = logging.getLogger(self.__class__.__name__)
+
+        if sys.platform == "win32":
+            # Tells windows that python process host another application. Enables the QT icon in the task bar
+            # see https://stackoverflow.com/questions/1551605/how-to-set-applications-taskbar-icon-in-windows-7
+            ctypes.windll.shell32.SetCurrentProcessExplicitAppUserModelID(u'scrutiny.gui.%s' % scrutiny.__version__)
+        elif sys.platform == 'linux':
+            if os.environ.get('QT_QPA_PLATFORM', None) in ('wayland', None):
+                # QtADS doesn't work well with Wayland. Works with X11.
+                # https://github.com/githubuser0xFFFF/Qt-Advanced-Docking-System/issues/714
+                logger.warning("Forcing usage of X11 windowing system because Wayland has known issues. Specify env QT_QPA_PLATFORM to change this behavior. Make sure to have libxcb and its component installed")
+                os.environ['QT_QPA_PLATFORM'] = 'xcb'
+
         app = QApplication(args)
         def exit_signal_callback() -> None:
             app.quit()
@@ -78,18 +93,16 @@ class ScrutinyQtGUI:
         app.setApplicationDisplayName("Scrutiny Debugger")
         app.setApplicationVersion(scrutiny.__version__)
 
-        if sys.platform == "win32":
-            # Tells windows that python process host another application. Enables the QT icon in the task bar
-            # see https://stackoverflow.com/questions/1551605/how-to-set-applications-taskbar-icon-in-windows-7
-            ctypes.windll.shell32.SetCurrentProcessExplicitAppUserModelID(u'scrutiny.gui.%s' % scrutiny.__version__)
-
         window = MainWindow()
         
         stylesheet = assets.load_text(['stylesheets', 'scrutiny_base.qss'])
         app.setStyleSheet(stylesheet)
-        timer = QTimer()
-        timer.setInterval(500)
-        timer.start()
+        
+        # Signals are processed only when an event is being checked for. 
+        # This timer create an opporunity for signal handling every 500 msec
+        check_signal_timer = QTimer()
+        check_signal_timer.setInterval(500)
+        check_signal_timer.start()
 
         if self.settings.opengl_enabled:
             prepare_for_opengl(window)
