@@ -58,6 +58,7 @@ class ScrutinyQtGUI:
                  ) -> None:
         if self.__class__._instance is not None:
             raise RuntimeError(f"Only a single instance of {self.__class__.__name__} can run.")
+        
         self.__class__._instance = self
         self._exit_handler = None
 
@@ -77,12 +78,17 @@ class ScrutinyQtGUI:
             # Tells windows that python process host another application. Enables the QT icon in the task bar
             # see https://stackoverflow.com/questions/1551605/how-to-set-applications-taskbar-icon-in-windows-7
             ctypes.windll.shell32.SetCurrentProcessExplicitAppUserModelID(u'scrutiny.gui.%s' % scrutiny.__version__)
+            
         elif sys.platform == 'linux':
-            if os.environ.get('QT_QPA_PLATFORM', None) in ('wayland', None):
                 # QtADS doesn't work well with Wayland. Works with X11.
                 # https://github.com/githubuser0xFFFF/Qt-Advanced-Docking-System/issues/714
-                logger.warning("Forcing usage of X11 windowing system because Wayland has known issues. Specify env QT_QPA_PLATFORM to change this behavior. Make sure to have libxcb and its component installed")
+            if 'QT_QPA_PLATFORM' not in os.environ:
+                logger.warning("Forcing usage of X11 windowing system because Wayland has known issues. Make sure to have libxcb and its component installed. Specify env QT_QPA_PLATFORM to change this behavior.")
                 os.environ['QT_QPA_PLATFORM'] = 'xcb'
+            else:
+                platform = os.environ['QT_QPA_PLATFORM'].lower().strip()
+                if platform == 'wayland':
+                    logger.warning("There are known issues with Wayland windowing system and this software dependecies (QT & QT-ADS). Specifying QT_QPA_PLATFORM=xcb may solve display bugs.")
 
         app = QApplication(args)
         def exit_signal_callback() -> None:
@@ -110,7 +116,7 @@ class ScrutinyQtGUI:
         if self.settings.debug_layout:
             window.setStyleSheet("border:1px solid red")
 
-        CrossThreadInvoker.init()  # Internal tool to run functions in the QT Thread fromother thread
+        CrossThreadInvoker.init()  # Internal tool to run functions in the QT Thread from other thread
         window.show()
         
         return app.exec()
