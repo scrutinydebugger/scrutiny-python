@@ -89,9 +89,13 @@ class LocalServerRunner:
     
     def _exit_slot(self) -> None:
         self._set_state(self.State.STOPPED)
+        self._logger.info(f"The local Scrutiny server has exited")
     
     def _spawed_slot(self) -> None:
         self._set_state(self.State.STARTED)
+        port = self.get_port()
+        if port is not None:
+            self._logger.info(f"A local Scrutiny server is now started on port {self.get_port()}")
     
     def _set_state(self, new_state:State) -> None:
         changed = new_state != self._state
@@ -116,6 +120,7 @@ class LocalServerRunner:
         
         self._stop_event.clear()
         self._owner_thread.start()
+        
     
     @enforce_thread(QT_THREAD_NAME)
     def stop(self) -> None:

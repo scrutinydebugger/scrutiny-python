@@ -109,6 +109,7 @@ class ScrutinyQtGUI:
         check_signal_timer = QTimer()
         check_signal_timer.setInterval(500)
         check_signal_timer.start()
+        check_signal_timer.timeout.connect(lambda : None)
 
         if self.settings.opengl_enabled:
             prepare_for_opengl(window)

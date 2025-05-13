@@ -8,12 +8,13 @@ import logging
 from scrutiny.tools.typing import *
 from scrutiny.tools import log_exception
 
+ExitCallback:TypeAlias = Callable[[], None]
 class SignalExitHandler:
     _exit_request = False
-    _callback:Optional[Callable[[], None]]
+    _callback:Optional[ExitCallback]
     _logger:logging.Logger
     
-    def __init__(self, callback:Optional[Callable[[], None]] = None) -> None:
+    def __init__(self, callback:Optional[ExitCallback] = None) -> None:
         self._exit_request = False
         self._callback = callback
         self._logger = logging.getLogger(self.__class__.__name__)
@@ -23,6 +24,9 @@ class SignalExitHandler:
             # Ctrl+break. Used by the GUI to stop the server subprocess. 
             # Only signal that works properly on Windows.
             signal.signal(signal.SIGBREAK, self._receive_signal)   
+
+    def set_callback(self, callback:ExitCallback) -> None:
+        self._callback = callback
 
     def _receive_signal(self, signum:int, frame:Optional[types.FrameType]) -> None:
         signame = signal.Signals(signum).name

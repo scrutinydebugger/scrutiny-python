@@ -10,6 +10,7 @@
 import sys, os
 import logging
 from PySide6.QtWidgets import QApplication
+from PySide6.QtCore import QTimer
 
 project_root = os.path.realpath(os.path.join(os.path.dirname(__file__), '..', '..', '..'))
 sys.path.insert(0, project_root)
@@ -20,6 +21,8 @@ from scrutiny.gui.themes import set_theme
 from scrutiny.gui.themes.default_theme import DefaultTheme 
 from scrutiny.gui import assets
 
+from scrutiny.tools.signals import SignalExitHandler
+
 def make_manual_test_app() -> QApplication:
     os.environ['SCRUTINY_MANUAL_TEST'] = '1'
     logging.basicConfig(level=logging.DEBUG)
@@ -28,4 +31,11 @@ def make_manual_test_app() -> QApplication:
     app.setStyleSheet(assets.load_text(["stylesheets", "scrutiny_base.qss"]))
     set_theme(DefaultTheme())
 
+    app._scrutiny_check_signal_timer = QTimer()
+    app._scrutiny_check_signal_timer.setInterval(500)
+    app._scrutiny_check_signal_timer.start()
+    app._scrutiny_check_signal_timer.timeout.connect(lambda *a : None)
+
+    app._scrutiny_exit_handler = SignalExitHandler(app.quit)
+    
     return app

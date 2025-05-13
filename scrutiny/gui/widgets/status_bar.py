@@ -307,7 +307,12 @@ class StatusBar(QStatusBar):
 
     def _server_connect_func(self) -> None:
         """ When the user click the server status -> Connect"""
-        self._server_manager.start(self._server_config_dialog.get_config())
+        config = self._server_config_dialog.get_config()
+        # The config should be valid most of the time. 
+        # It will be None if the user uses a local server and that local server dies between the OK click
+        # and the execution of that function. There's a little race condition to handle.
+        if config is not None:
+            self._server_manager.start(config)
     
     def _server_disconnect_func(self) -> None:
         """ When the user click the server status -> Disconnect"""
