@@ -18,6 +18,7 @@ from scrutiny.gui.widgets.validable_line_edit import ValidableLineEdit
 from scrutiny.gui.widgets.feedback_label import FeedbackLabel
 from scrutiny.gui.widgets.log_viewer import LogViewer
 
+from scrutiny.gui import DEFAULT_SERVER_PORT
 from scrutiny.gui.tools.validators import IpPortValidator, NotEmptyValidator
 from scrutiny.gui.core.server_manager import ServerConfig
 from scrutiny.gui.core.local_server_runner import LocalServerRunner
@@ -25,9 +26,6 @@ from scrutiny.gui.core.persistent_data import gui_persistent_data, AppPersistent
 from scrutiny.gui import assets
 
 from scrutiny.tools.typing import *
-
-DEFAULT_HOSTNAME = 'localhost'
-DEFAULT_PORT = 8765
 
 class LocalServerStateLabel(QWidget):
     """A label that shows the state of the server with a colored icon (green/yellow/red)"""
@@ -82,7 +80,7 @@ class LocalServerConfigurator(QWidget):
     """A widget meant for the user to start/stop a local isntance of the Scrutiny server.
     Controls an appwide LocalServerRunner"""
 
-    class PersistentData:
+    class PersistentDataKeys:
         LOCAL_PORT = 'local_port'
 
 
@@ -132,7 +130,7 @@ class LocalServerConfigurator(QWidget):
         port_label_txtbox_layout.addWidget(port_label)
         port_label_txtbox_layout.addWidget(self._txt_port)
         
-        self._txt_port.setText(str(self._persistent_data.get_int(self.PersistentData.LOCAL_PORT, DEFAULT_PORT)))
+        self._txt_port.setText(str(self._persistent_data.get_int(self.PersistentDataKeys.LOCAL_PORT, DEFAULT_SERVER_PORT)))
         self._txt_port.setMaximumWidth(self._txt_port.sizeHint().width())
 
         self._feedback_label = FeedbackLabel()
@@ -166,7 +164,11 @@ class LocalServerConfigurator(QWidget):
         self._txt_port.setEnabled(state == LocalServerRunner.State.STOPPED)
         self._btn_start.setEnabled(state == LocalServerRunner.State.STOPPED)
         self._btn_stop.setEnabled(state in ( LocalServerRunner.State.STARTING, LocalServerRunner.State.STARTED ))
-
+    
+    def runner(self) -> LocalServerRunner:
+        """Return the local server runner"""
+        return self._runner
+    
     def _try_start(self) -> None:
         """Starts the runner if the port number is correct"""
         self.clear_error()
@@ -234,12 +236,17 @@ class LocalServerConfigurator(QWidget):
         if self.is_valid():
             port = self.get_ui_port()
             assert port is not None
-            self._persistent_data.set(self.PersistentData.LOCAL_PORT, port)
+            self._persistent_data.set(self.PersistentDataKeys.LOCAL_PORT, port)
+    
+    def set_port(self, port:int) -> None:
+        if port > 0 and port < 0xFFFF:
+            self._txt_port.setText(str(port))
+            self.commit_ui_data()
 
 class RemoteServerConfigurator(QWidget):
     """A widget to edit the connection parameters to a remote server"""
 
-    class PersistentData:
+    class PersistentDataKeys:
         HOSTNAME = 'server_hostname'
         PORT = 'server_port'
 
@@ -271,8 +278,8 @@ class RemoteServerConfigurator(QWidget):
         hlayout.setAlignment(Qt.AlignmentFlag.AlignRight)
         hlayout.addRow("Hostname: ", self._hostname_textbox)
         hlayout.addRow("Port:  ", self._port_textbox)
-        self.set_hostname(self._persistent_data.get_str(self.PersistentData.HOSTNAME, DEFAULT_HOSTNAME))
-        self.set_port(self._persistent_data.get_int(self.PersistentData.PORT, DEFAULT_PORT))
+        self.set_hostname(self._persistent_data.get_str(self.PersistentDataKeys.HOSTNAME, 'localhost'))
+        self.set_port(self._persistent_data.get_int(self.PersistentDataKeys.PORT, DEFAULT_SERVER_PORT))
 
     def get_port(self) -> int:
         """Returns the effective port number, not the one in the textbox."""
@@ -313,15 +320,24 @@ class RemoteServerConfigurator(QWidget):
         if self._port_textbox.is_valid() and self._hostname_textbox.is_valid():
             self._hostname = self._hostname_textbox.text()
             self._port = int(self._port_textbox.text()) # Validator is supposed to guarantee the validity of this
-            self._persistent_data.set(self.PersistentData.HOSTNAME, self._hostname)
-            self._persistent_data.set(self.PersistentData.PORT, self._port)
+            self._persistent_data.set(self.PersistentDataKeys.HOSTNAME, self._hostname)
+            self._persistent_data.set(self.PersistentDataKeys.PORT, self._port)
 
 class ServerConfigDialog(QDialog):
     """A dialog to edit the connection parameter of the server"""
+    class PersistentDataKeys:
+        SERVER_TYPE='server_type'
 
     class ServerType(enum.Enum):
-        LOCAL = enum.auto()
-        REMOTE = enum.auto()
+        LOCAL = 'local'
+        REMOTE = 'remote'
+
+        def to_str(self) -> str:
+            return self.value
+        
+        @classmethod
+        def from_str(cls, v:str) -> Self:
+            return cls(v)
 
     _radio_remote_server:QRadioButton
     """Radio button for "Remote" """
@@ -337,12 +353,15 @@ class ServerConfigDialog(QDialog):
     """The buttons"""
     _server_type:ServerType
     """The type of server configuration presently selected (Local or remote)"""
+    _persistent_data:AppPersistentData
+    """The configuration persistent across startup"""
 
     def __init__(self, 
                  parent:QWidget, 
                  apply_callback:Callable[["ServerConfigDialog"], None],
                  local_server_runner:LocalServerRunner) -> None:
         super().__init__(parent)
+        self._persistent_data = gui_persistent_data.get_namespace(self.__class__.__name__)
         self.setWindowFlags(Qt.WindowType.WindowCloseButtonHint | Qt.WindowType.WindowTitleHint | Qt.WindowType.Dialog)
         self.setModal(True)
         self.setWindowTitle("Server configuration")
@@ -373,33 +392,52 @@ class ServerConfigDialog(QDialog):
         self._radio_local_server.toggled.connect(self._radio_local_server_toggled_slot)
         self._radio_remote_server.toggled.connect(self._radio_remote_server_toggled_slot)
 
-        self._server_type = self.ServerType.LOCAL
-        self._radio_local_server.setChecked(True)
+        server_type_str = self._persistent_data.get_str(self.PersistentDataKeys.SERVER_TYPE, self.ServerType.REMOTE.to_str())
+        self.set_server_type(self.ServerType.from_str(server_type_str))
+        if self._server_type == self.ServerType.LOCAL:
+            self._radio_local_server.setChecked(True)
+        elif self._server_type == self.ServerType.REMOTE:
+            self._radio_remote_server.setChecked(True)
+        else:
+            raise NotImplementedError("Unknown server type")
 
     def reset(self) -> None:
-        """Callend on Cancel button"""
+        """Put back the values from the state variables into the UI. Called on Cancel"""
         self._remote_server_configurator.reset()
+
+    def set_local_server_port(self, port:int) -> None:
+        self._local_server_configurator.set_port(port)
 
     def _btn_ok_click(self) -> None:
         """Called on OK button"""
         self._apply_and_connect()
 
     def _apply_and_connect(self) -> None:
+        """The user confirms his choice and want to connect to the configuration written in the UI"""
         self._remote_server_configurator.set_normal_state()
         self._local_server_configurator.set_normal_state()
 
         if self._use_local_server():
             valid_config = self._local_server_configurator.validate()
-            if valid_config:
-                self._local_server_configurator.commit_ui_data()
         else:
             valid_config = self._remote_server_configurator.validate()
-            if valid_config:
-                self._remote_server_configurator.commit_ui_data()
 
         if valid_config:
+            if not self._use_local_server():
+                self._local_server_configurator.runner().stop()
+
+            self.commit_ui_data()
             self._apply_callback(self)
             self.close()
+
+    def commit_ui_data(self) -> None:
+        """Save the state in the UI to the state variables and persistent storage"""
+        if self._use_local_server():
+            self._local_server_configurator.commit_ui_data()
+        else:
+            self._remote_server_configurator.commit_ui_data()
+        
+        self._persistent_data.set_str(self.PersistentDataKeys.SERVER_TYPE, self._server_type.to_str())
 
     def _btn_cancel_click(self) -> None:
         """Called on Cancel button"""
@@ -410,9 +448,10 @@ class ServerConfigDialog(QDialog):
         return self._radio_local_server.isChecked()
     
     def get_config(self) -> Optional[ServerConfig]:
+        """Return the configuration presently loaded in the state variables of this dialog.
+        Returns ``None`` if the configuration is not valid.
+        """
         if self._server_type == self.ServerType.LOCAL:
-            if not self._local_server_configurator.is_running():
-                return None
             port = self._local_server_configurator.get_running_port()
             if port is None:
                 return None
@@ -422,6 +461,10 @@ class ServerConfigDialog(QDialog):
                 port = port
             )
         elif self._server_type == self.ServerType.REMOTE:
+            port = self._remote_server_configurator.get_port()
+            if port < 0 or port > 0xFFFF:
+                return None
+            
             return ServerConfig(
                 hostname=self._remote_server_configurator.get_hostname(),
                 port=self._remote_server_configurator.get_port()
@@ -432,19 +475,23 @@ class ServerConfigDialog(QDialog):
     def _radio_local_server_toggled_slot(self, checked:bool) -> None:
         """When Local radio button is clicked"""
         if checked:
-            self._set_server_type(self.ServerType.LOCAL)
+            self.set_server_type(self.ServerType.LOCAL)
 
     def _radio_remote_server_toggled_slot(self, checked:bool) -> None:
         """When Remote radio button is clicked"""
         if checked:
-            self._set_server_type(self.ServerType.REMOTE)
-    
-    def _set_server_type(self, server_type:ServerType) -> None:
+            self.set_server_type(self.ServerType.REMOTE)
+
+    def set_server_type(self, server_type:ServerType) -> None:
         """Change the type of server connection"""
         if server_type == self.ServerType.LOCAL:
+            if not self._radio_local_server.isChecked():
+                self._radio_local_server.setChecked(True)
             self._remote_server_configurator.setVisible(False)
             self._local_server_configurator.setVisible(True)
         elif server_type == self.ServerType.REMOTE:
+            if not self._radio_remote_server.isChecked():
+                self._radio_remote_server.setChecked(True)
             self._remote_server_configurator.setVisible(True)
             self._local_server_configurator.setVisible(False)
         else:

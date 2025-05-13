@@ -99,6 +99,18 @@ class MainWindow(QMainWindow):
 
         self._menu_bar.set_dashboard_recents(self._dashboard.read_history())
 
+        server_config_dialog = self._status_bar.get_server_config_dialog()
+        
+        if app_settings().local_server_starting_port is not None:
+            port = app_settings().local_server_starting_port
+            assert port is not None
+            server_config_dialog.set_local_server_port(port)
+            server_config_dialog.set_server_type(ServerConfigDialog.ServerType.LOCAL)
+            if port is not None:
+                def start_local_server() -> None:
+                    self._local_server_runner.start(port)
+                InvokeQueued(start_local_server)
+
         if app_settings().auto_connect:
             InvokeQueued(self.start_server_manager)
 

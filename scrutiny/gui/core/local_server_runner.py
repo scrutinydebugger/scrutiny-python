@@ -73,7 +73,7 @@ class LocalServerRunner:
         return self._state
     
     def get_port(self) -> Optional[int]:
-        if self._state != self.State.STARTED:
+        if self._state not in (self.State.STARTED, self.State.STARTING):
             return None
         return self._started_port
 
