@@ -253,17 +253,16 @@ class WatchComponent(ScrutinyGUIBaseLocalComponent):
 
     def _row_inserted_slot(self, parent:QModelIndex, row_index:int, col_index:int) -> None:
         # This slots is called for every row inserted when new rows. Only parent when existing row
-
         def func (item:WatchableStandardItem, visible:bool) -> None:
             self._register_watcher_for_row(item)
             if visible:
                 self._watch_item(item)
 
         item_inserted = self._get_item(parent, row_index)
+        self._tree.map_to_watchable_node(func, item_inserted)
         if isinstance(item_inserted, FolderStandardItem):
             if item_inserted.is_expanded():
                 self._tree.expand(item_inserted.index())
-        self._tree.map_to_watchable_node(func, item_inserted)
 
     def _row_about_to_be_removed_slot(self, parent:QModelIndex, row_index:int, col_index:int) -> None:
         # This slot is called only on the node removed, not on the children.
