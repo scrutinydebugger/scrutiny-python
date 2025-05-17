@@ -149,6 +149,10 @@ class LocalServerConfigurator(QWidget):
         main_vlayout.addWidget(top_menu)
         main_vlayout.addWidget(self._feedback_label)
         main_vlayout.addWidget(self._log_viewer)
+        
+        self.setTabOrder(port_label_txtbox, self._btn_start)
+        self.setTabOrder(self._btn_start, self._btn_stop)
+        self.setTabOrder(self._btn_stop,  self._log_viewer)
 
         self._runner.signals.state_changed.connect(self.update_state)
         self._runner.signals.abnormal_termination.connect(self._abnormal_termination_slot)
@@ -282,6 +286,8 @@ class RemoteServerConfigurator(QWidget):
         self.set_hostname(self._persistent_data.get_str(self.PersistentDataKeys.HOSTNAME, 'localhost'))
         self.set_port(self._persistent_data.get_int(self.PersistentDataKeys.PORT, DEFAULT_SERVER_PORT))
 
+        self.setTabOrder(self._hostname_textbox, self._port_textbox)
+
     def get_port(self) -> int:
         """Returns the effective port number, not the one in the textbox."""
         return self._port
@@ -386,6 +392,10 @@ class ServerConfigDialog(QDialog):
         main_vlayout.addWidget(self._local_server_configurator)
         main_vlayout.addWidget(self._remote_server_configurator)
         main_vlayout.addWidget(self._buttons)
+
+        self.setTabOrder(radio_btn_group, self._local_server_configurator)
+        self.setTabOrder(self._local_server_configurator, self._remote_server_configurator)
+        self.setTabOrder(self._remote_server_configurator, self._buttons)
         
         self._buttons.accepted.connect(self._btn_ok_click)
         self._buttons.rejected.connect(self._btn_cancel_click)

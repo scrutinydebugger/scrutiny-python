@@ -283,6 +283,11 @@ class ContinuousGraphComponent(ScrutinyGUIBaseLocalComponent):
             right_side_layout.addWidget(self._btn_clear)
             right_side_layout.addWidget(self._feedback_label)
 
+            right_side.setTabOrder(self._signal_tree, self._csv_log_menu)
+            right_side.setTabOrder(self._csv_log_menu, param_widget)
+            right_side.setTabOrder(param_widget, start_pause_line)
+            right_side.setTabOrder(start_pause_line, self._btn_clear)
+
             return right_side
 
         def make_left_side() -> QWidget:
