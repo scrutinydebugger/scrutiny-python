@@ -13,7 +13,6 @@ import logging
 
 from PySide6.QtCore import QModelIndex, Qt, QModelIndex, Signal
 from PySide6.QtWidgets import QVBoxLayout
-import shiboken6
 
 from scrutiny import sdk
 from scrutiny.gui import assets
@@ -24,10 +23,8 @@ from scrutiny.gui.components.locals.base_local_component import ScrutinyGUIBaseL
 from scrutiny.gui.widgets.watchable_tree import WatchableTreeWidget, WatchableStandardItem, FolderStandardItem, BaseWatchableRegistryTreeStandardItem
 from scrutiny.gui.components.locals.watch.watch_tree_model import WatchComponentTreeModel, ValueStandardItem, WatchComponentTreeWidget, SerializableTreeDescriptor
 from scrutiny import tools
-from scrutiny.gui.tools.invoker import InvokeQueued
 
 from scrutiny.tools.typing import *
-
 
 class State:
     TYPE_WATCHABLE = 'w'
@@ -245,21 +242,8 @@ class WatchComponent(ScrutinyGUIBaseLocalComponent):
         """Take the given row and create a watcher on the registry for the row"""
         value_item = self._tree_model.get_value_item(item)
         def update_val_closure(watcher_id:Union[str, int], vals:List[ValueUpdate]) -> None:
-            if shiboken6.isValid(value_item):   # An update may be on its way when this item is deleted.
-                self._update_val_callback(value_item, watcher_id, vals )
-            else:
-                # This case should normally not happen. Make a safe fallback
-                # It is possible to drop item outside the app that triggers a QT behavior that deletes
-                # multiple items for a single signal "rowAboutToBeRemoved".  Causes
-                # the server to keep streaming data for deleted item.  In that case, we unregister resiliently.
-                self.logger.debug(f"Received an object for a deleted item. watcher_id={watcher_id}")
-                def try_unregister():
-                    with tools.SuppressException(WatcherNotFoundError):
-                        self.watchable_registry.unregister_watcher(watcher_id)
-                InvokeQueued(try_unregister)
-                
-                
-        
+            self._update_val_callback(value_item, watcher_id, vals )
+
         def unwatch_closure(watcher_id:Union[str, int], server_path:str, watchable_config:sdk.WatchableConfiguration) -> None:
             pass
         
@@ -279,7 +263,7 @@ class WatchComponent(ScrutinyGUIBaseLocalComponent):
             if item_inserted.is_expanded():
                 self._tree.expand(item_inserted.index())
 
-    def _row_about_to_be_removed_slot(self, parent:QModelIndex, row_index:int, col_index:int) -> None:
+    def _row_about_to_be_removed_slot(self, parent:QModelIndex, first_row_index:int, last_row_index:int) -> None:
         # This slot is called only on the node removed, not on the children.
         def func (item:WatchableStandardItem, visible:bool) -> None:
             watcher_id = self._get_watcher_id(item)
@@ -291,8 +275,9 @@ class WatchComponent(ScrutinyGUIBaseLocalComponent):
                 # Should not happen (hopefully). The registry is expected to keep the watchers even after a clear
                 self.logger.error(f"Tried to unregister watcher {watcher_id}, but was not registered")
         
-        item_removed = self._get_item(parent, row_index)
-        self._tree.map_to_watchable_node(func, parent=item_removed)
+        for row_index in range(first_row_index, last_row_index+1):
+            item_removed = self._get_item(parent, row_index)
+            self._tree.map_to_watchable_node(func, parent=item_removed)
         
     def _node_expanded_slot(self, index:QModelIndex) -> None:
         # Added at the end of the event loop because it is a queuedConnection
