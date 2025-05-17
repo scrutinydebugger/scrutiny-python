@@ -514,7 +514,7 @@
             "docstring": "A dialog to visualize the device information downlaoded after a device has connected."
         },
         "scrutiny/gui/dialogs/server_config_dialog.py": {
-            "docstring": "A dialog to edit the connection parameter of the server"
+            "docstring": "A dialog to edit the connection parameter of the server and optionally start a local server"
         },
         "scrutiny/gui/tools/validators.py": {
             "docstring": "Some QT validators used across the project"
@@ -639,8 +639,8 @@
         "scrutiny/gui/tools/opengl.py": {
             "docstring": "OpenGL related stuff"
         },
-        "test/gui/test_preferences.py": {
-            "docstring": "A test suite that tests the GUI persistent preferences mechanisms"
+        "test/gui/test_persistent_data.py": {
+            "docstring": "A test suite that tests the GUI persistent data mechanisms"
         },
         "scrutiny/gui/globals.py": {
             "docstring": "GUI wide globals definitions"
@@ -719,6 +719,24 @@
         },
         "scrutiny/gui/tools/shiboken_ref_keeper.py": {
             "docstring": "A simple tool that keeps a reference of a QT object until the internal C++ object is deleted.\n Required to pass local python objects to modules that does not take ownership of the object"
+        },
+        "test/gui/test_local_server_runner.py": {
+            "docstring": "A test suite for the LocalServerRunner"
+        },
+        "scrutiny/gui/core/local_server_runner.py": {
+            "docstring": "A class that control a subprocess running a Scrutiny server.\n Expose simplified API and add hooks for nice integration in QT"
+        },
+        "scrutiny/gui/dialogs/local_server_manager_dialog.py": {
+            "docstring": "A dialog that interract with the app-wide LocalServerRunner.\n Let the user start/stop a local instance of the runner"
+        },
+        "test/gui/manual/manual_test_server_config_dialog.py": {
+            "docstring": "A manual test suite for checking the behaviour of the server config dialog"
+        },
+        "scrutiny/gui/widgets/log_viewer.py": {
+            "docstring": "A widget for watching log lines"
+        },
+        "scrutiny/tools/signals.py": {
+            "docstring": "Common tools for signal handling"
         }
     }
 }

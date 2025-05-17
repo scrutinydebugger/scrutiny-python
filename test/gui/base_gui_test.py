@@ -27,6 +27,9 @@ class EventType(enum.Enum):
     WATCHABLE_REGISTRY_CHANGED = enum.auto()
     SFD_LOADED = enum.auto()
     SFD_UNLOADED = enum.auto()
+    LOCAL_SERVER_SPAWNED = enum.auto()
+    LOCAL_SERVER_STATE_CHANGED = enum.auto()
+    LOCAL_SERVER_EXIT = enum.auto()
 
 class ScrutinyBaseGuiTest(ScrutinyUnitTest):
 
@@ -79,6 +82,11 @@ class ScrutinyBaseGuiTest(ScrutinyUnitTest):
     def wait_false_with_events(self, fn, timeout, no_assert=False):
         return self.wait_equal_with_events(fn, False, timeout, no_assert)
     
+    def wait_with_event(self, timeout:float) -> None:
+        t = time.perf_counter()
+        while time.perf_counter() - t < timeout:
+            self.process_events()
+
     def wait_events(self, events:List[EventType], timeout:float, enforce_order:bool=True, msg=""):
         t = time.perf_counter()
 

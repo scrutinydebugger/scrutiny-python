@@ -47,6 +47,9 @@ class ValidableLineEdit(QLineEdit):
 
         return (validity_hard, validity_soft)
 
+    def set_default_state(self) -> None:
+        self.set_style_state(WidgetState.default)
+
     def set_style_state(self, new_state:str) -> None:
         old_state = self.property("state")  # Might be an empty string
         
@@ -86,3 +89,8 @@ class ValidableLineEdit(QLineEdit):
         else:
             self.set_style_state(invalid_state)
             return False
+
+    def is_valid(self) -> bool:
+        validity_hard, validity_soft = self._get_validator_states()
+        return validity_hard == QValidator.State.Acceptable and validity_soft == QValidator.State.Acceptable
+            

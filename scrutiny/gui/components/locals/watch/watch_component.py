@@ -31,7 +31,7 @@ class State:
     TYPE_WATCHABLE = 'w'
     TYPE_FOLDER = 'f'
 
-    # I don't know why, but mypy doesn't understand that this is a literal without an Literal[] type hint
+    # I don't know why, but mypy doesn't understand that this is a literal without a Literal[] type hint
     # Could not reproduce in a different file... possibly a mypy bug ?
     KEY_TYPE:Literal['type'] = 'type'
     KEY_TEXT:Literal['txt'] = 'txt'

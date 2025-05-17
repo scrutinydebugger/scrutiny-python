@@ -11,6 +11,7 @@ from PySide6.QtWidgets import QStatusBar, QWidget, QLabel, QHBoxLayout, QSizePol
 from PySide6.QtCore import Qt, QPoint, QSize
 from PySide6.QtGui import QPixmap, QAction
 from scrutiny.gui.core.server_manager import ServerManager
+from scrutiny.gui.core.local_server_runner import LocalServerRunner
 from scrutiny.gui.core.user_messages_manager import UserMessagesManager, UserMessage
 from scrutiny.gui.dialogs.server_config_dialog import ServerConfigDialog
 from scrutiny.gui.dialogs.device_config_dialog import DeviceConfigDialog
@@ -214,11 +215,11 @@ class StatusBar(QStatusBar):
     """Flag used to ensure is single reconnection if the user change the server confiugration"""
 
     
-    def __init__(self, parent:QWidget, server_manager:ServerManager) -> None:
+    def __init__(self, parent:QWidget, server_manager:ServerManager, local_server_runner:LocalServerRunner) -> None:
         super().__init__(parent)
 
         self._server_manager=server_manager
-        self._server_config_dialog = ServerConfigDialog(self, apply_callback=self._server_config_applied)
+        self._server_config_dialog = ServerConfigDialog(self, apply_callback=self._server_config_applied, local_server_runner=local_server_runner)
         self._device_config_dialog = DeviceConfigDialog(self, apply_callback=self._device_config_applied)
         self._one_shot_auto_connect = False
 
@@ -300,13 +301,21 @@ class StatusBar(QStatusBar):
 
         self.update_content()
 
+    def get_server_config_dialog(self) -> ServerConfigDialog:
+        return self._server_config_dialog
+
     def _server_configure_func(self) -> None:
         """ When the user click the server status -> Configure """
         self._server_config_dialog.show()
 
     def _server_connect_func(self) -> None:
-        """ When the user click the server status -> Connect"""
-        self._server_manager.start(self._server_config_dialog.get_config())
+        """When the user click the server status -> Connect"""
+        config = self._server_config_dialog.get_config()
+        # The config should be valid most of the time. 
+        # It will be None if the user uses a local server and that local server dies between the OK click
+        # and the execution of that function. There's a little race condition to handle.
+        if config is not None:
+            self._server_manager.start(config)
     
     def _server_disconnect_func(self) -> None:
         """ When the user click the server status -> Disconnect"""
@@ -495,13 +504,18 @@ class StatusBar(QStatusBar):
             self._sfd_status_label.setEnabled(False)
             self._datalogger_status_label.setEnabled(False)
 
+            actual_config = self._server_config_dialog.get_config()
+
             if self._server_manager.is_stopping():
                 self._server_disconnect_action.setEnabled(False)
                 self._server_connect_action.setEnabled(False)
                 self.set_server_label_value(ServerLabelValue.Disconnecting)
             else:
                 self._server_disconnect_action.setEnabled(False)
-                self._server_connect_action.setEnabled(True)
+                if actual_config is None:   # The server config is presently not valid. Requires a configuration by the user.
+                    self._server_connect_action.setEnabled(False)
+                else:
+                    self._server_connect_action.setEnabled(True)
                 self.set_server_label_value(ServerLabelValue.Disconnected)
             self.set_device_label(DeviceCommState.NA)
             self.set_device_comm_link_label(DeviceLinkType.NONE, False, sdk.NoneLinkConfig())

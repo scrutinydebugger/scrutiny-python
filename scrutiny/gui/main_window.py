@@ -15,6 +15,7 @@ from PySide6.QtCore import Qt, QRect
 from PySide6.QtWidgets import QMainWindow 
 
 from scrutiny.gui.core.persistent_data import gui_persistent_data
+from scrutiny.gui.core.local_server_runner import LocalServerRunner
 from scrutiny.gui.app_settings import app_settings
 from scrutiny.gui.tools.invoker import InvokeQueued
 from scrutiny.gui.tools import prompt
@@ -65,6 +66,7 @@ class MainWindow(QMainWindow):
     _menu_bar:MenuBar
     _status_bar:StatusBar
     _dashboard:Dashboard
+    _local_server_runner:LocalServerRunner
 
     def __init__(self) -> None:
         super().__init__()       
@@ -78,10 +80,11 @@ class MainWindow(QMainWindow):
         self._watchable_registry = WatchableRegistry()
         self._server_manager = ServerManager(watchable_registry=self._watchable_registry)
         self._dashboard = Dashboard(self)
+        self._local_server_runner = LocalServerRunner()
 
         self._make_main_zone()
         
-        self._status_bar = StatusBar(self, server_manager=self._server_manager)
+        self._status_bar = StatusBar(self, server_manager=self._server_manager, local_server_runner=self._local_server_runner)
         self.setStatusBar(self._status_bar)
 
         self._menu_bar = MenuBar()
@@ -95,6 +98,16 @@ class MainWindow(QMainWindow):
         self._menu_bar.signals.dashboard_recent_open.connect(self._dashboard_recent_open_click)
 
         self._menu_bar.set_dashboard_recents(self._dashboard.read_history())
+
+        server_config_dialog = self._status_bar.get_server_config_dialog()
+        
+        if app_settings().start_local_server :
+            port = app_settings().local_server_port
+            server_config_dialog.set_local_server_port(port)
+            server_config_dialog.set_server_type(ServerConfigDialog.ServerType.LOCAL)
+            def start_local_server() -> None:
+                self._local_server_runner.start(port)
+            InvokeQueued(start_local_server)
 
         if app_settings().auto_connect:
             InvokeQueued(self.start_server_manager)
@@ -137,12 +150,15 @@ class MainWindow(QMainWindow):
         self._dashboard.signals.active_file_changed.connect(self._dashboard_active_file_changed_slot)
         
     def start_server_manager(self) -> None:
+        """Start the server manager by emulating a click to the "connect" button """
+        self._status_bar.update_content()  # Make sure the connect button is enabled if it can
         self._status_bar.emulate_connect_click()
 
     def closeEvent(self, event: QCloseEvent) -> None:
         self._server_manager.exit()
         self._watchable_registry.clear()
         self._dashboard.exit()
+        self._local_server_runner.stop()
         gui_persistent_data.save()  # Not supposed to raise
         super().closeEvent(event)
         

@@ -10,12 +10,11 @@ import enum
 
 from PySide6.QtWidgets import QWidget, QLabel, QHBoxLayout, QSizePolicy
 from PySide6.QtCore import Qt
-from PySide6.QtGui import QCursor
 
 from scrutiny.gui import assets
 from scrutiny import tools
 
-from typing import Any
+from scrutiny.tools.typing import *
 
 class FeedbackLabel(QWidget):
 
@@ -44,6 +43,7 @@ class FeedbackLabel(QWidget):
         layout = QHBoxLayout(self)
         layout.addWidget(self._icon_label)
         layout.addWidget(self._text_label)
+        layout.setContentsMargins(0,0,0,0)
         self._actual_msg_type = self.MessageType.NORMAL
         self._normal_cursor = Qt.CursorShape.ArrowCursor
 

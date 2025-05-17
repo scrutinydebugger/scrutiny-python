@@ -12,7 +12,6 @@ import logging
 from .base_command import BaseCommand
 from typing import Optional, List, Any, Dict, cast
 
-
 class Server(BaseCommand):
     _cmd_name_ = 'server'
     _brief_ = 'Launch an instance of the server'
@@ -25,6 +24,7 @@ class Server(BaseCommand):
         self.args = args
         self.parser = argparse.ArgumentParser(prog=self.get_prog())
         self.parser.add_argument('--config', default=None, help='Configuration file used by the server')
+        self.parser.add_argument('--port', default=None, required=False, help='TCP port used to listen or clients')
         self.parser.add_argument('--options', metavar='OPTION', nargs='*', help="Server configuration passed by the CLI."
                                  " Specified as a list of key=value where key can be a nested dict where the a dot (.) represent a nesting level. 'a.b.c=val'"
                                  "Overrides file configuration if specified.")
@@ -50,6 +50,11 @@ class Server(BaseCommand):
         from scrutiny.tools import update_dict_recursive
 
         args = self.parser.parse_args(self.args)
+        if args.options is None:
+            args.options = []
+        
+        if args.port is not None:
+            args.options.append(f'api.client_interface_config.port={args.port}')    # Append should override in case of duplicate
 
         # For the server, we will add more details to logging message.
         format_string = '%(asctime)s.%(msecs)03d [%(levelname)s] <%(name)s> %(message)s'

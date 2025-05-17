@@ -28,7 +28,6 @@ class MenuBar(QMenuBar):
         dashboard_clear_click = Signal()
         dashboard_recent_open = Signal(str)
 
-        server_launch_local_click = Signal()
         device_configure_click = Signal()
         info_about_click = Signal()
         
@@ -61,11 +60,6 @@ class MenuBar(QMenuBar):
 
         dashboard_menu.addSeparator()
         self._recent_action = dashboard_menu.addAction("Recent")
-
-
-        server_menu =  self.addMenu('Server')
-        self._action_server_launch_local = server_menu.addAction("Launch local")
-        self._action_server_launch_local.triggered.connect(self._signals.server_launch_local_click)
 
         info_menu =  self.addMenu("Info")
         self._action_info_about = info_menu.addAction("About this software")
