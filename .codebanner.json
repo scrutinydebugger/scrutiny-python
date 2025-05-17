@@ -639,8 +639,8 @@
         "scrutiny/gui/tools/opengl.py": {
             "docstring": "OpenGL related stuff"
         },
-        "test/gui/test_preferences.py": {
-            "docstring": "A test suite that tests the GUI persistent preferences mechanisms"
+        "test/gui/test_persistent_data.py": {
+            "docstring": "A test suite that tests the GUI persistent data mechanisms"
         },
         "scrutiny/gui/globals.py": {
             "docstring": "GUI wide globals definitions"

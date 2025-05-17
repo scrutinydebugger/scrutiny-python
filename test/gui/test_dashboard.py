@@ -92,7 +92,9 @@ class TestDashboard(ScrutinyBaseGuiTest):
         settings = ScrutinyQtGUI.Settings(
             debug_layout=False,
             auto_connect=False,
-            opengl_enabled=False
+            opengl_enabled=False,
+            local_server_port=8765,
+            start_local_server=False
         )
         configure_unit_test_app_settings(settings)
         self.main_window = MainWindowStub()
