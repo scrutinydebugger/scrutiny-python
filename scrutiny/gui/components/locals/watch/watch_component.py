@@ -26,7 +26,6 @@ from scrutiny import tools
 
 from scrutiny.tools.typing import *
 
-
 class State:
     TYPE_WATCHABLE = 'w'
     TYPE_FOLDER = 'f'
@@ -243,8 +242,8 @@ class WatchComponent(ScrutinyGUIBaseLocalComponent):
         """Take the given row and create a watcher on the registry for the row"""
         value_item = self._tree_model.get_value_item(item)
         def update_val_closure(watcher_id:Union[str, int], vals:List[ValueUpdate]) -> None:
-            return self._update_val_callback(value_item, watcher_id, vals )
-        
+            self._update_val_callback(value_item, watcher_id, vals )
+
         def unwatch_closure(watcher_id:Union[str, int], server_path:str, watchable_config:sdk.WatchableConfiguration) -> None:
             pass
         
@@ -253,19 +252,18 @@ class WatchComponent(ScrutinyGUIBaseLocalComponent):
 
     def _row_inserted_slot(self, parent:QModelIndex, row_index:int, col_index:int) -> None:
         # This slots is called for every row inserted when new rows. Only parent when existing row
-
         def func (item:WatchableStandardItem, visible:bool) -> None:
             self._register_watcher_for_row(item)
             if visible:
                 self._watch_item(item)
 
         item_inserted = self._get_item(parent, row_index)
+        self._tree.map_to_watchable_node(func, item_inserted)
         if isinstance(item_inserted, FolderStandardItem):
             if item_inserted.is_expanded():
                 self._tree.expand(item_inserted.index())
-        self._tree.map_to_watchable_node(func, item_inserted)
 
-    def _row_about_to_be_removed_slot(self, parent:QModelIndex, row_index:int, col_index:int) -> None:
+    def _row_about_to_be_removed_slot(self, parent:QModelIndex, first_row_index:int, last_row_index:int) -> None:
         # This slot is called only on the node removed, not on the children.
         def func (item:WatchableStandardItem, visible:bool) -> None:
             watcher_id = self._get_watcher_id(item)
@@ -277,8 +275,9 @@ class WatchComponent(ScrutinyGUIBaseLocalComponent):
                 # Should not happen (hopefully). The registry is expected to keep the watchers even after a clear
                 self.logger.error(f"Tried to unregister watcher {watcher_id}, but was not registered")
         
-        item_removed = self._get_item(parent, row_index)
-        self._tree.map_to_watchable_node(func, parent=item_removed)
+        for row_index in range(first_row_index, last_row_index+1):
+            item_removed = self._get_item(parent, row_index)
+            self._tree.map_to_watchable_node(func, parent=item_removed)
         
     def _node_expanded_slot(self, index:QModelIndex) -> None:
         # Added at the end of the event loop because it is a queuedConnection

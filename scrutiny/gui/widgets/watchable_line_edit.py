@@ -30,8 +30,6 @@ class WatchableFQNAndName:
     name:str
 
 
-
-
 class WatchableLineEdit(QLineEdit):
 
     class DictState(TypedDict):
@@ -102,6 +100,8 @@ class WatchableLineEdit(QLineEdit):
         super().dropEvent(event)
 
     def set_watchable_mode(self, watchable_type:WatchableType, path:str, name:str) -> None:
+        for action in list(self.actions()): # Remove any previous left icon 
+            self.removeAction(action)
         watchable_icon = assets.load_tiny_icon(watchabletype_2_icon(watchable_type))
         self._watchable_icon_action = self.addAction(watchable_icon, QLineEdit.ActionPosition.LeadingPosition)
         self.setText(name)

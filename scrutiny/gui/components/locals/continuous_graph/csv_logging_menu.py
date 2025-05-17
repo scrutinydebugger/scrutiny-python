@@ -76,6 +76,11 @@ class CsvLoggingMenuWidget(QWidget):
 
         self._chk_enable.checkStateChanged.connect(self._check_state_changed_slot)
 
+        self.setTabOrder(self._chk_enable, self._txt_folder)
+        self.setTabOrder(self._txt_folder, self._btn_browse)
+        self.setTabOrder(self._btn_browse, self._txt_filename_pattern)
+        self.setTabOrder(self._txt_filename_pattern, self._spin_max_line_per_file)
+
 
     def _check_state_changed_slot(self, state:Qt.CheckState) -> None:
         if state == Qt.CheckState.Checked:

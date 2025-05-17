@@ -211,7 +211,7 @@ class GraphConfigWidget(QWidget):
         self._xaxis_layout.setLabelAlignment(Qt.AlignmentFlag.AlignLeft)
         self._sampling_rate_layout.setLabelAlignment(Qt.AlignmentFlag.AlignLeft)
         
-        def add_row(layout:QFormLayout, txt:str, widget:QWidget, tooltip:Optional[str]=None) -> None:
+        def add_row(layout:QFormLayout, txt:str, widget:QWidget, tooltip:Optional[str]) -> None:
             label = QLabel(txt)
             if tooltip is not None:
                 label.setToolTip(tooltip)
@@ -237,6 +237,24 @@ class GraphConfigWidget(QWidget):
         add_row(self._trigger_layout, "  - Operand 2 (x2)", self._txtw_trigger_operand2, HelpStrings.OPERAND2)
         add_row(self._trigger_layout, "  - Operand 3 (x3)", self._txtw_trigger_operand3, HelpStrings.OPERAND3)
 
+        widget_order = [self._txt_acquisition_name,
+                        self._txt_acquisition_timeout,
+                        self._lbl_estimated_duration,
+                        self._cmb_sampling_rate,
+                        self._spin_decimation,
+                        self._lbl_effective_sampling_rate,
+                        self._cmb_xaxis_type,
+                        self._txtw_xaxis_signal,
+                        self._spin_trigger_position,
+                        self._txt_hold_time_ms,
+                        self._cmb_trigger_condition,
+                        self._txtw_trigger_operand1,
+                        self._txtw_trigger_operand2,
+                        self._txtw_trigger_operand3]
+
+        for i in range(len(widget_order)):
+            if i > 0:
+                self.setTabOrder(widget_order[i-1], widget_order[i])
 
         self.update_content()
 

@@ -403,6 +403,7 @@ class WatchableTreeWidget(BaseTreeView):
         self.setUniformRowHeights(True)   # Documentation says it helps performance
         self.setAnimated(False)
         self.header().setStretchLastSection(False)
+        self.setDefaultDropAction(Qt.DropAction.CopyAction)
 
 
         self.expanded.connect(self._set_expanded_slot)
@@ -443,4 +444,4 @@ class WatchableTreeWidget(BaseTreeView):
             return super().keyPressEvent(event)
     
     def model(self) -> WatchableTreeModel:
-        return self._model      
+        return self._model

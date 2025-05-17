@@ -17,7 +17,7 @@ from typing import Dict, Any, List, cast, Optional, Sequence
 
 from PySide6.QtWidgets import QVBoxLayout, QWidget
 from PySide6.QtGui import QStandardItem, QStandardItemModel
-from PySide6.QtCore import QModelIndex, QMimeData
+from PySide6.QtCore import QModelIndex, QMimeData, Qt
 
 from scrutiny.gui import assets
 from scrutiny.gui.core.watchable_registry import   WatchableRegistry
@@ -49,6 +49,7 @@ class VarListComponentTreeModel(WatchableTreeModel):
             return [ typecol, enumcol ]
         else:
             return [ typecol]
+    
 
     def mimeData(self, indexes: Sequence[QModelIndex]) -> QMimeData:
         """Generate the mimeData when a drag&drop starts"""
@@ -72,6 +73,7 @@ class VarListComponentTreeModel(WatchableTreeModel):
             
             drag_data = ScrutinyDragData(type=ScrutinyDragData.DataType.WatchableTreeNodesTiedToRegistry, data_copy=serializable_items)
         mime_data = drag_data.to_mime()
+        
         assert mime_data is not None
         return mime_data
 
@@ -132,6 +134,9 @@ class VarlistComponentTreeWidget(WatchableTreeWidget):
     def __init__(self, parent: QWidget, model:VarListComponentTreeModel) -> None:
         super().__init__(parent, model)
         self.set_header_labels(['', 'Type', 'Enum'])
+        self.setDragDropMode(self.DragDropMode.DragOnly)
+        self.setDragEnabled(True)
+        self.setDefaultDropAction(Qt.DropAction.CopyAction)
 
     def model(self) -> VarListComponentTreeModel:
         return cast(VarListComponentTreeModel, super().model())
@@ -164,7 +169,6 @@ class VarListComponent(ScrutinyGUIBaseGlobalComponent):
         self._tree.model().appendRow(var_row)
         self._tree.model().appendRow(alias_row)
         self._tree.model().appendRow(rpv_row)
-        self._tree.setDragDropMode(self._tree.DragDropMode.DragOnly)
 
         self._var_folder = cast(BaseWatchableRegistryTreeStandardItem, var_row[0])
         self._alias_folder = cast(BaseWatchableRegistryTreeStandardItem, alias_row[0])
@@ -227,9 +231,6 @@ class VarListComponent(ScrutinyGUIBaseGlobalComponent):
             self._var_folder.removeRows(0, self._var_folder.rowCount())
             self._tree.collapse(self._var_folder.index())
             self._tree_model.lazy_load(self._var_folder, WatchableType.Variable, '/')
-        
-
-
 
     def teardown(self) -> None:
         pass
