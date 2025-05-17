@@ -17,7 +17,7 @@ from typing import Dict, Any, List, cast, Optional, Sequence
 
 from PySide6.QtWidgets import QVBoxLayout, QWidget
 from PySide6.QtGui import QStandardItem, QStandardItemModel
-from PySide6.QtCore import QModelIndex, QMimeData
+from PySide6.QtCore import QModelIndex, QMimeData, Qt
 
 from scrutiny.gui import assets
 from scrutiny.gui.core.watchable_registry import   WatchableRegistry
@@ -136,6 +136,7 @@ class VarlistComponentTreeWidget(WatchableTreeWidget):
         self.set_header_labels(['', 'Type', 'Enum'])
         self.setDragDropMode(self.DragDropMode.DragOnly)
         self.setDragEnabled(True)
+        self.setDefaultDropAction(Qt.DropAction.CopyAction)
 
     def model(self) -> VarListComponentTreeModel:
         return cast(VarListComponentTreeModel, super().model())
