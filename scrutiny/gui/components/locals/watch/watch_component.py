@@ -13,6 +13,7 @@ import logging
 
 from PySide6.QtCore import QModelIndex, Qt, QModelIndex, Signal
 from PySide6.QtWidgets import QVBoxLayout
+import shiboken6
 
 from scrutiny import sdk
 from scrutiny.gui import assets
@@ -23,6 +24,7 @@ from scrutiny.gui.components.locals.base_local_component import ScrutinyGUIBaseL
 from scrutiny.gui.widgets.watchable_tree import WatchableTreeWidget, WatchableStandardItem, FolderStandardItem, BaseWatchableRegistryTreeStandardItem
 from scrutiny.gui.components.locals.watch.watch_tree_model import WatchComponentTreeModel, ValueStandardItem, WatchComponentTreeWidget, SerializableTreeDescriptor
 from scrutiny import tools
+from scrutiny.gui.tools.invoker import InvokeQueued
 
 from scrutiny.tools.typing import *
 
@@ -243,7 +245,20 @@ class WatchComponent(ScrutinyGUIBaseLocalComponent):
         """Take the given row and create a watcher on the registry for the row"""
         value_item = self._tree_model.get_value_item(item)
         def update_val_closure(watcher_id:Union[str, int], vals:List[ValueUpdate]) -> None:
-            return self._update_val_callback(value_item, watcher_id, vals )
+            if shiboken6.isValid(value_item):   # An update may be on its way when this item is deleted.
+                self._update_val_callback(value_item, watcher_id, vals )
+            else:
+                # This case should normally not happen. Make a safe fallback
+                # It is possible to drop item outside the app that triggers a QT behavior that deletes
+                # multiple items for a single signal "rowAboutToBeRemoved".  Causes
+                # the server to keep streaming data for deleted item.  In that case, we unregister resiliently.
+                self.logger.debug(f"Received an object for a deleted item. watcher_id={watcher_id}")
+                def try_unregister():
+                    with tools.SuppressException(WatcherNotFoundError):
+                        self.watchable_registry.unregister_watcher(watcher_id)
+                InvokeQueued(try_unregister)
+                
+                
         
         def unwatch_closure(watcher_id:Union[str, int], server_path:str, watchable_config:sdk.WatchableConfiguration) -> None:
             pass
