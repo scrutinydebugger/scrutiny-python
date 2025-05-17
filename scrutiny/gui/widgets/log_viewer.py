@@ -1,3 +1,11 @@
+#    log_viewer.py
+#        A widget for watching log lines
+#
+#   - License : MIT - See LICENSE file.
+#   - Project :  Scrutiny Debugger (github.com/scrutinydebugger/scrutiny-python)
+#
+#   Copyright (c) 2021 Scrutiny Debugger
+
 from PySide6.QtCore import QSize
 from PySide6.QtWidgets import QWidget, QPlainTextEdit
 

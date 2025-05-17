@@ -101,15 +101,13 @@ class MainWindow(QMainWindow):
 
         server_config_dialog = self._status_bar.get_server_config_dialog()
         
-        if app_settings().local_server_starting_port is not None:
-            port = app_settings().local_server_starting_port
-            assert port is not None
+        if app_settings().start_local_server :
+            port = app_settings().local_server_port
             server_config_dialog.set_local_server_port(port)
             server_config_dialog.set_server_type(ServerConfigDialog.ServerType.LOCAL)
-            if port is not None:
-                def start_local_server() -> None:
-                    self._local_server_runner.start(port)
-                InvokeQueued(start_local_server)
+            def start_local_server() -> None:
+                self._local_server_runner.start(port)
+            InvokeQueued(start_local_server)
 
         if app_settings().auto_connect:
             InvokeQueued(self.start_server_manager)
@@ -152,6 +150,8 @@ class MainWindow(QMainWindow):
         self._dashboard.signals.active_file_changed.connect(self._dashboard_active_file_changed_slot)
         
     def start_server_manager(self) -> None:
+        """Start the server manager by emulating a click to the "connect" button """
+        self._status_bar.update_content()  # Make sure the connect button is enabled if it can
         self._status_bar.emulate_connect_click()
 
     def closeEvent(self, event: QCloseEvent) -> None:

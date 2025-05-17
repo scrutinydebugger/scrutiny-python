@@ -28,7 +28,7 @@ from dataclasses import dataclass
 from scrutiny.tools.typing import *
 from scrutiny.tools.signals import SignalExitHandler
 
-
+from scrutiny.gui import DEFAULT_SERVER_PORT
 
 class ScrutinyQtGUI:
     @dataclass
@@ -46,7 +46,8 @@ class ScrutinyQtGUI:
         debug_layout:bool
         auto_connect:bool
         opengl_enabled:bool
-        local_server_starting_port:Optional[int]
+        start_local_server:bool
+        local_server_port:int
 
     _instance:Optional["ScrutinyQtGUI"] = None
     _settings:Settings
@@ -67,7 +68,8 @@ class ScrutinyQtGUI:
                  debug_layout:bool=False,
                  auto_connect:bool=False,
                  opengl_enabled:bool=True,
-                 local_server_starting_port:Optional[int] = None
+                 start_local_server:bool = False,
+                 local_server_port:int = DEFAULT_SERVER_PORT
                  ) -> None:
         if self.__class__._instance is not None:
             raise RuntimeError(f"Only a single instance of {self.__class__.__name__} can run.")
@@ -79,7 +81,8 @@ class ScrutinyQtGUI:
             debug_layout = debug_layout,
             auto_connect = auto_connect,
             opengl_enabled = opengl_enabled,
-            local_server_starting_port = local_server_starting_port
+            local_server_port = local_server_port,
+            start_local_server = start_local_server
         )
 
         set_theme(DefaultTheme())

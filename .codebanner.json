@@ -723,14 +723,20 @@
         "test/gui/test_local_server_runner.py": {
             "docstring": "A test suite for the LocalServerRunner"
         },
-        "test/gui/manual/manual_test_local_server_runner.py": {
-            "docstring": "A manual test to check the LocalServerManager dialog"
-        },
         "scrutiny/gui/core/local_server_runner.py": {
             "docstring": "A class that control a subprocess running a Scrutiny server.\n Expose simplified API and add hooks for nice integration in QT"
         },
         "scrutiny/gui/dialogs/local_server_manager_dialog.py": {
             "docstring": "A dialog that interract with the app-wide LocalServerRunner.\n Let the user start/stop a local instance of the runner"
+        },
+        "test/gui/manual/manual_test_server_config_dialog.py": {
+            "docstring": "A manual test suite for checking the behaviour of the server config dialog"
+        },
+        "scrutiny/gui/widgets/log_viewer.py": {
+            "docstring": "A widget for watching log lines"
+        },
+        "scrutiny/tools/signals.py": {
+            "docstring": "Common tools for signal handling"
         }
     }
 }

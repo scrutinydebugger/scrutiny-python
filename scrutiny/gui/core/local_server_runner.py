@@ -1,3 +1,12 @@
+#    local_server_runner.py
+#        A class that control a subprocess running a Scrutiny server.
+#        Expose simplified API and add hooks for nice integration in QT
+#
+#   - License : MIT - See LICENSE file.
+#   - Project :  Scrutiny Debugger (github.com/scrutinydebugger/scrutiny-python)
+#
+#   Copyright (c) 2021 Scrutiny Debugger
+
 from PySide6.QtCore import Signal, QObject, SignalInstance
 
 import subprocess
@@ -146,12 +155,11 @@ class LocalServerRunner:
         env['PYTHONPATH'] = os.path.dirname(scrutiny.__file__) + ':' +  env['PYTHONPATH']
 
         try:
-            options = [f'api.client_interface_config.port={port}']
             flags = 0
             if sys.platform == 'win32':
                 flags |= subprocess.CREATE_NEW_PROCESS_GROUP    # Important for windows. Ctrl+Break will hit the parent process otherwise
             process = subprocess.Popen(
-                [sys.executable, '-m', 'scrutiny', 'server', '--options'] + options, 
+                [sys.executable, '-m', 'scrutiny', 'server', '--port', str(port)], 
                 stdout=subprocess.PIPE, 
                 stderr=subprocess.PIPE,
                 shell=False,

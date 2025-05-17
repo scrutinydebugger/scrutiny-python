@@ -1,3 +1,11 @@
+#    local_server_manager_dialog.py
+#        A dialog that interract with the app-wide LocalServerRunner.
+#        Let the user start/stop a local instance of the runner
+#
+#   - License : MIT - See LICENSE file.
+#   - Project :  Scrutiny Debugger (github.com/scrutinydebugger/scrutiny-python)
+#
+#   Copyright (c) 2021 Scrutiny Debugger
 
 __all__ = ['LocalServerManagerDialog']
 

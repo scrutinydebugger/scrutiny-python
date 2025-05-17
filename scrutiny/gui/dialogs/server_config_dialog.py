@@ -1,5 +1,6 @@
 #    server_config_dialog.py
-#        A dialog to edit the connection parameter of the server
+#        A dialog to edit the connection parameter of the server and optionally start a local
+#        server
 #
 #   - License : MIT - See LICENSE file.
 #   - Project :  Scrutiny Debugger (github.com/scrutinydebugger/scrutiny-python)

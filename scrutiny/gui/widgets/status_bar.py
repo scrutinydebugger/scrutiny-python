@@ -309,7 +309,7 @@ class StatusBar(QStatusBar):
         self._server_config_dialog.show()
 
     def _server_connect_func(self) -> None:
-        """ When the user click the server status -> Connect"""
+        """When the user click the server status -> Connect"""
         config = self._server_config_dialog.get_config()
         # The config should be valid most of the time. 
         # It will be None if the user uses a local server and that local server dies between the OK click
