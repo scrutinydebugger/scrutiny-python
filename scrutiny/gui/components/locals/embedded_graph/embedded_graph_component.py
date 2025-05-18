@@ -17,7 +17,7 @@ from PySide6.QtWidgets import (
     QVBoxLayout, QLabel, QWidget, QSplitter, QPushButton, QScrollArea, QHBoxLayout, QMenu, QTabWidget, QCheckBox, QMessageBox
 )
 from PySide6.QtCore import Qt, QPointF, QRectF
-from PySide6.QtGui import QContextMenuEvent, QKeyEvent, QResizeEvent
+from PySide6.QtGui import QContextMenuEvent, QKeyEvent, QResizeEvent, QIcon
 
 from scrutiny import sdk
 from scrutiny.sdk import EmbeddedDataType
@@ -166,7 +166,6 @@ class InitialGraphListDownloadConditions:
 class EmbeddedGraph(ScrutinyGUIBaseLocalComponent):
     instance_name : str
 
-    _ICON = assets.get("scope-96x128.png")
     _NAME = "Embedded Graph"
     _TYPE_ID = "embedded_graph"
 
@@ -232,6 +231,10 @@ class EmbeddedGraph(ScrutinyGUIBaseLocalComponent):
     _state:EmbeddedGraphState
     """Some state variables used to keep the UI consistent"""
 
+    @classmethod
+    def get_icon(cls) -> QIcon:
+        return scrutiny_get_theme().load_medium_icon(assets.Icons.EmbeddedGraph)
+    
     def setup(self) -> None:
         layout = QVBoxLayout(self)
         margins = layout.contentsMargins()

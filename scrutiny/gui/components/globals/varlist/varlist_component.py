@@ -16,10 +16,11 @@ __all__ = [
 from typing import Dict, Any, List, cast, Optional, Sequence
 
 from PySide6.QtWidgets import QVBoxLayout, QWidget
-from PySide6.QtGui import QStandardItem, QStandardItemModel
+from PySide6.QtGui import QStandardItem, QStandardItemModel, QIcon
 from PySide6.QtCore import QModelIndex, QMimeData, Qt
 
 from scrutiny.gui import assets
+from scrutiny.gui.themes import scrutiny_get_theme
 from scrutiny.gui.core.watchable_registry import   WatchableRegistry
 from scrutiny.gui.core.scrutiny_drag_data import ScrutinyDragData
 from scrutiny.gui.components.globals.base_global_component import ScrutinyGUIBaseGlobalComponent
@@ -144,7 +145,6 @@ class VarlistComponentTreeWidget(WatchableTreeWidget):
 class VarListComponent(ScrutinyGUIBaseGlobalComponent):
     instance_name : str
 
-    _ICON = assets.get("treelist-96x128.png")
     _NAME = "Variable List"
     _TYPE_ID = "varlist"
 
@@ -156,6 +156,10 @@ class VarListComponent(ScrutinyGUIBaseGlobalComponent):
     _rpv_folder:BaseWatchableRegistryTreeStandardItem
     _index_change_counters:Dict[WatchableType, int]
 
+    @classmethod
+    def get_icon(cls) -> QIcon:
+        return scrutiny_get_theme().load_medium_icon(assets.Icons.VarList)
+    
     def setup(self) -> None:
         layout = QVBoxLayout(self)
 

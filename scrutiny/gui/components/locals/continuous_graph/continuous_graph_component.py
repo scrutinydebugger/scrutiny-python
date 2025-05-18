@@ -13,7 +13,7 @@ from pathlib import Path
 from dataclasses import dataclass
 import logging
 
-from PySide6.QtGui import QContextMenuEvent, QKeyEvent
+from PySide6.QtGui import QContextMenuEvent, QKeyEvent, QIcon
 from PySide6.QtWidgets import (QHBoxLayout, QSplitter, QWidget, QVBoxLayout,  QMenu,
                                QPushButton, QFormLayout, QSpinBox, QLineEdit, QLabel)
 from PySide6.QtCore import Qt, QItemSelectionModel, QPointF, QTimer, QRectF
@@ -149,7 +149,6 @@ class ContinuousGraphState:
 class ContinuousGraphComponent(ScrutinyGUIBaseLocalComponent):
     instance_name : str
 
-    _ICON = assets.get("graph-96x128.png")
     _NAME = "Continuous Graph"
     _TYPE_ID = 'continuous_graph'
 
@@ -209,6 +208,10 @@ class ContinuousGraphComponent(ScrutinyGUIBaseLocalComponent):
     _csv_logger:Optional[CSVLogger]
     """The CSV logger that will save value update to disk in real time. Runs in the UI thread."""
 
+    @classmethod
+    def get_icon(cls) -> QIcon:
+        return scrutiny_get_theme().load_medium_icon(assets.Icons.ContinuousGraph)
+    
     def setup(self) -> None:
         self._serverid2sgnal_item = {}
         self._xaxis = ScrutinyValueAxisWithMinMax(self)

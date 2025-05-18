@@ -108,6 +108,11 @@ class Icons(enum.Enum):
     SidebarRight="sidebar-right"
     SidebarTop="sidebar-top"
     SidebarBottom="sidebar-bottom"
+    StopWatch="stopwatch"
+    VarList="varlist"
+    EmbeddedGraph="embedded-graph"
+    ContinuousGraph="continuous-graph"
+    Watch="watch"
 
 def icon_filename(name:Icons, format:IconFormat, iconset:IconSet) -> Path:
     possible_formats = {

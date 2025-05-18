@@ -67,7 +67,6 @@ class ScrutinyQtGUI:
                  start_local_server:bool = False,
                  local_server_port:int = DEFAULT_SERVER_PORT,
                  theme:SupportedTheme = SupportedTheme.Fusion
-
                  ) -> None:
         if self.__class__._instance is not None:
             raise RuntimeError(f"Only a single instance of {self.__class__.__name__} can run.")

@@ -100,7 +100,8 @@ _loaded_theme:Optional[ScrutinyTheme] = None
 
 def scrutiny_get_theme() -> ScrutinyTheme:
     global _loaded_theme
-    assert _loaded_theme is not None # Require a call to set theme first
+    if _loaded_theme is None:
+        raise RuntimeError("A theme must be loaded first")
     return _loaded_theme
 
 def scrutiny_get_theme_prop(prop:ScrutinyThemeProperties)-> Any:

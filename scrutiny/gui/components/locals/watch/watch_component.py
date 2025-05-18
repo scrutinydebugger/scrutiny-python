@@ -13,9 +13,11 @@ import logging
 
 from PySide6.QtCore import QModelIndex, Qt, QModelIndex, Signal
 from PySide6.QtWidgets import QVBoxLayout
+from PySide6.QtGui import QIcon
 
 from scrutiny import sdk
 from scrutiny.gui import assets
+from scrutiny.gui.themes import scrutiny_get_theme
 from scrutiny.gui.widgets.watchable_tree import FolderItemSerializableData, WatchableItemSerializableData
 from scrutiny.gui.core.server_manager import ValueUpdate
 from scrutiny.gui.core.watchable_registry import WatchableRegistryNodeNotFoundError, WatcherNotFoundError
@@ -53,7 +55,6 @@ class State:
 class WatchComponent(ScrutinyGUIBaseLocalComponent):
     instance_name : str
 
-    _ICON = assets.get("eye-96x128.png")
     _NAME = "Watch Window"
     _TYPE_ID = "watch"
 
@@ -63,6 +64,10 @@ class WatchComponent(ScrutinyGUIBaseLocalComponent):
 
     expand_if_needed = Signal()
 
+    @classmethod
+    def get_icon(cls) -> QIcon:
+        return scrutiny_get_theme().load_medium_icon(assets.Icons.Watch)
+    
     def setup(self) -> None:
         self._tree_model = WatchComponentTreeModel(self, watchable_registry=self.watchable_registry)
         self._tree = WatchComponentTreeWidget(self, self._tree_model)
