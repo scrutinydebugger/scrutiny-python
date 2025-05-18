@@ -31,10 +31,8 @@ from PySide6.QtCore import  QPointF, QRect, QRectF, Qt, QObject, Signal, QSize, 
 
 from scrutiny import tools
 from scrutiny.gui import assets
-from scrutiny.gui.core.definitions import WidgetState
-from scrutiny.gui.themes import scrutiny_get_theme_prop, ScrutinyThemeProperties
+from scrutiny.gui.themes import scrutiny_get_theme_prop, ScrutinyThemeProperties, scrutiny_get_theme
 from scrutiny.gui.tools.min_max import MinMax
-from scrutiny.gui.widgets.validable_line_edit import ValidableLineEdit
 
 from scrutiny.tools import validation
 from scrutiny.gui.widgets.graph_signal_tree import GraphSignalTree
@@ -1144,7 +1142,7 @@ class ScrutinyChartToolBar(QGraphicsItem):
             """Resize the icon """
             self.prepareGeometryChange()
             self._icon_size = QSizeF(icon_size,icon_size)
-            self._pixmap = assets.load_medium_icon_as_pixmap(self._icon_id).scaled(
+            self._pixmap = scrutiny_get_theme().load_medium_icon_as_pixmap(self._icon_id).scaled(
                 self._icon_size.toSize(), 
                 Qt.AspectRatioMode.KeepAspectRatio, 
                 Qt.TransformationMode.SmoothTransformation

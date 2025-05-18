@@ -28,6 +28,7 @@ from scrutiny.gui.widgets.watchable_tree import (
     item_from_serializable_data
 )
 from scrutiny.gui.widgets.base_tree import SerializableItemIndexDescriptor
+from scrutiny.gui.themes import scrutiny_get_theme
 from scrutiny.gui import assets
 from scrutiny.tools.global_counters import global_i64_counter
 from scrutiny.tools.typing import *
@@ -77,10 +78,10 @@ class WatchComponentTreeWidget(WatchableTreeWidget):
             for item in selected_items_no_nested:
                 self.model().removeRow(item.row(), item.index().parent())
         
-        new_folder_action = context_menu.addAction(assets.load_tiny_icon(assets.Icons.Folder), "New Folder")
+        new_folder_action = context_menu.addAction(scrutiny_get_theme().load_tiny_icon(assets.Icons.Folder), "New Folder")
         new_folder_action.triggered.connect(new_folder_action_slot)
         
-        remove_action = context_menu.addAction(assets.load_tiny_icon(assets.Icons.RedX), "Remove")
+        remove_action = context_menu.addAction(scrutiny_get_theme().load_tiny_icon(assets.Icons.RedX), "Remove")
         remove_action.setEnabled( len(selected_items_no_nested) > 0 )
         remove_action.triggered.connect(remove_actionslot)
         

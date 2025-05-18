@@ -25,7 +25,6 @@ from scrutiny.gui import assets
 from scrutiny.gui.app_settings import app_settings
 from scrutiny.gui.tools import prompt
 from scrutiny.gui.tools.invoker import InvokeQueued, InvokeInQtThread
-from scrutiny.gui.core.definitions import WidgetState
 from scrutiny.gui.core.watchable_registry import WatchableRegistryNodeNotFoundError, ValueUpdate
 from scrutiny.gui.widgets.feedback_label import FeedbackLabel
 from scrutiny.gui.components.locals.base_local_component import ScrutinyGUIBaseLocalComponent
@@ -38,6 +37,7 @@ from scrutiny.gui.components.locals.continuous_graph.csv_logging_menu import Csv
 from scrutiny.gui.components.locals.continuous_graph.realtime_line_series import RealTimeScrutinyLineSeries
 from scrutiny.gui.components.locals.continuous_graph.graph_statistics import GraphStatistics
 from scrutiny.gui.core.persistent_data import gui_persistent_data
+from scrutiny.gui.themes import scrutiny_get_theme
 from scrutiny.sdk.listeners.csv_logger import CSVLogger
 
 from scrutiny.tools.typing import *
@@ -1065,9 +1065,9 @@ class ContinuousGraphComponent(ScrutinyGUIBaseLocalComponent):
     def _spinbox_graph_max_width_changed_slot(self, val:int) -> None:
         """When the user changed the max width spinbox"""
         if val == 0:
-            self._spinbox_graph_max_width.setProperty("state", WidgetState.error)
+            scrutiny_get_theme().set_error_state(self._spinbox_graph_max_width)
             return
-        self._spinbox_graph_max_width.setProperty("state", WidgetState.default)
+        scrutiny_get_theme().set_default_state(self._spinbox_graph_max_width)
         
         self._graph_max_width = val
         if self._state.autoscale_enabled():
@@ -1090,17 +1090,17 @@ class ContinuousGraphComponent(ScrutinyGUIBaseLocalComponent):
         context_menu.addSection("Zoom")
 
         # Reset zoom
-        reset_zoom_action = context_menu.addAction(assets.load_tiny_icon(assets.Icons.Zoom100), "Reset zoom")
+        reset_zoom_action = context_menu.addAction(scrutiny_get_theme().load_tiny_icon(assets.Icons.Zoom100), "Reset zoom")
         reset_zoom_action.triggered.connect(self._reset_zoom_slot)
         reset_zoom_action.setEnabled(self._state.enable_reset_zoom_button())
 
         context_menu.addSection("Visibility")
         # Chart stats overlay
         if self._stats.is_overlay_allowed():
-            show_hide_stats = context_menu.addAction(assets.load_tiny_icon(assets.Icons.EyeBar), "Hide stats")
+            show_hide_stats = context_menu.addAction(scrutiny_get_theme().load_tiny_icon(assets.Icons.EyeBar), "Hide stats")
             show_hide_stats.triggered.connect(self._stats.disallow_overlay)
         else:
-            show_hide_stats = context_menu.addAction(assets.load_tiny_icon(assets.Icons.Eye), "Show stats")
+            show_hide_stats = context_menu.addAction(scrutiny_get_theme().load_tiny_icon(assets.Icons.Eye), "Show stats")
             show_hide_stats.triggered.connect(self._stats.allow_overlay)
         
         show_hide_stats.setEnabled(self._state.enable_showhide_stats_button())
@@ -1110,25 +1110,25 @@ class ContinuousGraphComponent(ScrutinyGUIBaseLocalComponent):
             def hide_chart_toolbar() -> None:
                 self._state.hide_chart_toolbar()
                 self._apply_internal_state()
-            show_hide_toolbar = context_menu.addAction(assets.load_tiny_icon(assets.Icons.EyeBar), "Hide toolbar")
+            show_hide_toolbar = context_menu.addAction(scrutiny_get_theme().load_tiny_icon(assets.Icons.EyeBar), "Hide toolbar")
             show_hide_toolbar.triggered.connect(hide_chart_toolbar)
         else:
             def allow_chart_toolbar() -> None:
                 self._state.allow_chart_toolbar()
                 self._apply_internal_state()
-            show_hide_toolbar = context_menu.addAction(assets.load_tiny_icon(assets.Icons.Eye), "Show toolbar")
+            show_hide_toolbar = context_menu.addAction(scrutiny_get_theme().load_tiny_icon(assets.Icons.Eye), "Show toolbar")
             show_hide_toolbar.triggered.connect(allow_chart_toolbar)
         show_hide_toolbar.setEnabled(self._state.can_display_toolbar())
 
 
         context_menu.addSection("Export")
         # Save image
-        save_img_action = context_menu.addAction(assets.load_tiny_icon(assets.Icons.Image), "Save as image")
+        save_img_action = context_menu.addAction(scrutiny_get_theme().load_tiny_icon(assets.Icons.Image), "Save as image")
         save_img_action.triggered.connect(self._save_image_slot)
         save_img_action.setEnabled(self._state.allow_save_image())
 
         # Save CSV
-        save_csv_action = context_menu.addAction(assets.load_tiny_icon(assets.Icons.CSV), "Save as CSV")
+        save_csv_action = context_menu.addAction(scrutiny_get_theme().load_tiny_icon(assets.Icons.CSV), "Save as CSV")
         save_csv_action.triggered.connect(self._save_csv_slot)
         save_csv_action.setEnabled(self._state.allow_save_csv())
 

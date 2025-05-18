@@ -17,6 +17,7 @@ from scrutiny.gui.dialogs.server_config_dialog import ServerConfigDialog
 from scrutiny.gui.dialogs.device_config_dialog import DeviceConfigDialog
 from scrutiny.gui.dialogs.device_info_dialog import DeviceInfoDialog
 from scrutiny.gui.dialogs.sfd_content_dialog import SFDContentDialog
+from scrutiny.gui.themes import scrutiny_get_theme
 from scrutiny.gui import assets
 from scrutiny.sdk import ServerState, DeviceCommState, SFDInfo, DataloggingInfo, DataloggerState, DeviceLinkType, BaseLinkConfig
 from scrutiny import sdk
@@ -88,9 +89,9 @@ class StatusBarLabel(QWidget):
         self._use_indicator = use_indicator
 
         self._color_image_map = {
-            self.Color.RED : assets.load_medium_icon_as_pixmap(assets.Icons.SquareRed).scaled(self.INDICATOR_SIZE, self.INDICATOR_SIZE),
-            self.Color.YELLOW : assets.load_medium_icon_as_pixmap(assets.Icons.SquareYellow).scaled(self.INDICATOR_SIZE, self.INDICATOR_SIZE),
-            self.Color.GREEN : assets.load_medium_icon_as_pixmap(assets.Icons.SquareGreen).scaled(self.INDICATOR_SIZE, self.INDICATOR_SIZE)
+            self.Color.RED : scrutiny_get_theme().load_medium_icon_as_pixmap(assets.Icons.SquareRed).scaled(self.INDICATOR_SIZE, self.INDICATOR_SIZE),
+            self.Color.YELLOW : scrutiny_get_theme().load_medium_icon_as_pixmap(assets.Icons.SquareYellow).scaled(self.INDICATOR_SIZE, self.INDICATOR_SIZE),
+            self.Color.GREEN : scrutiny_get_theme().load_medium_icon_as_pixmap(assets.Icons.SquareGreen).scaled(self.INDICATOR_SIZE, self.INDICATOR_SIZE)
         }
         self.setSizePolicy(QSizePolicy.Policy.Minimum, QSizePolicy.Policy.Minimum)
         self._layout = QHBoxLayout(self)

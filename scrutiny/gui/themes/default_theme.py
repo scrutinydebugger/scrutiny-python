@@ -1,15 +1,9 @@
-#    default_theme.py
-#        A color theme that serves as a base for other theme and loaded by default
-#
-#   - License : MIT - See LICENSE file.
-#   - Project :  Scrutiny Debugger (github.com/scrutinydebugger/scrutiny-python)
-#
-#   Copyright (c) 2021 Scrutiny Debugger
 
 from scrutiny.gui.themes import ScrutinyTheme, ScrutinyThemeProperties
-from PySide6.QtGui import QColor, QGuiApplication, QPalette
-from PySide6.QtWidgets import QStyle, QApplication, QStyleFactory
+from PySide6.QtGui import QColor, QGuiApplication
+from PySide6.QtWidgets import QStyle, QApplication
 
+from scrutiny.gui import assets
 
 from typing import Any
 
@@ -42,14 +36,11 @@ class DefaultTheme(ScrutinyTheme):
     }
 
     def __init__(self) -> None:
-        palette = QGuiApplication.palette()
-        #palette.setColor(QPalette.ColorRole.Base, QColor(0xFFFFFF))
-        style = QStyleFactory.create("fusion")
-        style.standardPalette()
         super().__init__(
-            palette=style.standardPalette(),
+            palette=QGuiApplication.palette(),
             stylesheet=r"",
-            style = style
+            style = QApplication.style(),
+            iconset=assets.IconSet.Light
         )
 
     def get_val(self, prop:ScrutinyThemeProperties) -> Any:

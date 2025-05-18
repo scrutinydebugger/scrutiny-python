@@ -28,7 +28,7 @@ def make_manual_test_app() -> QApplication:
     logging.basicConfig(level=logging.DEBUG)
     register_thread(QT_THREAD_NAME)
     app = QApplication([])
-    scrutiny_set_theme(DefaultTheme())
+    scrutiny_set_theme(app, DefaultTheme())
 
     app._scrutiny_check_signal_timer = QTimer()
     app._scrutiny_check_signal_timer.setInterval(500)

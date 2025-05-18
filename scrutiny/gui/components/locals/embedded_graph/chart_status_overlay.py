@@ -13,6 +13,7 @@ from PySide6.QtGui import QPainter, QFontMetrics, QFont, QColor, QPixmap
 from PySide6.QtWidgets import ( QWidget, QGraphicsItem, QStyleOptionGraphicsItem)
 from PySide6.QtCore import Qt, QRectF, QRect, QPointF, QSize
 from scrutiny.tools.typing import *
+from scrutiny.gui.themes import scrutiny_get_theme
 from scrutiny.gui import assets
 
 class ChartStatusOverlay(QGraphicsItem):
@@ -47,7 +48,7 @@ class ChartStatusOverlay(QGraphicsItem):
     def set(self, icon:Optional[assets.Icons], text:str) -> None:
         self._icon_resized=None
         if icon is not None:
-            self._icon = assets.load_large_icon_as_pixmap(icon)
+            self._icon = scrutiny_get_theme().load_large_icon_as_pixmap(icon)
         else:
             self._icon = None
         self._text = text
