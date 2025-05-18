@@ -8,7 +8,7 @@
 
 from scrutiny.gui.themes import ScrutinyTheme, ScrutinyThemeProperties
 from PySide6.QtGui import QColor, QGuiApplication, QPalette
-from PySide6.QtWidgets import QStyle, QApplication
+from PySide6.QtWidgets import QStyle, QApplication, QStyleFactory
 
 
 from typing import Any
@@ -43,11 +43,13 @@ class DefaultTheme(ScrutinyTheme):
 
     def __init__(self) -> None:
         palette = QGuiApplication.palette()
-        palette.setColor(QPalette.ColorRole.Base, QColor(0xFFFFFF))
+        #palette.setColor(QPalette.ColorRole.Base, QColor(0xFFFFFF))
+        style = QStyleFactory.create("fusion")
+        style.standardPalette()
         super().__init__(
-            palette=QGuiApplication.palette(),
+            palette=style.standardPalette(),
             stylesheet=r"",
-            style = QApplication.style()
+            style = style
         )
 
     def get_val(self, prop:ScrutinyThemeProperties) -> Any:

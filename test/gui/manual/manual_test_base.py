@@ -28,7 +28,6 @@ def make_manual_test_app() -> QApplication:
     logging.basicConfig(level=logging.DEBUG)
     register_thread(QT_THREAD_NAME)
     app = QApplication([])
-    app.setStyleSheet(assets.load_text(["stylesheets", "scrutiny_base.qss"]))
     scrutiny_set_theme(DefaultTheme())
 
     app._scrutiny_check_signal_timer = QTimer()
