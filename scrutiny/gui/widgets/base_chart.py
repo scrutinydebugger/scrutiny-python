@@ -32,7 +32,7 @@ from PySide6.QtCore import  QPointF, QRect, QRectF, Qt, QObject, Signal, QSize, 
 from scrutiny import tools
 from scrutiny.gui import assets
 from scrutiny.gui.core.definitions import WidgetState
-from scrutiny.gui.themes import get_theme_prop, ScrutinyThemeProperties
+from scrutiny.gui.themes import scrutiny_get_theme_prop, ScrutinyThemeProperties
 from scrutiny.gui.tools.min_max import MinMax
 from scrutiny.gui.widgets.validable_line_edit import ValidableLineEdit
 
@@ -46,13 +46,13 @@ class ScrutinyLineSeries(QLineSeries):
     def emphasize(self) -> None:
         """Emphasize the line serie sby making it bolder"""
         pen = self.pen()
-        pen.setWidth(get_theme_prop(ScrutinyThemeProperties.CHART_EMPHASIZED_SERIES_WIDTH))
+        pen.setWidth(scrutiny_get_theme_prop(ScrutinyThemeProperties.CHART_EMPHASIZED_SERIES_WIDTH))
         self.setPen(pen)
     
     def deemphasize(self) -> None:
         """Remove the emphasis and put back the line to its normal size"""
         pen = self.pen()
-        pen.setWidth(get_theme_prop(ScrutinyThemeProperties.CHART_NORMAL_SERIES_WIDTH))
+        pen.setWidth(scrutiny_get_theme_prop(ScrutinyThemeProperties.CHART_NORMAL_SERIES_WIDTH))
         self.setPen(pen)
 
     def search_closest_non_monotonic(self, xval:float, min_x:Optional[float]=None, max_x:Optional[float]=None) -> Optional[QPointF]:
@@ -484,7 +484,7 @@ class ScrutinyChartCallout(QGraphicsItem):
         self._text_rect = QRectF(metrics.boundingRect(QRect(0, 0, 150, 150), Qt.AlignmentFlag.AlignLeft, self._text))
         self._text_rect.translate(self.PADDING, self.PADDING)   # Add some padding around the text
         self._callout_rect = QRectF(self._text_rect.adjusted(-self.PADDING, -self.PADDING, self.PADDING, self.PADDING))
-        self._marker_radius = get_theme_prop(ScrutinyThemeProperties.CHART_CALLOUT_MARKER_RADIUS)
+        self._marker_radius = scrutiny_get_theme_prop(ScrutinyThemeProperties.CHART_CALLOUT_MARKER_RADIUS)
 
         # DEcide if we should display above or below the point
         chart_h = self._chart.size().height()
@@ -992,8 +992,8 @@ class ScrutinyChartView(QChartView):
         """Draw the forground of the chartview. We use it to draw a vertical cursor overlay"""
         super().drawForeground(painter, rect)
 
-        MARKER_RADIUS = get_theme_prop(ScrutinyThemeProperties.CHART_CURSOR_MARKER_RADIUS)
-        CHART_CURSOR_COLOR = get_theme_prop(ScrutinyThemeProperties.CHART_CURSOR_COLOR)
+        MARKER_RADIUS = scrutiny_get_theme_prop(ScrutinyThemeProperties.CHART_CURSOR_MARKER_RADIUS)
+        CHART_CURSOR_COLOR = scrutiny_get_theme_prop(ScrutinyThemeProperties.CHART_CURSOR_COLOR)
 
         chart = self.chart()
         plotarea_mapped_to_chartview = chart.mapRectToParent(chart.plotArea())
@@ -1173,10 +1173,10 @@ class ScrutinyChartToolBar(QGraphicsItem):
             self.update()
 
         def paint(self, painter: QPainter, option: QStyleOptionGraphicsItem, widget: Optional[QWidget]=None) -> None:
-            HOVERED_COLOR = get_theme_prop(ScrutinyThemeProperties.CHART_TOOLBAR_HOVERED_BUTTON_COLOR) 
-            HOVERED_SELECTED_BORDER_COLOR = get_theme_prop(ScrutinyThemeProperties.CHART_TOOLBAR_HOVERED_SELECTED_BORDER_COLOR)  
-            SELECTED_COLOR = get_theme_prop(ScrutinyThemeProperties.CHART_TOOLBAR_SELECTED_COLOR) 
-            PRESSED_COLOR = get_theme_prop(ScrutinyThemeProperties.CHART_TOOLBAR_PRESSED_COLOR) 
+            HOVERED_COLOR = scrutiny_get_theme_prop(ScrutinyThemeProperties.CHART_TOOLBAR_HOVERED_BUTTON_COLOR) 
+            HOVERED_SELECTED_BORDER_COLOR = scrutiny_get_theme_prop(ScrutinyThemeProperties.CHART_TOOLBAR_HOVERED_SELECTED_BORDER_COLOR)  
+            SELECTED_COLOR = scrutiny_get_theme_prop(ScrutinyThemeProperties.CHART_TOOLBAR_SELECTED_COLOR) 
+            PRESSED_COLOR = scrutiny_get_theme_prop(ScrutinyThemeProperties.CHART_TOOLBAR_PRESSED_COLOR) 
             # If the is a focus on the button, draw a background
             if self._is_pressed or self._is_selected or self._is_hovered:
                 

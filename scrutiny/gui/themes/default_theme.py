@@ -7,7 +7,9 @@
 #   Copyright (c) 2021 Scrutiny Debugger
 
 from scrutiny.gui.themes import ScrutinyTheme, ScrutinyThemeProperties
-from PySide6.QtGui import QColor
+from PySide6.QtGui import QColor, QGuiApplication, QPalette
+from PySide6.QtWidgets import QStyle, QApplication
+
 
 from typing import Any
 
@@ -38,6 +40,15 @@ class DefaultTheme(ScrutinyTheme):
         ScrutinyThemeProperties.WIDGET_ERROR_BACKGROUND_COLOR : RED_ERROR
 
     }
+
+    def __init__(self) -> None:
+        palette = QGuiApplication.palette()
+        palette.setColor(QPalette.ColorRole.Base, QColor(0xFFFFFF))
+        super().__init__(
+            palette=QGuiApplication.palette(),
+            stylesheet=r"",
+            style = QApplication.style()
+        )
 
     def get_val(self, prop:ScrutinyThemeProperties) -> Any:
         return self.prop_dict[prop]

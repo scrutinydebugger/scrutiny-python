@@ -40,8 +40,9 @@ class SignalExitHandler:
         signame = signal.Signals(signum).name
         self._logger.debug(f"Received signal {signame}. Requesting a clean exit.")
         if self._exit_request:
-            self._logger.critical("Received multiple exit signals. Forcefully terminating the process")
-            os._exit(1) 
+            pass
+            #self._logger.critical("Received multiple exit signals. Forcefully terminating the process")
+            #os._exit(1) 
         if self._callback is not None:
             try:
                 self._callback()

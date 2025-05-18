@@ -22,7 +22,7 @@ from scrutiny.gui.tools import watchabletype_2_icon
 from scrutiny.gui import assets
 from scrutiny.gui.core.watchable_registry import WatchableRegistry
 from scrutiny.sdk import WatchableType
-from scrutiny.gui.themes import get_theme_prop, ScrutinyThemeProperties
+from scrutiny.gui.themes import scrutiny_get_theme_prop, ScrutinyThemeProperties
 
 @dataclass
 class WatchableFQNAndName:
@@ -156,8 +156,8 @@ class WatchableLineEdit(QLineEdit):
         super().paintEvent(event)
 
         if self._mode == self.Mode.WATCHABLE:
-            HOVERED_COLOR = get_theme_prop(ScrutinyThemeProperties.WATCHABLE_LINE_EDIT_CLEAR_BTN_HOVER_COLOR)  
-            PRESSED_COLOR = get_theme_prop(ScrutinyThemeProperties.WATCHABLE_LINE_EDIT_CLEAR_BTN_PRESSED_COLOR) 
+            HOVERED_COLOR = scrutiny_get_theme_prop(ScrutinyThemeProperties.WATCHABLE_LINE_EDIT_CLEAR_BTN_HOVER_COLOR)  
+            PRESSED_COLOR = scrutiny_get_theme_prop(ScrutinyThemeProperties.WATCHABLE_LINE_EDIT_CLEAR_BTN_PRESSED_COLOR) 
 
             click_rect, icon_rect = self._clear_button_geometry()
             pixmap = self._clear_icon.pixmap(icon_rect.size())

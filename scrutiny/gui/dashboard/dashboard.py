@@ -267,6 +267,7 @@ class Dashboard(QWidget):
         self._component_instances = {}
 
         dock_conainer = QWidget()
+
         QtAds.CDockManager.setConfigFlag(QtAds.CDockManager.OpaqueSplitterResize)
         QtAds.CDockManager.setConfigFlag(QtAds.CDockManager.FloatingContainerHasWidgetTitle)
         QtAds.CDockManager.setConfigFlag(QtAds.CDockManager.XmlCompressionEnabled, False)
@@ -274,6 +275,7 @@ class Dashboard(QWidget):
         self.factory = CustomFactory()
         QtAds.CDockComponentsFactory.setFactory(self.factory)   # Set before the dock manager is created
         self._dock_manager = QtAds.CDockManager(dock_conainer)
+        self._dock_manager.setStyleSheet("")
 
         def configure_new_window(win:QtAds.CFloatingDockContainer) -> None:
             flags = win.windowFlags()
