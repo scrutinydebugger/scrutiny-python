@@ -38,12 +38,12 @@ class SupportedTheme(enum.Enum):
 class ScrutinyQtGUI:
     @dataclass(frozen=True)
     class Settings:
-        debug_layout:bool
-        auto_connect:bool
-        opengl_enabled:bool
-        start_local_server:bool
-        local_server_port:int
-        theme:SupportedTheme
+        debug_layout:bool   = False
+        auto_connect:bool   = False
+        opengl_enabled:bool = False
+        start_local_server:bool = False
+        local_server_port:int   = DEFAULT_SERVER_PORT
+        theme:SupportedTheme    = SupportedTheme.Default
 
     _instance:Optional["ScrutinyQtGUI"] = None
     _settings:Settings

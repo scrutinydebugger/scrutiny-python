@@ -19,7 +19,7 @@ from scrutiny.gui.core.watchable_registry import WatchableRegistry
 from scrutiny.tools.typing import *
 from scrutiny.gui.dashboard.dashboard import Dashboard
 from scrutiny.gui.app_settings import configure_unit_test_app_settings
-from scrutiny.gui.gui import ScrutinyQtGUI
+from scrutiny.gui.gui import ScrutinyQtGUI, SupportedTheme
 
 from scrutiny.gui.components.globals.base_global_component import ScrutinyGUIBaseGlobalComponent
 from scrutiny.gui.components.locals.base_local_component import ScrutinyGUIBaseLocalComponent
@@ -94,7 +94,8 @@ class TestDashboard(ScrutinyBaseGuiTest):
             auto_connect=False,
             opengl_enabled=False,
             local_server_port=8765,
-            start_local_server=False
+            start_local_server=False,
+            theme=SupportedTheme.Default
         )
         configure_unit_test_app_settings(settings)
         self.main_window = MainWindowStub()
