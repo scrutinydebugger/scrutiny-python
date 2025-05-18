@@ -17,7 +17,7 @@ sys.path.insert(0, project_root)
 
 from scrutiny.gui.core.threads import QT_THREAD_NAME
 from scrutiny.tools.thread_enforcer import register_thread
-from scrutiny.gui.themes import set_theme
+from scrutiny.gui.themes import scrutiny_set_theme
 from scrutiny.gui.themes.default_theme import DefaultTheme 
 from scrutiny.gui import assets
 
@@ -29,7 +29,7 @@ def make_manual_test_app() -> QApplication:
     register_thread(QT_THREAD_NAME)
     app = QApplication([])
     app.setStyleSheet(assets.load_text(["stylesheets", "scrutiny_base.qss"]))
-    set_theme(DefaultTheme())
+    scrutiny_set_theme(DefaultTheme())
 
     app._scrutiny_check_signal_timer = QTimer()
     app._scrutiny_check_signal_timer.setInterval(500)
