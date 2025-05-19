@@ -11,7 +11,7 @@ from scrutiny.gui.themes.default_theme import DefaultTheme
 from PySide6.QtGui import QColor, QGuiApplication
 from PySide6.QtWidgets import QStyleFactory
 from PySide6.QtCore import Qt
-
+from scrutiny.tools.typing import *
 from scrutiny.gui import assets
 
 from typing import Any
@@ -46,9 +46,17 @@ class FusionTheme(ScrutinyTheme):
 
     def __init__(self) -> None:
         style = QStyleFactory.create("fusion")
+        stylesheets:List[str] = []
+        stylesheets.append( assets.load_stylesheet('scrutiny_base.qss') )
+        stylesheets.append( assets.load_stylesheet('ads_base.qss') )
+        if self.is_dark():
+            stylesheets.append( assets.load_stylesheet('ads_dark.qss') )
+        else:
+            stylesheets.append( assets.load_stylesheet('ads_light.qss') )
+
         super().__init__(
             palette=style.standardPalette(),
-            stylesheet=r"",
+            stylesheet='\n'.join(stylesheets),
             style = style,
             iconset= assets.IconSet.Dark if self.is_dark() else assets.IconSet.Light
         )

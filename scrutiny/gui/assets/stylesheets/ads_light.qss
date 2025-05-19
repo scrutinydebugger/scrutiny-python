@@ -1,0 +1,78 @@
+ads--CResizeHandle {    /* autohide container grab zone */
+	background: palette(dark);
+}
+
+ads--CDockContainerWidget ads--CDockSplitter::handle {
+    background: palette(dark);
+}
+
+/*****************************************************************************
+ * CAutoHideDockContainer Titlebar and Buttons
+ *****************************************************************************/
+
+
+ads--CAutoHideDockContainer[sideBarLocation="0"] ads--CResizeHandle {
+	border-top: 1px solid palette(dark);
+}
+
+ads--CAutoHideDockContainer[sideBarLocation="1"] ads--CResizeHandle {
+	border-left: 1px solid palette(dark);
+}
+
+ads--CAutoHideDockContainer[sideBarLocation="2"] ads--CResizeHandle {
+	border-right: 1px solid palette(dark);
+}
+
+ads--CAutoHideDockContainer[sideBarLocation="3"] ads--CResizeHandle {
+	border-top: 1px solid palette(dark);
+}
+
+
+ads--CAutoHideSideBar[sideBarLocation="0"] {
+	border-bottom: 1px solid palette(dark);
+}
+
+ads--CAutoHideSideBar[sideBarLocation="1"] {
+	border-right: 1px solid palette(dark);
+}
+
+ads--CAutoHideSideBar[sideBarLocation="2"] {
+	border-left: 1px solid palette(dark);
+}
+
+ads--CAutoHideSideBar[sideBarLocation="3"] {
+	border-top: 1px solid palette(dark);
+}
+
+
+#dockAreaCloseButton {
+    qproperty-icon: url(stylesheets:ads/light/close-button.svg), url(stylesheets:ads/light/close-button-disabled.svg) disabled;
+}
+
+#tabCloseButton {
+    qproperty-icon: url(stylesheets:ads/light/close-button.svg), url(stylesheets:ads/light/close-button-disabled.svg) disabled;
+}
+
+#tabsMenuButton { 
+    qproperty-icon: url(stylesheets:ads/light/tabs-menu-button.svg);
+}
+
+#detachGroupButton {
+    qproperty-icon: url(stylesheets:/ads/light/detach-button.svg), url(stylesheets:ads/light/detach-button-disabled.svg) disabled;
+}
+
+#dockAreaAutoHideButton {
+	qproperty-icon: url(stylesheets:/ads/light/vs-pin-button.svg), url(stylesheets:/ads/light/vs-pin-button-disabled.svg) disabled;
+}
+
+ads--CAutoHideDockContainer #dockAreaAutoHideButton {
+	qproperty-icon: url(stylesheets:/ads/light/vs-pin-button-pinned-focused.svg);
+}
+
+ads--CAutoHideDockContainer #dockAreaMinimizeButton {
+	qproperty-icon: url(stylesheets:/ads/light/minimize-button-focused.svg);
+}
+
+ads--CAutoHideDockContainer #dockAreaCloseButton{
+	qproperty-icon: url(stylesheets:/ads/light/close-button-focused.svg)
+}

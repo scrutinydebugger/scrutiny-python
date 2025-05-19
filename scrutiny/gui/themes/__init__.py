@@ -45,8 +45,7 @@ class ScrutinyTheme(abc.ABC):
     def __init__(self, style:QStyle, palette:QPalette, stylesheet:str, iconset:assets.IconSet) -> None:
         self._style = style
         self._palette = palette
-        base_stylesheet =  assets.load_text(['stylesheets', 'scrutiny_base.qss'])
-        self._stylesheet = base_stylesheet + stylesheet
+        self._stylesheet = stylesheet
         self._iconset = iconset
     
     def apply_to_app(self, app:QApplication) -> None:

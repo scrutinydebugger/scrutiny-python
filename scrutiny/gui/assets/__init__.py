@@ -18,12 +18,14 @@ import os
 from scrutiny.gui.core.exceptions import GuiError
 from pathlib import Path
 from PySide6.QtGui import QPixmap, QIcon
+from PySide6.QtCore import QDir
 
 from typing import List, Union, Dict
 import enum
 
 ASSET_PATH = os.path.dirname(__file__)
 
+QDir.addSearchPath('stylesheets', os.path.join(ASSET_PATH, 'stylesheets' ))
 
 def get(name:Union[str, Path, List[str]]) -> Path:
     if isinstance(name, list):
@@ -146,3 +148,8 @@ def load_icon(name:Icons, format:IconFormat, iconset:IconSet) -> QIcon:
 
 def load_icon_as_pixmap(name:Icons, format:IconFormat, iconset:IconSet) -> QPixmap:
     return load_pixmap(icon_filename(name, format, iconset))
+
+def load_stylesheet(name:str) -> str:
+    if not name.endswith('.qss'):
+        name += '.qss'
+    return load_text(['stylesheets', name])
