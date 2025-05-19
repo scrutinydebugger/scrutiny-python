@@ -80,15 +80,6 @@ ads--CDockWidgetTab QLabel {
     /* Icon in light/dark specific */
 }
 
-#tabCloseButton:hover {
-    border: 1px solid rgba(0, 0, 0, 32);
-    background: rgba(0, 0, 0, 16);
-}
-
-#tabCloseButton:pressed {
-    background: rgba(0, 0, 0, 32);
-}
-
 
 /*****************************************************************************
  * CDockWidget

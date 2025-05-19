@@ -6,6 +6,15 @@ ads--CDockContainerWidget ads--CDockSplitter::handle {
     background: palette(dark);
 }
 
+#tabCloseButton:hover {
+    border: 1px solid rgba(0, 0, 0, 32);
+    background: rgba(0, 0, 0, 16);
+}
+
+#tabCloseButton:pressed {
+    background: rgba(0, 0, 0, 32);
+}
+
 /*****************************************************************************
  * CAutoHideDockContainer Titlebar and Buttons
  *****************************************************************************/
@@ -46,33 +55,33 @@ ads--CAutoHideSideBar[sideBarLocation="3"] {
 
 
 #dockAreaCloseButton {
-    qproperty-icon: url(stylesheets:ads/light/close-button.svg), url(stylesheets:ads/light/close-button-disabled.svg) disabled;
+    qproperty-icon: url(stylesheets:ads/close-button-black.svg), url(stylesheets:ads/close-button-disabled.svg) disabled;
 }
 
 #tabCloseButton {
-    qproperty-icon: url(stylesheets:ads/light/close-button.svg), url(stylesheets:ads/light/close-button-disabled.svg) disabled;
+    qproperty-icon: url(stylesheets:ads/close-button-black.svg), url(stylesheets:ads/close-button-disabled.svg) disabled;
 }
 
 #tabsMenuButton { 
-    qproperty-icon: url(stylesheets:ads/light/tabs-menu-button.svg);
+    qproperty-icon: url(stylesheets:ads/tabs-menu-button-black.svg);
 }
 
 #detachGroupButton {
-    qproperty-icon: url(stylesheets:/ads/light/detach-button.svg), url(stylesheets:ads/light/detach-button-disabled.svg) disabled;
+    qproperty-icon: url(stylesheets:/ads/detach-button-black.svg), url(stylesheets:ads/detach-button-disabled.svg) disabled;
 }
 
 #dockAreaAutoHideButton {
-	qproperty-icon: url(stylesheets:/ads/light/vs-pin-button.svg), url(stylesheets:/ads/light/vs-pin-button-disabled.svg) disabled;
+	qproperty-icon: url(stylesheets:/ads/pin-button-vertical-black.svg), url(stylesheets:/ads/pin-button-vertical-disabled.svg) disabled;
 }
 
 ads--CAutoHideDockContainer #dockAreaAutoHideButton {
-	qproperty-icon: url(stylesheets:/ads/light/vs-pin-button-pinned-focused.svg);
+	qproperty-icon: url(stylesheets:/ads/pin-button-horizontal-black.svg);
 }
 
 ads--CAutoHideDockContainer #dockAreaMinimizeButton {
-	qproperty-icon: url(stylesheets:/ads/light/minimize-button-focused.svg);
+	qproperty-icon: url(stylesheets:/ads/minimize-button-black.svg);
 }
 
 ads--CAutoHideDockContainer #dockAreaCloseButton{
-	qproperty-icon: url(stylesheets:/ads/light/close-button-focused.svg)
+	qproperty-icon: url(stylesheets:/ads/close-button-black.svg)
 }
