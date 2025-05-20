@@ -104,6 +104,10 @@ class ScrutinyValueAxis(QValueAxis):
     def __init__(self, *args:Any, **kwargs:Any) -> None:
         super().__init__(*args, **kwargs)
         self._latched_range = None
+        palette = scrutiny_get_theme().palette()
+        self.setGridLineColor(palette.text().color())
+        self.setLabelsBrush(palette.text())
+        self.setTitleBrush(palette.text())
 
     def emphasize(self) -> None:
         """Make the axis more visible. Expected t be triggered when a series is selected"""
@@ -254,7 +258,11 @@ class ScrutinyChart(QChart):
         self._mouse_callout_hide_timer.setInterval(250)
         self._mouse_callout_hide_timer.setSingleShot(True)
         self._mouse_callout_hide_timer.timeout.connect(self._callout_hide_timer_slot)
-    
+        palette = scrutiny_get_theme().palette()
+        self.setBackgroundBrush(palette.base())
+        self.setTitleBrush(palette.text())
+        self.legend().setLabelBrush(palette.text())
+
     def _callout_hide_timer_slot(self)-> None:
         self.hide_mouse_callout()
 
@@ -711,6 +719,7 @@ class ScrutinyChartView(QChartView):
         self._cursor_markers_vals=[]
         self._last_mouse_pos = QPoint()
         self._chart_cursor_broadcast_xval_func = None
+        
 
     def resizeEvent(self, event:QResizeEvent) -> None:
         super().resizeEvent(event)

@@ -56,6 +56,9 @@ class ScrutinyTheme(abc.ABC):
     def iconset(self) -> assets.IconSet:
         return self._iconset
     
+    def palette(self) -> QPalette:
+        return self._palette
+    
     def load_tiny_icon(self, icon:assets.Icons) -> QIcon:
         return assets.load_icon(icon, assets.IconFormat.Tiny, self._iconset)
 

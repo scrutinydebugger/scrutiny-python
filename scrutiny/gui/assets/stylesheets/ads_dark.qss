@@ -15,11 +15,6 @@ ads--CDockContainerWidget ads--CDockSplitter::handle {
     background: rgba(255, 255, 255, 32);
 }
 
-
-/*****************************************************************************
- * CAutoHideDockContainer Titlebar and Buttons
- *****************************************************************************/
-
 ads--CAutoHideDockContainer[sideBarLocation="0"] ads--CResizeHandle {
 	border-top: 1px solid palette(light);
 }
@@ -52,7 +47,6 @@ ads--CAutoHideSideBar[sideBarLocation="2"] {
 ads--CAutoHideSideBar[sideBarLocation="3"] {
 	border-top: 1px solid palette(light);
 }
-
 
 #dockAreaCloseButton {
     qproperty-icon: url(stylesheets:ads/close-button-white.svg), url(stylesheets:ads/close-button-disabled.svg) disabled;

@@ -16,33 +16,15 @@ from scrutiny.gui import assets
 
 from typing import Any
 
-HOVERED_COLOR = QColor(229, 243, 255)
-SELECTED_COLOR = QColor(205, 232, 255)
-PRESSED_COLOR = SELECTED_COLOR
-SELECTED_HOVERED_BORDER_COLOR = QColor(153, 209, 255)
+LIGHT_HOVERED_COLOR = QColor(229, 243, 255)
+LIGHT_SELECTED_COLOR = QColor(205, 232, 255)
+LIGHT_PRESSED_COLOR = LIGHT_SELECTED_COLOR
+LIGHT_SELECTED_HOVERED_BORDER_COLOR = QColor(153, 209, 255)
 
 class FusionTheme(ScrutinyTheme):
 
-    RED_ERROR = QColor(255,0,0)
-
-    prop_dict = {
-        ScrutinyThemeProperties.CHART_NORMAL_SERIES_WIDTH : 2,
-        ScrutinyThemeProperties.CHART_EMPHASIZED_SERIES_WIDTH : 3,
-        ScrutinyThemeProperties.CHART_CALLOUT_MARKER_RADIUS : 4,
-        ScrutinyThemeProperties.CHART_CURSOR_MARKER_RADIUS : 4,
-        ScrutinyThemeProperties.CHART_CURSOR_COLOR : QColor(255,0,0),
-
-        ScrutinyThemeProperties.CHART_TOOLBAR_HOVERED_BUTTON_COLOR : HOVERED_COLOR,
-        ScrutinyThemeProperties.CHART_TOOLBAR_HOVERED_SELECTED_BORDER_COLOR : SELECTED_HOVERED_BORDER_COLOR,
-        ScrutinyThemeProperties.CHART_TOOLBAR_PRESSED_COLOR : PRESSED_COLOR,
-        ScrutinyThemeProperties.CHART_TOOLBAR_SELECTED_COLOR : SELECTED_COLOR,
-        
-        ScrutinyThemeProperties.WATCHABLE_LINE_EDIT_CLEAR_BTN_HOVER_COLOR : SELECTED_COLOR,
-        ScrutinyThemeProperties.WATCHABLE_LINE_EDIT_CLEAR_BTN_PRESSED_COLOR : PRESSED_COLOR,
-
-        ScrutinyThemeProperties.WIDGET_ERROR_BACKGROUND_COLOR : RED_ERROR
-
-    }
+    _prop_dict:Dict[ScrutinyThemeProperties, Any]
+    _default_theme:DefaultTheme
 
     def __init__(self) -> None:
         style = QStyleFactory.create("fusion")
@@ -60,12 +42,31 @@ class FusionTheme(ScrutinyTheme):
             style = style,
             iconset= assets.IconSet.Dark if self.is_dark() else assets.IconSet.Light
         )
+        self._default_theme = DefaultTheme()
+        
+        self._prop_dict = {}
+        if self.is_dark():
+            self._prop_dict[ScrutinyThemeProperties.CHART_CURSOR_COLOR] = QColor(255,60,60) # Light red
+            self._prop_dict[ScrutinyThemeProperties.CHART_TOOLBAR_HOVERED_BUTTON_COLOR] = self.palette().base().color().lighter(200)
+            self._prop_dict[ScrutinyThemeProperties.CHART_TOOLBAR_HOVERED_SELECTED_BORDER_COLOR] = self.palette().base().color().lighter(50)
+            self._prop_dict[ScrutinyThemeProperties.CHART_TOOLBAR_PRESSED_COLOR] = self.palette().base().color().lighter(400)
+            self._prop_dict[ScrutinyThemeProperties.CHART_TOOLBAR_SELECTED_COLOR] = self.palette().base().color().lighter(300)
+        else:
+            self._prop_dict[ScrutinyThemeProperties.CHART_CURSOR_COLOR] = QColor(255,0,0) # Strong red
+            self._prop_dict[ScrutinyThemeProperties.CHART_TOOLBAR_HOVERED_BUTTON_COLOR] = LIGHT_HOVERED_COLOR
+            self._prop_dict[ScrutinyThemeProperties.CHART_TOOLBAR_HOVERED_SELECTED_BORDER_COLOR] = LIGHT_SELECTED_HOVERED_BORDER_COLOR
+            self._prop_dict[ScrutinyThemeProperties.CHART_TOOLBAR_PRESSED_COLOR] = LIGHT_PRESSED_COLOR
+            self._prop_dict[ScrutinyThemeProperties.CHART_TOOLBAR_SELECTED_COLOR] = LIGHT_SELECTED_COLOR
+
+        self._prop_dict[ScrutinyThemeProperties.WATCHABLE_LINE_EDIT_CLEAR_BTN_HOVER_COLOR] = self._prop_dict[ScrutinyThemeProperties.CHART_TOOLBAR_SELECTED_COLOR]
+        self._prop_dict[ScrutinyThemeProperties.WATCHABLE_LINE_EDIT_CLEAR_BTN_PRESSED_COLOR] = self._prop_dict[ScrutinyThemeProperties.CHART_TOOLBAR_PRESSED_COLOR]
+
     
     def get_val(self, prop:ScrutinyThemeProperties) -> Any:
-        if prop in self.prop_dict:
-            return self.prop_dict[prop]
-        else:
-            return DefaultTheme().get_val(prop)
+
+        if prop in self._prop_dict:
+            return self._prop_dict[prop]
+        return self._default_theme.get_val(prop)
 
     def is_dark(self) -> bool:
         return QGuiApplication.styleHints().colorScheme()  == Qt.ColorScheme.Dark

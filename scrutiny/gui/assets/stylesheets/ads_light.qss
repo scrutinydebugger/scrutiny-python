@@ -15,11 +15,6 @@ ads--CDockContainerWidget ads--CDockSplitter::handle {
     background: rgba(0, 0, 0, 32);
 }
 
-/*****************************************************************************
- * CAutoHideDockContainer Titlebar and Buttons
- *****************************************************************************/
-
-
 ads--CAutoHideDockContainer[sideBarLocation="0"] ads--CResizeHandle {
 	border-top: 1px solid palette(dark);
 }
@@ -35,7 +30,6 @@ ads--CAutoHideDockContainer[sideBarLocation="2"] ads--CResizeHandle {
 ads--CAutoHideDockContainer[sideBarLocation="3"] ads--CResizeHandle {
 	border-top: 1px solid palette(dark);
 }
-
 
 ads--CAutoHideSideBar[sideBarLocation="0"] {
 	border-bottom: 1px solid palette(dark);
