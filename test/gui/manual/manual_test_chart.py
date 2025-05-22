@@ -1,3 +1,10 @@
+#    manual_test_chart.py
+#        A test application to check the visual rendring of a chart
+#
+#   - License : MIT - See LICENSE file.
+#   - Project :  Scrutiny Debugger (github.com/scrutinydebugger/scrutiny-python)
+#
+#   Copyright (c) 2021 Scrutiny Debugger
 
 if __name__ != '__main__' : 
     raise RuntimeError("This script is expected to run from the command line")

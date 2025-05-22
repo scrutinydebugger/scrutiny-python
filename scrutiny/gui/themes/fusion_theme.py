@@ -1,5 +1,5 @@
-#    default_theme.py
-#        A color theme that serves as a base for other theme and loaded by default
+#    fusion_theme.py
+#        A ScrutinyTheme that wraps the QT Fusion Style
 #
 #   - License : MIT - See LICENSE file.
 #   - Project :  Scrutiny Debugger (github.com/scrutinydebugger/scrutiny-python)

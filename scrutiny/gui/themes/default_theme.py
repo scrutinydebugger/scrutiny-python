@@ -1,3 +1,10 @@
+#    default_theme.py
+#        A color theme that serves as a base for other theme and loaded by default
+#
+#   - License : MIT - See LICENSE file.
+#   - Project :  Scrutiny Debugger (github.com/scrutinydebugger/scrutiny-python)
+#
+#   Copyright (c) 2021 Scrutiny Debugger
 
 from scrutiny.gui.themes import ScrutinyTheme, ScrutinyThemeProperties
 from PySide6.QtGui import QColor, QGuiApplication
