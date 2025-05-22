@@ -7,7 +7,7 @@
 #   Copyright (c) 2021 Scrutiny Debugger
 
 import argparse
-import sys
+import os
 
 from .base_command import BaseCommand
 from typing import Optional, List
@@ -30,20 +30,24 @@ class GUI(BaseCommand):
         self.parser.add_argument("--no-opengl", action='store_true', default=False, help="Disable OpenGL accelerations")
         self.parser.add_argument("--local-server-port",  default=DEFAULT_SERVER_PORT, type=int, help="Set the listening port for the local server")
         self.parser.add_argument("--start-local-server",  default=False, action='store_true', help="Starts a local server")
-        self.parser.add_argument("--theme",  default='fusion', choices=['default', 'fusion'], help="The GUI theme to use")
+        self.parser.add_argument("--theme",  default=None, choices=['default', 'fusion'], help="The GUI theme to use")
 
     def run(self) -> Optional[int]:
         from scrutiny.gui.gui import ScrutinyQtGUI, SupportedTheme
 
         args = self.parser.parse_args(self.args)
+        
+        theme_str:Optional[str] = os.environ.get('SCRUTINY_THEME', None)
 
         theme = SupportedTheme.Default
-        if args.theme == 'fusion':
-            theme = SupportedTheme.Fusion
-        elif args.theme == 'default':
-            theme = SupportedTheme.Default
-        else:
-            raise NotImplementedError(f"Unknown theme name: {args.theme}")
+        if args.theme is not None:
+            theme_str = args.theme
+
+        if theme_str is not None:
+            if theme_str == 'fusion':
+                theme = SupportedTheme.Fusion
+            elif theme_str == 'default':
+                theme = SupportedTheme.Default
 
         gui = ScrutinyQtGUI(
             debug_layout=args.debug_layout,

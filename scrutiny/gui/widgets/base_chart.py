@@ -258,6 +258,7 @@ class ScrutinyChart(QChart):
         self._mouse_callout_hide_timer.setInterval(250)
         self._mouse_callout_hide_timer.setSingleShot(True)
         self._mouse_callout_hide_timer.timeout.connect(self._callout_hide_timer_slot)
+        self.layout().setContentsMargins(0,0,0,0)
         palette = scrutiny_get_theme().palette()
         self.setBackgroundBrush(palette.base())
         self.setTitleBrush(palette.text())

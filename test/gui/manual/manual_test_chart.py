@@ -70,6 +70,7 @@ splitter.addWidget(right_side)
 splitter.setSizes([1000, 200])
 window.setCentralWidget(splitter)
 
+
 # Fill the registry with dummy data by enabling a simulated device
 server_manager.start(ServerConfig("...", 0) )
 server_manager.simulate_server_connect()

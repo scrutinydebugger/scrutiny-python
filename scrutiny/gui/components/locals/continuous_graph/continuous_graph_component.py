@@ -295,7 +295,6 @@ class ContinuousGraphComponent(ScrutinyGUIBaseLocalComponent):
 
         def make_left_side() -> QWidget:
             chart = ScrutinyChart()
-            chart.layout().setContentsMargins(0,0,0,0)
             chart.setAxisX(self._xaxis)
             self._stats = GraphStatistics(chart)
             self._stats.overlay().setPos(0,0)

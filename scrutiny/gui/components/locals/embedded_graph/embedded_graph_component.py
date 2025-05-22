@@ -287,7 +287,6 @@ class EmbeddedGraph(ScrutinyGUIBaseLocalComponent):
 
         def make_center_pane() -> QWidget:
             chart = ScrutinyChart()
-            chart.layout().setContentsMargins(0,0,0,0)
             
             self._chartview = ScrutinyChartView(self)
             self._chartview.setChart(chart)

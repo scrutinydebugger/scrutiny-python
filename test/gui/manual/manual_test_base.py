@@ -20,7 +20,6 @@ from scrutiny.tools.thread_enforcer import register_thread
 from scrutiny.gui.themes import scrutiny_set_theme
 from scrutiny.gui.themes.default_theme import DefaultTheme 
 from scrutiny.gui.themes.fusion_theme import FusionTheme
-import argparse
 
 from scrutiny.tools.signals import SignalExitHandler
 
@@ -30,12 +29,10 @@ def make_manual_test_app() -> QApplication:
     register_thread(QT_THREAD_NAME)
     app = QApplication([])
 
-    parser = argparse.ArgumentParser()
-    parser.add_argument('--theme', choices=['default', 'fusion'], default='default')
-    args = parser.parse_args()
-    if args.theme == 'default':
+    theme_str = os.environ.get('SCRUTINY_THEME', 'default')
+    if theme_str == 'default':
         scrutiny_set_theme(app, DefaultTheme())
-    elif args.theme == 'fusion':
+    elif theme_str == 'fusion':
         scrutiny_set_theme(app, FusionTheme())
 
     app._scrutiny_check_signal_timer = QTimer()
