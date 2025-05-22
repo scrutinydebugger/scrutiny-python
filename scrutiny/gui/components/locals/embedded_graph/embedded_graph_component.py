@@ -17,7 +17,7 @@ from PySide6.QtWidgets import (
     QVBoxLayout, QLabel, QWidget, QSplitter, QPushButton, QScrollArea, QHBoxLayout, QMenu, QTabWidget, QCheckBox, QMessageBox
 )
 from PySide6.QtCore import Qt, QPointF, QRectF
-from PySide6.QtGui import QContextMenuEvent, QKeyEvent, QResizeEvent
+from PySide6.QtGui import QContextMenuEvent, QKeyEvent, QResizeEvent, QIcon
 
 from scrutiny import sdk
 from scrutiny.sdk import EmbeddedDataType
@@ -28,6 +28,7 @@ from scrutiny.sdk.datalogging import (
 from scrutiny.sdk.client import ScrutinyClient
 
 from scrutiny.gui import assets
+from scrutiny.gui.themes import scrutiny_get_theme
 from scrutiny.gui.tools import prompt
 from scrutiny.gui.widgets.watchable_line_edit import WatchableLineEdit
 from scrutiny.gui.components.locals.base_local_component import ScrutinyGUIBaseLocalComponent
@@ -165,7 +166,6 @@ class InitialGraphListDownloadConditions:
 class EmbeddedGraph(ScrutinyGUIBaseLocalComponent):
     instance_name : str
 
-    _ICON = assets.get("scope-96x128.png")
     _NAME = "Embedded Graph"
     _TYPE_ID = "embedded_graph"
 
@@ -231,6 +231,10 @@ class EmbeddedGraph(ScrutinyGUIBaseLocalComponent):
     _state:EmbeddedGraphState
     """Some state variables used to keep the UI consistent"""
 
+    @classmethod
+    def get_icon(cls) -> QIcon:
+        return scrutiny_get_theme().load_medium_icon(assets.Icons.EmbeddedGraph)
+    
     def setup(self) -> None:
         layout = QVBoxLayout(self)
         margins = layout.contentsMargins()
@@ -283,7 +287,6 @@ class EmbeddedGraph(ScrutinyGUIBaseLocalComponent):
 
         def make_center_pane() -> QWidget:
             chart = ScrutinyChart()
-            chart.layout().setContentsMargins(0,0,0,0)
             
             self._chartview = ScrutinyChartView(self)
             self._chartview.setChart(chart)
@@ -341,7 +344,7 @@ class EmbeddedGraph(ScrutinyGUIBaseLocalComponent):
                 self._chk_browse_loaded_sfd_only.setDisabled(True)
                 
             self._graph_browse_list_widget = GraphBrowseListWidget(self)
-            self._btn_delete_all = QPushButton(assets.load_tiny_icon(assets.Icons.RedX), " Delete All", self)
+            self._btn_delete_all = QPushButton(scrutiny_get_theme().load_tiny_icon(assets.Icons.RedX), " Delete All", self)
             self._btn_load_more = QPushButton("Load", self)
             self._browse_feedback_label = FeedbackLabel()
 
@@ -823,7 +826,7 @@ class EmbeddedGraph(ScrutinyGUIBaseLocalComponent):
         context_menu.addSection("Zoom")
 
         # Reset zoom
-        reset_zoom_action = context_menu.addAction(assets.load_tiny_icon(assets.Icons.Zoom100), "Reset zoom")
+        reset_zoom_action = context_menu.addAction(scrutiny_get_theme().load_tiny_icon(assets.Icons.Zoom100), "Reset zoom")
         reset_zoom_action.triggered.connect(self._reset_zoom_slot)
         reset_zoom_action.setEnabled(self._state.enable_reset_zoom_button())
 
@@ -833,31 +836,31 @@ class EmbeddedGraph(ScrutinyGUIBaseLocalComponent):
             def hide_chart_toolbar() -> None:
                 self._state.hide_chart_toolbar()
                 self._apply_internal_state()
-            show_hide_toolbar = context_menu.addAction(assets.load_tiny_icon(assets.Icons.EyeBar), "Hide toolbar")
+            show_hide_toolbar = context_menu.addAction(scrutiny_get_theme().load_tiny_icon(assets.Icons.EyeBar), "Hide toolbar")
             show_hide_toolbar.triggered.connect(hide_chart_toolbar)
         else:
             def allow_chart_toolbar() -> None:
                 self._state.allow_chart_toolbar()
                 self._apply_internal_state()
-            show_hide_toolbar = context_menu.addAction(assets.load_tiny_icon(assets.Icons.Eye), "Show toolbar")
+            show_hide_toolbar = context_menu.addAction(scrutiny_get_theme().load_tiny_icon(assets.Icons.Eye), "Show toolbar")
             show_hide_toolbar.triggered.connect(allow_chart_toolbar)
         show_hide_toolbar.setEnabled(self._state.can_display_toolbar())
 
 
         context_menu.addSection("Export")
         # Save image
-        save_img_action = context_menu.addAction(assets.load_tiny_icon(assets.Icons.Image), "Save as image")
+        save_img_action = context_menu.addAction(scrutiny_get_theme().load_tiny_icon(assets.Icons.Image), "Save as image")
         save_img_action.triggered.connect(self._save_image_slot)
         save_img_action.setEnabled(self._state.allow_save_image())
 
         # Save CSV
-        save_csv_action = context_menu.addAction(assets.load_tiny_icon(assets.Icons.CSV), "Save as CSV")
+        save_csv_action = context_menu.addAction(scrutiny_get_theme().load_tiny_icon(assets.Icons.CSV), "Save as CSV")
         save_csv_action.triggered.connect(self._save_csv_slot)
         save_csv_action.setEnabled(self._state.allow_save_csv())
 
         context_menu.addSection("Content")
         #Clear
-        clear_chart_action = context_menu.addAction(assets.load_tiny_icon(assets.Icons.RedX), "Clear")
+        clear_chart_action = context_menu.addAction(scrutiny_get_theme().load_tiny_icon(assets.Icons.RedX), "Clear")
         clear_chart_action.triggered.connect(self._clear_graph)
         clear_chart_action.setEnabled(self._state.enable_clear_button())
 

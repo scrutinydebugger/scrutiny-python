@@ -15,6 +15,7 @@ from scrutiny.sdk import datalogging
 from scrutiny.gui.core.persistent_data import gui_persistent_data
 from scrutiny.gui.widgets.base_tree import BaseTreeModel, BaseTreeView
 from scrutiny.gui import assets
+from scrutiny.gui.themes import scrutiny_get_theme
 
 from scrutiny.tools.typing import *
 from scrutiny.tools import get_default_val
@@ -136,9 +137,9 @@ class AcquisitionStorageEntryTreeView(BaseTreeView):
 
     def contextMenuEvent(self, event:QContextMenuEvent) -> None:
         context_menu = QMenu(self)
-        action_display = context_menu.addAction(assets.load_tiny_icon(assets.Icons.Eye), "Display")
-        action_delete = context_menu.addAction(assets.load_tiny_icon(assets.Icons.RedX), "Delete")
-        action_rename = context_menu.addAction(assets.load_tiny_icon(assets.Icons.TextEdit), "Rename")
+        action_display = context_menu.addAction(scrutiny_get_theme().load_tiny_icon(assets.Icons.Eye), "Display")
+        action_delete = context_menu.addAction(scrutiny_get_theme().load_tiny_icon(assets.Icons.RedX), "Delete")
+        action_rename = context_menu.addAction(scrutiny_get_theme().load_tiny_icon(assets.Icons.TextEdit), "Rename")
 
         selected_indexes = self.selectedIndexes()
         selected_indexes_first_col = [index for index in selected_indexes if index.column() == 0]

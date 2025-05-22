@@ -9,8 +9,8 @@
 
 from PySide6.QtWidgets import QLineEdit, QWidget
 from PySide6.QtGui import QValidator
-from typing import Optional,cast , Tuple
-from scrutiny.gui.core import WidgetState
+from typing import Optional,cast,Tuple
+from scrutiny.gui.themes import scrutiny_get_theme
 
 class ValidableLineEdit(QLineEdit):
     _hard_validator:Optional[QValidator]
@@ -26,13 +26,7 @@ class ValidableLineEdit(QLineEdit):
 
         if hard_validator is not None:
             self.setValidator(hard_validator)
-    
 
-    def default_style(self) -> None:
-        self.setProperty("state", WidgetState.default)
-        style = self.style()
-        style.unpolish(self)
-        style.polish(self)
 
     def _get_validator_states(self) -> Tuple[QValidator.State, QValidator.State]:
         if self._hard_validator is not None:
@@ -48,19 +42,12 @@ class ValidableLineEdit(QLineEdit):
         return (validity_hard, validity_soft)
 
     def set_default_state(self) -> None:
-        self.set_style_state(WidgetState.default)
+        scrutiny_get_theme().set_default_state(self)
+    
+    def set_error_state(self) -> None:
+        scrutiny_get_theme().set_error_state(self)
 
-    def set_style_state(self, new_state:str) -> None:
-        old_state = self.property("state")  # Might be an empty string
-        
-        if new_state != old_state:
-            self.setProperty("state", new_state)
-            style = self.style()
-            style.unpolish(self)
-            style.polish(self)
-
-
-    def validate_expect_not_wrong(self, invalid_state:str = WidgetState.error, valid_state:str = WidgetState.default) -> bool:
+    def validate_expect_not_wrong(self) -> bool:
         """Validate both validators and expect them to both return Acceptable or Intermediate
         
         :invalid_state param
@@ -70,24 +57,24 @@ class ValidableLineEdit(QLineEdit):
         validity_hard, validity_soft = self._get_validator_states()
         
         if validity_hard == QValidator.State.Invalid or validity_soft == QValidator.State.Invalid:
-            self.set_style_state(invalid_state)
+            self.set_error_state()
             return False
         else:
-            self.set_style_state(valid_state)
+            self.set_default_state()
             return True
 
     def validate_expect_not_wrong_default_slot(self) -> None:
         self.validate_expect_not_wrong()
 
-    def validate_expect_valid(self, invalid_state:str = WidgetState.error, valid_state:str = WidgetState.default) -> bool:
+    def validate_expect_valid(self) -> bool:
         """Validate both validators and expect them to both return Acceptable"""
         validity_hard, validity_soft = self._get_validator_states()
         
         if validity_hard == QValidator.State.Acceptable and validity_soft == QValidator.State.Acceptable:
-            self.set_style_state(valid_state)
+            self.set_default_state()
             return True
         else:
-            self.set_style_state(invalid_state)
+            self.set_error_state()
             return False
 
     def is_valid(self) -> bool:

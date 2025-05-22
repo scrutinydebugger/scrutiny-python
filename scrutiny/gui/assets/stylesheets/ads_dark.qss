@@ -1,0 +1,81 @@
+ads--CResizeHandle {
+	background: palette(light);
+}
+
+ads--CDockContainerWidget ads--CDockSplitter::handle {
+    background: palette(light);
+}
+
+#tabCloseButton:hover {
+    border: 1px solid rgba(255, 255, 255, 32);
+    background: rgba(255, 255, 255, 16);
+}
+
+#tabCloseButton:pressed {
+    background: rgba(255, 255, 255, 32);
+}
+
+ads--CAutoHideDockContainer[sideBarLocation="0"] ads--CResizeHandle {
+	border-top: 1px solid palette(light);
+}
+
+ads--CAutoHideDockContainer[sideBarLocation="1"] ads--CResizeHandle {
+	border-left: 1px solid palette(light);
+}
+
+ads--CAutoHideDockContainer[sideBarLocation="2"] ads--CResizeHandle {
+	border-right: 1px solid palette(light);
+}
+
+ads--CAutoHideDockContainer[sideBarLocation="3"] ads--CResizeHandle {
+	border-top: 1px solid palette(light);
+}
+
+
+ads--CAutoHideSideBar[sideBarLocation="0"] {
+	border-bottom: 1px solid palette(light);
+}
+
+ads--CAutoHideSideBar[sideBarLocation="1"] {
+	border-right: 1px solid palette(light);
+}
+
+ads--CAutoHideSideBar[sideBarLocation="2"] {
+	border-left: 1px solid palette(light);
+}
+
+ads--CAutoHideSideBar[sideBarLocation="3"] {
+	border-top: 1px solid palette(light);
+}
+
+#dockAreaCloseButton {
+    qproperty-icon: url(stylesheets:ads/close-button-white.svg), url(stylesheets:ads/close-button-disabled.svg) disabled;
+}
+
+#tabCloseButton {
+    qproperty-icon: url(stylesheets:ads/close-button-white.svg), url(stylesheets:ads/close-button-disabled.svg) disabled;
+}
+
+#tabsMenuButton { 
+    qproperty-icon: url(stylesheets:ads/tabs-menu-button-white.svg);
+}
+
+#detachGroupButton {
+    qproperty-icon: url(stylesheets:/ads/detach-button-white.svg), url(stylesheets:ads/detach-button-disabled.svg) disabled;
+}
+
+#dockAreaAutoHideButton {
+	qproperty-icon: url(stylesheets:/ads/pin-button-vertical-white.svg), url(stylesheets:/ads/pin-button-vertical-disabled.svg) disabled;
+}
+
+ads--CAutoHideDockContainer #dockAreaAutoHideButton {
+	qproperty-icon: url(stylesheets:/ads/pin-button-horizontal-white.svg);
+}
+
+ads--CAutoHideDockContainer #dockAreaMinimizeButton {
+	qproperty-icon: url(stylesheets:/ads/minimize-button-white.svg);
+}
+
+ads--CAutoHideDockContainer #dockAreaCloseButton{
+	qproperty-icon: url(stylesheets:/ads/close-button-white.svg)
+}

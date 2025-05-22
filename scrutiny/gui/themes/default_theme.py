@@ -7,7 +7,11 @@
 #   Copyright (c) 2021 Scrutiny Debugger
 
 from scrutiny.gui.themes import ScrutinyTheme, ScrutinyThemeProperties
-from PySide6.QtGui import QColor
+from PySide6.QtGui import QColor, QGuiApplication
+from PySide6.QtWidgets import QStyle, QApplication
+from PySide6.QtCore import Qt
+
+from scrutiny.gui import assets
 
 from typing import Any
 
@@ -39,6 +43,19 @@ class DefaultTheme(ScrutinyTheme):
 
     }
 
+    def __init__(self) -> None:
+        base_stylesheet = assets.load_stylesheet('scrutiny_base.qss')
+        ads_stylesheet = assets.load_stylesheet('ads_base.qss')
+        ads_stylesheet_light = assets.load_stylesheet('ads_light.qss')
+        super().__init__(
+            palette=QGuiApplication.palette(),
+            stylesheet=base_stylesheet + ads_stylesheet + ads_stylesheet_light,
+            style = QApplication.style(),
+            iconset=assets.IconSet.Dark if self.is_dark() else assets.IconSet.Light
+        )
+
     def get_val(self, prop:ScrutinyThemeProperties) -> Any:
         return self.prop_dict[prop]
         
+    def is_dark(self) -> bool:
+        return False

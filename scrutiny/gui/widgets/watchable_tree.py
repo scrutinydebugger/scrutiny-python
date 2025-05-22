@@ -28,6 +28,7 @@ from scrutiny.gui import assets
 from scrutiny.gui.core.watchable_registry import WatchableRegistry, WatchableRegistryNodeContent
 from scrutiny.gui.core.scrutiny_drag_data import WatchableListDescriptor, SingleWatchableDescriptor, ScrutinyDragData
 from scrutiny.gui.tools import watchabletype_2_icon
+from scrutiny.gui.themes import scrutiny_get_theme
 from scrutiny.gui.widgets.base_tree import BaseTreeModel, BaseTreeView
 
 
@@ -36,7 +37,7 @@ from scrutiny.tools.typing import *
 
 def get_watchable_icon(wt:WatchableType) -> QIcon:
     """Return the proper tree icon for a given watchable type (var, alias, rpv)"""
-    return assets.load_tiny_icon(watchabletype_2_icon(wt))
+    return scrutiny_get_theme().load_tiny_icon(watchabletype_2_icon(wt))
 
 NodeSerializableType = Literal['watchable', 'folder']
 class NodeSerializableData(TypedDict):
@@ -96,7 +97,7 @@ class FolderStandardItem(BaseWatchableRegistryTreeStandardItem):
       # fqn is optional for folders. They might be created by the user
 
     def __init__(self, text:str, expanded:bool=False, fqn:Optional[str]=None):
-        folder_icon = assets.load_tiny_icon(assets.Icons.Folder)
+        folder_icon = scrutiny_get_theme().load_tiny_icon(assets.Icons.Folder)
         super().__init__(fqn, folder_icon, text)
         self._expanded = expanded
         self.setDropEnabled(True)

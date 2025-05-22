@@ -12,12 +12,13 @@ from pathlib import Path
 from PySide6.QtWidgets import QMessageBox, QWidget, QFileDialog
 from scrutiny.gui.core.persistent_data import gui_persistent_data
 from scrutiny.gui import assets
+from scrutiny.gui.themes import scrutiny_get_theme
 from typing import Optional
 
 
 def error_msgbox(parent:QWidget, title:str, message:str) -> None:
     msgbox = QMessageBox(parent)
-    msgbox.setIconPixmap(assets.load_medium_icon_as_pixmap(assets.Icons.Error))
+    msgbox.setIconPixmap(scrutiny_get_theme().load_medium_icon_as_pixmap(assets.Icons.Error))
     msgbox.setStandardButtons(QMessageBox.StandardButton.Close)
     msgbox.setWindowTitle(title)
     msgbox.setText(message)

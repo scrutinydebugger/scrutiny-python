@@ -14,6 +14,8 @@ from test import logger
 from scrutiny.gui.core.threads import QT_THREAD_NAME
 from scrutiny.tools.thread_enforcer import ThreadEnforcer
 from scrutiny.gui.tools.invoker import CrossThreadInvoker
+from scrutiny.gui.themes import scrutiny_set_theme
+from scrutiny.gui.themes.default_theme import DefaultTheme
 
 from typing import List, Optional
 
@@ -42,6 +44,7 @@ class ScrutinyBaseGuiTest(ScrutinyUnitTest):
         self.app = QApplication.instance()
         if self.app is None:
             self.app = QApplication([]) # Required to process event because they are emitted in a different thread, therefore the connectiontype is queued
+        scrutiny_set_theme(self.app, DefaultTheme())
         ThreadEnforcer.register_thread(QT_THREAD_NAME)
         CrossThreadInvoker.init()
 

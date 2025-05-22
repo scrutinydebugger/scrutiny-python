@@ -38,6 +38,7 @@ from scrutiny.gui.tools import prompt
 from scrutiny.gui.tools.opengl import prepare_for_opengl
 from scrutiny.gui.tools.invoker import InvokeQueued
 from scrutiny.gui.tools.shiboken_ref_keeper import ShibokenRefKeeper
+from scrutiny.gui.themes import scrutiny_get_theme
 from scrutiny.tools.typing import *
 from scrutiny.gui import assets
 
@@ -93,7 +94,7 @@ def tab_context_menu(owner:QWidget,
 
     if rename:
         if isinstance(component, ScrutinyGUIBaseLocalComponent):
-            action_rename = menu.addAction(assets.load_tiny_icon(assets.Icons.TextEdit), "Rename")
+            action_rename = menu.addAction(scrutiny_get_theme().load_tiny_icon(assets.Icons.TextEdit), "Rename")
             def rename_slot() -> None:
                 if dock_widget.isClosed():
                     return
@@ -103,17 +104,17 @@ def tab_context_menu(owner:QWidget,
             action_rename.triggered.connect(rename_slot)
     
     if detach:
-        detach_action = menu.addAction(assets.load_tiny_icon(assets.Icons.Window), "Detach")
+        detach_action = menu.addAction(scrutiny_get_theme().load_tiny_icon(assets.Icons.Window), "Detach")
         detach_action.triggered.connect(dock_widget.setFloating)
 
     if pin_to:
-        pin_to_action = menu.addAction(assets.load_tiny_icon(assets.Icons.Pin), "Pin to")
+        pin_to_action = menu.addAction(scrutiny_get_theme().load_tiny_icon(assets.Icons.Pin), "Pin to")
         pin_to_menu = QMenu(menu)
         pin_to_action.setMenu(pin_to_menu)
-        pin_to_left_action = pin_to_menu.addAction(assets.load_tiny_icon(assets.Icons.SidebarLeft), "Left")
-        pin_to_right_action = pin_to_menu.addAction(assets.load_tiny_icon(assets.Icons.SidebarRight), "Right")
-        pin_to_top_action = pin_to_menu.addAction(assets.load_tiny_icon(assets.Icons.SidebarTop), "Top")
-        pin_to_bottom_action = pin_to_menu.addAction(assets.load_tiny_icon(assets.Icons.SidebarBottom), "Bottom")
+        pin_to_left_action = pin_to_menu.addAction(scrutiny_get_theme().load_tiny_icon(assets.Icons.SidebarLeft), "Left")
+        pin_to_right_action = pin_to_menu.addAction(scrutiny_get_theme().load_tiny_icon(assets.Icons.SidebarRight), "Right")
+        pin_to_top_action = pin_to_menu.addAction(scrutiny_get_theme().load_tiny_icon(assets.Icons.SidebarTop), "Top")
+        pin_to_bottom_action = pin_to_menu.addAction(scrutiny_get_theme().load_tiny_icon(assets.Icons.SidebarBottom), "Bottom")
 
         def pin_left_slot() -> None:
             dock_widget.setAutoHide(True, QtAds.SideBarLeft)
@@ -142,14 +143,14 @@ def tab_context_menu(owner:QWidget,
     
     if unpin:
         if is_autohide:
-            unpin_action = menu.addAction(assets.load_tiny_icon(assets.Icons.Unpin), "Unpin")
+            unpin_action = menu.addAction(scrutiny_get_theme().load_tiny_icon(assets.Icons.Unpin), "Unpin")
             def unpin_slot() -> None:
                 dock_widget.setAutoHide(False, QtAds.SideBarNone)
             unpin_action.triggered.connect(unpin_slot)
 
     
     if close:
-        close_action = menu.addAction(assets.load_tiny_icon(assets.Icons.RedX), "Close")
+        close_action = menu.addAction(scrutiny_get_theme().load_tiny_icon(assets.Icons.RedX), "Close")
         def close_slot() -> None:
             if dock_widget.isClosed():
                 return
@@ -267,6 +268,7 @@ class Dashboard(QWidget):
         self._component_instances = {}
 
         dock_conainer = QWidget()
+
         QtAds.CDockManager.setConfigFlag(QtAds.CDockManager.OpaqueSplitterResize)
         QtAds.CDockManager.setConfigFlag(QtAds.CDockManager.FloatingContainerHasWidgetTitle)
         QtAds.CDockManager.setConfigFlag(QtAds.CDockManager.XmlCompressionEnabled, False)
@@ -274,6 +276,7 @@ class Dashboard(QWidget):
         self.factory = CustomFactory()
         QtAds.CDockComponentsFactory.setFactory(self.factory)   # Set before the dock manager is created
         self._dock_manager = QtAds.CDockManager(dock_conainer)
+        self._dock_manager.setStyleSheet("")
 
         def configure_new_window(win:QtAds.CFloatingDockContainer) -> None:
             flags = win.windowFlags()

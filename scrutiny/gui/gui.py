@@ -10,9 +10,11 @@ import sys
 import os
 import ctypes
 import logging
+import enum
 
-from PySide6.QtWidgets import QApplication
-from PySide6.QtCore import QTimer
+from PySide6.QtWidgets import QApplication, QStyleFactory
+from PySide6.QtCore import QTimer, Qt
+from PySide6.QtGui import QPalette, QColor
 
 import scrutiny
 from scrutiny.gui.main_window import MainWindow
@@ -21,8 +23,7 @@ from scrutiny.tools.thread_enforcer import register_thread
 from scrutiny.gui.core.threads import QT_THREAD_NAME
 from scrutiny.gui.tools.invoker import CrossThreadInvoker
 from scrutiny.gui.tools.opengl import prepare_for_opengl
-from scrutiny.gui.themes import set_theme
-from scrutiny.gui.themes.default_theme import DefaultTheme 
+from scrutiny.gui.themes import scrutiny_set_theme, scrutiny_get_theme
 from dataclasses import dataclass
 
 from scrutiny.tools.typing import *
@@ -30,24 +31,19 @@ from scrutiny.tools.signals import SignalExitHandler
 
 from scrutiny.gui import DEFAULT_SERVER_PORT
 
-class ScrutinyQtGUI:
-    @dataclass
-    class LocalServerSettings:
-        autostart:bool
-        port:int
-    
-    @dataclass
-    class RemoteServerSettings:
-        hostname:str
-        port:int
+class SupportedTheme(enum.Enum):
+    Default = enum.auto()
+    Fusion = enum.auto()
 
+class ScrutinyQtGUI:
     @dataclass(frozen=True)
     class Settings:
-        debug_layout:bool
-        auto_connect:bool
-        opengl_enabled:bool
-        start_local_server:bool
-        local_server_port:int
+        debug_layout:bool   = False
+        auto_connect:bool   = False
+        opengl_enabled:bool = False
+        start_local_server:bool = False
+        local_server_port:int   = DEFAULT_SERVER_PORT
+        theme:SupportedTheme    = SupportedTheme.Default
 
     _instance:Optional["ScrutinyQtGUI"] = None
     _settings:Settings
@@ -69,7 +65,8 @@ class ScrutinyQtGUI:
                  auto_connect:bool=False,
                  opengl_enabled:bool=True,
                  start_local_server:bool = False,
-                 local_server_port:int = DEFAULT_SERVER_PORT
+                 local_server_port:int = DEFAULT_SERVER_PORT,
+                 theme:SupportedTheme = SupportedTheme.Fusion
                  ) -> None:
         if self.__class__._instance is not None:
             raise RuntimeError(f"Only a single instance of {self.__class__.__name__} can run.")
@@ -82,10 +79,10 @@ class ScrutinyQtGUI:
             auto_connect = auto_connect,
             opengl_enabled = opengl_enabled,
             local_server_port = local_server_port,
-            start_local_server = start_local_server
+            start_local_server = start_local_server,
+            theme=theme
         )
 
-        set_theme(DefaultTheme())
     
     def run(self, args:List[str]) -> int:
         register_thread(QT_THREAD_NAME)
@@ -108,18 +105,25 @@ class ScrutinyQtGUI:
                     logger.warning("There are known issues with Wayland windowing system and this software dependecies (QT & QT-ADS). Specifying QT_QPA_PLATFORM=xcb may solve display bugs.")
 
         app = QApplication(args)
+        if self._settings.theme == SupportedTheme.Default:
+            from scrutiny.gui.themes.default_theme import DefaultTheme
+            scrutiny_set_theme(app, DefaultTheme())
+        elif self._settings.theme == SupportedTheme.Fusion:
+            from scrutiny.gui.themes.fusion_theme import FusionTheme
+            scrutiny_set_theme(app, FusionTheme())
+        else:
+            raise NotImplementedError("Unsupported theme")
+        
         def exit_signal_callback() -> None:
             app.quit()
+        
         self._exit_handler = SignalExitHandler(exit_signal_callback)
 
-        app.setWindowIcon(assets.load_medium_icon(assets.Icons.ScrutinyLogo))
+        app.setWindowIcon(scrutiny_get_theme().load_medium_icon(assets.Icons.ScrutinyLogo))
         app.setApplicationDisplayName("Scrutiny Debugger")
         app.setApplicationVersion(scrutiny.__version__)
 
         window = MainWindow()
-        
-        stylesheet = assets.load_text(['stylesheets', 'scrutiny_base.qss'])
-        app.setStyleSheet(stylesheet)
         
         # Signals are processed only when an event is being checked for. 
         # This timer create an opporunity for signal handling every 500 msec

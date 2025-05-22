@@ -10,6 +10,7 @@ __all__ = ['MetricsComponent']
 
 from PySide6.QtWidgets import QVBoxLayout, QPushButton, QSizePolicy
 from PySide6.QtCore import  QTimer, Qt
+from PySide6.QtGui import QIcon
 
 from scrutiny import sdk
 from scrutiny.sdk.client import ScrutinyClient
@@ -17,12 +18,12 @@ from scrutiny.sdk.client import ScrutinyClient
 from scrutiny.gui.components.globals.base_global_component import ScrutinyGUIBaseGlobalComponent
 from scrutiny.gui.widgets.app_stats_display import ApplicationStatsDisplay
 from scrutiny.gui import assets
+from scrutiny.gui.themes import scrutiny_get_theme
 
 from scrutiny.tools.typing import *
 from scrutiny import tools
 
 class MetricsComponent(ScrutinyGUIBaseGlobalComponent):
-    _ICON = assets.get("stopwatch-96x128.png")
     _NAME = "Internal Metrics"
     _TYPE_ID = "metrics"
 
@@ -38,6 +39,10 @@ class MetricsComponent(ScrutinyGUIBaseGlobalComponent):
     """State variable telling if we are presently visible or not"""
     _server_connected:bool
     """State variable telling if the server is presently connected"""
+
+    @classmethod
+    def get_icon(cls) -> QIcon:
+        return scrutiny_get_theme().load_medium_icon(assets.Icons.StopWatch)
 
     def setup(self) -> None:
         layout = QVBoxLayout(self)

@@ -22,7 +22,7 @@ from scrutiny.gui.tools import watchabletype_2_icon
 from scrutiny.gui import assets
 from scrutiny.gui.core.watchable_registry import WatchableRegistry
 from scrutiny.sdk import WatchableType
-from scrutiny.gui.themes import get_theme_prop, ScrutinyThemeProperties
+from scrutiny.gui.themes import scrutiny_get_theme_prop, ScrutinyThemeProperties, scrutiny_get_theme
 
 @dataclass
 class WatchableFQNAndName:
@@ -58,7 +58,7 @@ class WatchableLineEdit(QLineEdit):
         super().__init__(*args, **kwargs)
         self._mode = self.Mode.TEXT
         self._icon_action = None
-        self._clear_icon = assets.load_icon(assets.Icons.RedX, assets.IconFormat.Tiny)
+        self._clear_icon = scrutiny_get_theme().load_tiny_icon(assets.Icons.RedX)
         self._clear_being_clicked = False
         self._mouse_over_clear_button= False
         self._text_mode_enabled = True
@@ -102,7 +102,7 @@ class WatchableLineEdit(QLineEdit):
     def set_watchable_mode(self, watchable_type:WatchableType, path:str, name:str) -> None:
         for action in list(self.actions()): # Remove any previous left icon 
             self.removeAction(action)
-        watchable_icon = assets.load_tiny_icon(watchabletype_2_icon(watchable_type))
+        watchable_icon = scrutiny_get_theme().load_tiny_icon(watchabletype_2_icon(watchable_type))
         self._watchable_icon_action = self.addAction(watchable_icon, QLineEdit.ActionPosition.LeadingPosition)
         self.setText(name)
         self.setReadOnly(True)
@@ -156,8 +156,8 @@ class WatchableLineEdit(QLineEdit):
         super().paintEvent(event)
 
         if self._mode == self.Mode.WATCHABLE:
-            HOVERED_COLOR = get_theme_prop(ScrutinyThemeProperties.WATCHABLE_LINE_EDIT_CLEAR_BTN_HOVER_COLOR)  
-            PRESSED_COLOR = get_theme_prop(ScrutinyThemeProperties.WATCHABLE_LINE_EDIT_CLEAR_BTN_PRESSED_COLOR) 
+            HOVERED_COLOR = scrutiny_get_theme_prop(ScrutinyThemeProperties.WATCHABLE_LINE_EDIT_CLEAR_BTN_HOVER_COLOR)  
+            PRESSED_COLOR = scrutiny_get_theme_prop(ScrutinyThemeProperties.WATCHABLE_LINE_EDIT_CLEAR_BTN_PRESSED_COLOR) 
 
             click_rect, icon_rect = self._clear_button_geometry()
             pixmap = self._clear_icon.pixmap(icon_rect.size())

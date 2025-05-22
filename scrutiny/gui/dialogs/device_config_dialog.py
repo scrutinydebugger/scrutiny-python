@@ -14,7 +14,6 @@ from scrutiny import sdk
 from scrutiny.gui.widgets.validable_line_edit import ValidableLineEdit
 from scrutiny.gui.widgets.feedback_label import FeedbackLabel
 from scrutiny.gui.tools.validators import IpPortValidator, NotEmptyValidator
-from scrutiny.gui.core import WidgetState
 from scrutiny.gui.core.persistent_data import gui_persistent_data, AppPersistentData
 from typing import Optional, Dict, Type, cast, Callable, Tuple, List
 import logging

@@ -501,9 +501,6 @@
         "test/server/links/test_rtt_link.py": {
             "docstring": "Test suite to test Segger Rtt Link "
         },
-        "scrutiny/gui/core/definitions.py": {
-            "docstring": "Some GUI wide definitions"
-        },
         "scrutiny/gui/dialogs/device_config_dialog.py": {
             "docstring": "A dialog meant to change the link between the server and the device and its configuration.\n Contains no app logic, has callback to integrate with an app."
         },
@@ -726,9 +723,6 @@
         "scrutiny/gui/core/local_server_runner.py": {
             "docstring": "A class that control a subprocess running a Scrutiny server.\n Expose simplified API and add hooks for nice integration in QT"
         },
-        "scrutiny/gui/dialogs/local_server_manager_dialog.py": {
-            "docstring": "A dialog that interract with the app-wide LocalServerRunner.\n Let the user start/stop a local instance of the runner"
-        },
         "test/gui/manual/manual_test_server_config_dialog.py": {
             "docstring": "A manual test suite for checking the behaviour of the server config dialog"
         },
@@ -737,6 +731,12 @@
         },
         "scrutiny/tools/signals.py": {
             "docstring": "Common tools for signal handling"
+        },
+        "test/gui/manual/manual_test_chart.py": {
+            "docstring": "A test application to check the visual rendring of a chart"
+        },
+        "scrutiny/gui/themes/fusion_theme.py": {
+            "docstring": "A ScrutinyTheme that wraps the QT Fusion Style"
         }
     }
 }

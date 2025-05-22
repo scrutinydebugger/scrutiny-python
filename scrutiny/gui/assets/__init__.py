@@ -18,12 +18,14 @@ import os
 from scrutiny.gui.core.exceptions import GuiError
 from pathlib import Path
 from PySide6.QtGui import QPixmap, QIcon
+from PySide6.QtCore import QDir
 
 from typing import List, Union, Dict
 import enum
 
 ASSET_PATH = os.path.dirname(__file__)
 
+QDir.addSearchPath('stylesheets', os.path.join(ASSET_PATH, 'stylesheets' ))
 
 def get(name:Union[str, Path, List[str]]) -> Path:
     if isinstance(name, list):
@@ -61,7 +63,8 @@ icon_cache: Dict[str, QIcon] = {}
 pixmap_cache: Dict[str, QPixmap] = {}
 
 class IconSet(enum.Enum):
-    Default = 'default'
+    Light = 'light'
+    Dark = 'dark'
 
 class IconFormat(enum.Enum):
     Tiny = enum.auto()
@@ -107,8 +110,13 @@ class Icons(enum.Enum):
     SidebarRight="sidebar-right"
     SidebarTop="sidebar-top"
     SidebarBottom="sidebar-bottom"
+    StopWatch="stopwatch"
+    VarList="varlist"
+    EmbeddedGraph="embedded-graph"
+    ContinuousGraph="continuous-graph"
+    Watch="watch"
 
-def icon_filename(name:Icons, format:IconFormat, iconset:IconSet=IconSet.Default) -> Path:
+def icon_filename(name:Icons, format:IconFormat, iconset:IconSet) -> Path:
     possible_formats = {
         IconFormat.Tiny : [
             (16,16),
@@ -135,23 +143,13 @@ def icon_filename(name:Icons, format:IconFormat, iconset:IconSet=IconSet.Default
     raise FileNotFoundError(f"Could not find an icon candidate for {name.name}({name.value}) with format {format.name} in icon set {iconset.name}")
 
 
-def load_icon(name:Icons, format:IconFormat, iconset:IconSet=IconSet.Default) -> QIcon:
+def load_icon(name:Icons, format:IconFormat, iconset:IconSet) -> QIcon:
     return load_icon_file(icon_filename(name, format, iconset))
 
-def load_tiny_icon(name:Icons, iconset:IconSet=IconSet.Default) -> QIcon:
-    return load_icon_file(icon_filename(name, IconFormat.Tiny, iconset))
+def load_icon_as_pixmap(name:Icons, format:IconFormat, iconset:IconSet) -> QPixmap:
+    return load_pixmap(icon_filename(name, format, iconset))
 
-def load_medium_icon(name:Icons, iconset:IconSet=IconSet.Default) -> QIcon:
-    return load_icon_file(icon_filename(name, IconFormat.Medium, iconset))
-
-def load_large_icon(name:Icons, iconset:IconSet=IconSet.Default) -> QIcon:
-    return load_icon_file(icon_filename(name, IconFormat.Large, iconset))
-
-def load_tiny_icon_as_pixmap(name:Icons, iconset:IconSet=IconSet.Default) -> QPixmap:
-    return load_pixmap(icon_filename(name, IconFormat.Tiny, iconset))
-
-def load_medium_icon_as_pixmap(name:Icons, iconset:IconSet=IconSet.Default) -> QPixmap:
-    return load_pixmap(icon_filename(name, IconFormat.Medium, iconset))
-
-def load_large_icon_as_pixmap(name:Icons, iconset:IconSet=IconSet.Default) -> QPixmap:
-    return load_pixmap(icon_filename(name, IconFormat.Large, iconset))
+def load_stylesheet(name:str) -> str:
+    if not name.endswith('.qss'):
+        name += '.qss'
+    return load_text(['stylesheets', name])

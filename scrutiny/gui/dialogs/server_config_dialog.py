@@ -18,6 +18,7 @@ from PySide6.QtGui import QIntValidator, QPixmap
 from scrutiny.gui.widgets.validable_line_edit import ValidableLineEdit
 from scrutiny.gui.widgets.feedback_label import FeedbackLabel
 from scrutiny.gui.widgets.log_viewer import LogViewer
+from scrutiny.gui.themes import scrutiny_get_theme
 
 from scrutiny.gui import DEFAULT_SERVER_PORT
 from scrutiny.gui.tools.validators import IpPortValidator, NotEmptyValidator
@@ -42,9 +43,9 @@ class LocalServerStateLabel(QWidget):
 
     def __init__(self, parent:QWidget) -> None:
         super().__init__(parent)
-        self.ICON_RED = assets.load_tiny_icon_as_pixmap(assets.Icons.SquareRed)
-        self.ICON_YELLOW = assets.load_tiny_icon_as_pixmap(assets.Icons.SquareYellow)
-        self.ICON_GREEN = assets.load_tiny_icon_as_pixmap(assets.Icons.SquareGreen)
+        self.ICON_RED = scrutiny_get_theme().load_tiny_icon_as_pixmap(assets.Icons.SquareRed)
+        self.ICON_YELLOW = scrutiny_get_theme().load_tiny_icon_as_pixmap(assets.Icons.SquareYellow)
+        self.ICON_GREEN = scrutiny_get_theme().load_tiny_icon_as_pixmap(assets.Icons.SquareGreen)
         
         self._indicator_label = QLabel()
         self._text_label = QLabel()
@@ -177,6 +178,7 @@ class LocalServerConfigurator(QWidget):
     def _try_start(self) -> None:
         """Starts the runner if the port number is correct"""
         self.clear_error()
+        self._txt_port.validate_expect_valid()
         port = self.get_ui_port()
         if port is None:
             return
