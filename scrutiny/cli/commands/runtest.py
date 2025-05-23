@@ -42,11 +42,17 @@ class RunTest(BaseCommand):
 
         args = self.parser.parse_args(self.args)
         failfast = args.f
+
+        if scrutiny.compiled:
+            if args.root is None:
+                self.getLogger().critical("A unit test folder must be passed with the --root argument for a released package")
+
         if args.root is not None:
             test_root = os.path.abspath(os.path.realpath(args.root))
             if not os.path.isdir(test_root):
                 raise FileNotFoundError("Folder %s does not exists" % test_root)
         else:
+            # should not be compiled
             test_root = os.path.realpath(os.path.join(os.path.dirname(scrutiny.__file__), '../test'))
         sys.path.insert(0, test_root)   # So that "import test" correctly load scrutiny test env if cpython has its own unit tests available in the path
 
@@ -62,8 +68,16 @@ class RunTest(BaseCommand):
         logging.getLogger().handlers[0].setFormatter(logging.Formatter(format_string))
         logging.getLogger().setLevel(logging_level)
 
-        import test  # load the test module.
-        if not hasattr(test, '__scrutiny__'):   # Make sure this is Scrutiny Test folder (in case we run from install dir)
+        try:
+            import test  # load the test module.
+            test_loaded = True
+        except ImportError:
+            test_loaded = False
+        
+        success = False
+        if test_loaded:
+            self.getLogger().critical('No unit tests availabless in %s' % test_root)
+        elif not hasattr(test, '__scrutiny__'):   # Make sure this is Scrutiny Test folder (in case we run from install dir)
             if args.root is None:
                 self.getLogger().critical(
                     'No scrutiny unit tests available in %s. Consider passing a test folder with --root if you run the tests from an installed module' % test_root)
@@ -105,4 +119,5 @@ class RunTest(BaseCommand):
                 # So unrecoverable error such as importError and syntax errors needs to be printed
                 traceback.print_exc(file=sys.stderr)
                 success = False
+        
         return 0 if success else -1

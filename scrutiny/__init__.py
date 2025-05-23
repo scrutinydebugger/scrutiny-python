@@ -4,3 +4,5 @@ __author__ = 'Pier-Yves Lessard'
 __credits__ = ['Pier-Yves Lessard', 'Frédéric Morin', 'Joel Viau', 'Antoine Robidoux']
 __license__ = 'MIT'
 __status__ = 'Development'
+
+compiled = "__compiled__" in globals()

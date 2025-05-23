@@ -69,7 +69,9 @@ setup(
     },
     entry_points={
         "console_scripts": [
-            "scrutiny=scrutiny.__main__:main",
+            "scrutiny=scrutiny.__main__:scrutiny_cli",
+            "scrutiny_gui=scrutiny.__main__:scrutiny_gui_with_server",
+            "scrutiny_server=scrutiny.__main__:scrutiny_server",
         ]
     },
 )

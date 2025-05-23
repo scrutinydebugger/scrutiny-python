@@ -149,17 +149,21 @@ class LocalServerRunner:
         """The thread function that monitor the subprocess"""
         # Copy the environment for the subprocess
         env = os.environ.copy()
-        if 'PYTHONPATH' not in env:
-            env['PYTHONPATH'] = ''
-        # Make sure we run exactly the same installation of scrutiny
-        env['PYTHONPATH'] = os.path.dirname(scrutiny.__file__) + ':' +  env['PYTHONPATH']
+        if not scrutiny.compiled:
+            if 'PYTHONPATH' not in env:
+                env['PYTHONPATH'] = ''
+            # Make sure we run exactly the same installation of scrutiny
+            env['PYTHONPATH'] = os.path.dirname(scrutiny.__file__) + ':' +  env['PYTHONPATH']
+            cli_cmd = [sys.executable, '-m', 'scrutiny']
+        else:
+            cli_cmd = [sys.argv[0]]
 
         try:
             flags = 0
             if sys.platform == 'win32':
                 flags |= subprocess.CREATE_NEW_PROCESS_GROUP    # Important for windows. Ctrl+Break will hit the parent process otherwise
             process = subprocess.Popen(
-                [sys.executable, '-m', 'scrutiny', 'server', '--port', str(port)], 
+                cli_cmd + ['server', '--port', str(port)], 
                 stdout=subprocess.PIPE, 
                 stderr=subprocess.PIPE,
                 shell=False,

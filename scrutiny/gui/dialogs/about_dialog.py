@@ -57,7 +57,7 @@ class AboutDialog(QDialog):
         layout.addWidget(version_gb)
         self.setLayout(layout)
 
-        if __debug__:
+        if not scrutiny.compiled:
             scrutiny_location = os.path.dirname(scrutiny.__file__)
         else:
             scrutiny_location = sys.argv[0]
