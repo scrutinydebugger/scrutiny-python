@@ -70,3 +70,7 @@ class FusionTheme(ScrutinyTheme):
 
     def is_dark(self) -> bool:
         return QGuiApplication.styleHints().colorScheme()  == Qt.ColorScheme.Dark
+
+    def name(self) -> str:
+        scheme = 'dark' if self.is_dark() else 'light'
+        return f"QT Fusion ({scheme})"
