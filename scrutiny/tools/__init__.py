@@ -279,6 +279,9 @@ class MutableBool:
     def clear(self) -> None:
         self.val = False
 
+    def toggle(self) -> None:
+        self.val = not self.val
+
     def __eq__(self, other:Any) -> bool:
         if isinstance(other, bool):
             return self.val == other

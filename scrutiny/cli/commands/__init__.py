@@ -36,6 +36,7 @@ from .delete_datalog import DeleteDatalog
 from .list_datalog import ListDatalog
 from .export_datalog import ExportDatalog
 from .datalog_info import DatalogInfo
+from .version import Version
 from .gui import GUI
 
 from typing import List, Dict, Type
