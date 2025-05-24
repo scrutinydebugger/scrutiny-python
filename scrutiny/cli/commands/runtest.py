@@ -71,12 +71,13 @@ class RunTest(BaseCommand):
         try:
             import test  # load the test module.
             test_loaded = True
-        except ImportError:
+        except ImportError as e:
+            test_load_fail_error = str(e)
             test_loaded = False
         
         success = False
-        if test_loaded:
-            self.getLogger().critical('No unit tests availabless in %s' % test_root)
+        if not test_loaded:
+            self.getLogger().critical('No unit tests available in %s. %s' % (test_root, test_load_fail_error))
         elif not hasattr(test, '__scrutiny__'):   # Make sure this is Scrutiny Test folder (in case we run from install dir)
             if args.root is None:
                 self.getLogger().critical(

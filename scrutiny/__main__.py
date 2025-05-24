@@ -8,6 +8,11 @@
 #
 #   Copyright (c) 2021 Scrutiny Debugger
 
+# nuitka-project-if: {OS} == "Windows":
+#     nuitka-project: --windows-console-mode=hide
+# nuitka-project-else:
+#     nuitka-project: --windows-console-mode=disabled
+
 from scrutiny.entry_points.scrutiny import scrutiny_cli
 
 if __name__ == '__main__':

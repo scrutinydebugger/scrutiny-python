@@ -4,8 +4,11 @@ set -euo pipefail
 PROJECT_ROOT=$( realpath "$( dirname "${BASH_SOURCE[0]}" )/.." )
 cd ${PROJECT_ROOT}
 
-ICON_PNG="${PROJECT_ROOT}/deploy/scrutiny-icon.png"
-ICON_ICO="${PROJECT_ROOT}/deploy/scrutiny-icon.ico"
+DEPLOY_FOLDER=${PROJECT_ROOT}/deploy
+ICON_PNG="${DEPLOY_FOLDER}/scrutiny-icon.png"
+
+EXTRA_FILES=
+EXTRA_FILES+=" --include-data-files=${DEPLOY_FOLDER}/windows/scrutiny.ico=scrutiny.ico"
 
 python -m nuitka                                    \
     --follow-imports                                \
@@ -23,11 +26,10 @@ python -m nuitka                                    \
     --windows-icon-from-ico=${ICON_PNG}             \
     --macos-app-icon=${ICON_PNG}                    \
     --include-package-data=scrutiny.gui.assets      \
-    --include-package-files=${ICON_ICO}             \
-    --windows-console-mode=disable                  \
+    ${EXTRA_FILES}                                  \
     --product-name="Scrutiny Debugger"              \
     --product-version="$(python -m scrutiny version --format short)" \
     --copyright="$(python -m scrutiny version)"     \
-    --main=scrutiny/entry_points/scrutiny.py        \
+    --main=scrutiny                                 \
 
     
