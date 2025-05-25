@@ -24,8 +24,10 @@ jobs:
 
       # Launch Nuitka
       - name: Nuitka build
-        run: bash -c "./scripts/nuitka_build.sh"
+        run: ./scripts/nuitka_build.sh
+        shell: bash
       
       # Launch InnoSetup
       - name: InnoSetup packaging
-        run: bash -c "./scripts/make_windows_installer.sh"
+        run: ./scripts/make_windows_installer.sh
+        shell: bash
