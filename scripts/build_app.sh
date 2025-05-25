@@ -10,13 +10,15 @@ ICON_PNG="${DEPLOY_FOLDER}/scrutiny-icon.png"
 EXTRA_FILES=
 EXTRA_FILES+=" --include-data-files=${DEPLOY_FOLDER}/windows/scrutiny.ico=scrutiny.ico"
 
+SCRUTINY_VERSION=$(python -m scrutiny version --format short)
+COPYRIGHT_STRING=$(python -m scrutiny version)
+OUTPUT_FOLDER='nuitka_build'
+
 python -m nuitka                                    \
     --follow-imports                                \
-    --python-flag=no_asserts                        \
     --python-flag=no_docstrings                     \
     --python-flag=no_site                           \
-    --report=nuitka_build/build_report.xml          \
-    --output-dir=nuitka_build                       \
+    --output-dir=${OUTPUT_FOLDER}                   \
     --standalone                                    \
     --nofollow-import-to=ipdb                       \
     --nofollow-import-to=test                       \
@@ -28,8 +30,8 @@ python -m nuitka                                    \
     --include-package-data=scrutiny.gui.assets      \
     ${EXTRA_FILES}                                  \
     --product-name="Scrutiny Debugger"              \
-    --product-version="$(python -m scrutiny version --format short)" \
-    --copyright="$(python -m scrutiny version)"     \
+    --product-version="${SCRUTINY_VERSION}"         \
+    --copyright="${COPYRIGHT_STRING}"               \
     --main=scrutiny                                 \
 
-    
+${PROJECT_ROOT}/scripts/make_windows_installer.bat "${SCRUTINY_VERSION}" "${OUTPUT_FOLDER}/scrutiny.dist"

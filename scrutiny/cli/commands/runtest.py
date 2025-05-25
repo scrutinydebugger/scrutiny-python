@@ -83,7 +83,7 @@ class RunTest(BaseCommand):
                 self.getLogger().critical(
                     'No scrutiny unit tests available in %s. Consider passing a test folder with --root if you run the tests from an installed module' % test_root)
             else:
-                self.getLogger().critical('No unit tests available in %s' % test_root)
+                self.getLogger().critical('No unit tests available in %s. Make sure to specify the path to the scrutiny-python repo root' % test_root)
         else:
             try:
                 test_suite = unittest.TestSuite()
