@@ -6,7 +6,8 @@ on:
 
 jobs:
   build:
-    runs-on: ubuntu-latest
+    runs-on: windows-latest
     steps:
+      - uses: actions/checkout@v4
       - name: Print the purpose of run
         run: echo  ${{ inputs.tags }} purpose    
