@@ -28,4 +28,4 @@ jobs:
       
       # Launch InnoSetup
       - name: InnoSetup packaging
-      - run: bash -c "./scripts/make_windows_installer.sh"
+        run: bash -c "./scripts/make_windows_installer.sh"
