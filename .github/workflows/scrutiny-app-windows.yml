@@ -17,5 +17,5 @@ jobs:
           architecture: 'x64' 
 
       - name: test
-        run: bash -c "ls ."
+        run: bash -c "./scripts/build_app.sh"
       
