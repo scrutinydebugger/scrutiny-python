@@ -17,5 +17,5 @@ jobs:
           architecture: 'x64' 
 
       - name: test
-        run: bash -c "echo test"
+        run: bash -c "ls ${{github.workspace}}"
       
