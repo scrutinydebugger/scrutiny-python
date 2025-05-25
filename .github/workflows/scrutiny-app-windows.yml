@@ -16,9 +16,12 @@ jobs:
           python-version: '3.12' 
           architecture: 'x64' 
 
+      # Fetch all the build dependencies
       - name: Install dependencies
         run: pip install -e .[build]
 
-      - name: test
+      # Launch Nuitka
+      - name: Build (Nuitka + InnoSetup)
         run: bash -c "./scripts/build_app.sh"
       
+      - run: gh release create v1.2.3 nuitka_build/installer/*

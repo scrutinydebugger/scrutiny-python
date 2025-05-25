@@ -66,7 +66,7 @@ setup(
     extras_require={
         'test': ['mypy', 'coverage'] + doc_dependencies,
         'dev': ['mypy', 'ipdb', 'autopep8', 'coverage'] + doc_dependencies,
-        'build': ['nuitka', 'imageio'] 
+        'build': ['nuitka', 'imageio', 'build'] 
     },
     entry_points={
         "console_scripts": [
