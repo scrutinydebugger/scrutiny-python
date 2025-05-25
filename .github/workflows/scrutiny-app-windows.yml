@@ -16,5 +16,6 @@ jobs:
           python-version: '3.12' 
           architecture: 'x64' 
 
-      - runs: bash -c "echo test"
+      - name: test
+        run: bash -c "echo test"
       
