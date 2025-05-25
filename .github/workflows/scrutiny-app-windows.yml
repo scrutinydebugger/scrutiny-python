@@ -1,6 +1,5 @@
-name: Manual Trigger Workflow
+name: Build Scrutiny App (Windows)
 
-# Configure Manual Trigger
 on:
   push:
 
@@ -8,6 +7,14 @@ jobs:
   build:
     runs-on: windows-latest
     steps:
+      # Check-out repository
       - uses: actions/checkout@v4
-      - name: Print the purpose of run
-        run: echo  ${{ inputs.tags }} purpose    
+
+      # Setup Python
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.12' 
+          architecture: 'x64' 
+
+      - runs: bash -c "echo test"
+      
