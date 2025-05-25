@@ -7,3 +7,6 @@ on:
 jobs:
   build:
     runs-on: ubuntu-latest
+    steps:
+      - name: Print the purpose of run
+        run: echo  ${{ inputs.tags }} purpose    
