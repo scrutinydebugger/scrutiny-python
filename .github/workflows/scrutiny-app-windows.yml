@@ -1,8 +1,12 @@
 name: Scrutiny App (Windows)
 run-name: ${{ github.actor }} is testing out GitHub Actions 🚀
-on: [workflow_dispatch]
+on:
+  release:
+      types: [published]
+  workflow_dispatch:
+
 jobs:
-  Explore-GitHub-Actions:
+  blablabla:
     runs-on: ubuntu-latest
     steps:
       - run: echo "🎉 The job was automatically triggered by a ${{ github.event_name }} event."
