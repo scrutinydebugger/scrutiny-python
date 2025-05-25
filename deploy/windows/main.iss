@@ -5,6 +5,9 @@
 
 #define BINNAME "scrutiny.exe"
 
+#pragma message "++ SOURCE_DIR=" + Str(SOURCE_DIR)
+#pragma message "++ VERSION=" + Str(VERSION)
+
 [Setup]
 ;Inform the OS about environment change
 ChangesEnvironment=true

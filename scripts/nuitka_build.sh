@@ -1,6 +1,8 @@
 #!/bin/bash
 set -euo pipefail
 
+OUTPUT_FOLDER=${1:-nuitka_build}
+
 PROJECT_ROOT=$( realpath "$( dirname "${BASH_SOURCE[0]}" )/.." )
 cd ${PROJECT_ROOT}
 
@@ -12,7 +14,6 @@ EXTRA_FILES+=" --include-data-files=${DEPLOY_FOLDER}/windows/scrutiny.ico=scruti
 
 SCRUTINY_VERSION=$(python -m scrutiny version --format short)
 COPYRIGHT_STRING=$(python -m scrutiny version)
-OUTPUT_FOLDER='nuitka_build'
 
 python -m nuitka                                    \
     --follow-imports                                \
@@ -33,5 +34,3 @@ python -m nuitka                                    \
     --product-version="${SCRUTINY_VERSION}"         \
     --copyright="${COPYRIGHT_STRING}"               \
     --main=scrutiny                                 \
-
-${PROJECT_ROOT}/scripts/make_windows_installer.bat "${SCRUTINY_VERSION}" "${OUTPUT_FOLDER}/scrutiny.dist"

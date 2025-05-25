@@ -8,10 +8,12 @@ jobs:
     runs-on: windows-latest
     steps:
       # Check-out repository
-      - uses: actions/checkout@v4
+      - name: Checkout Repo
+        uses: actions/checkout@v4
 
       # Setup Python
-      - uses: actions/setup-python@v5
+      - name: Setup Python
+        uses: actions/setup-python@v5
         with:
           python-version: '3.12' 
           architecture: 'x64' 
@@ -21,7 +23,9 @@ jobs:
         run: pip install -e .[build]
 
       # Launch Nuitka
-      - name: Build (Nuitka + InnoSetup)
-        run: bash -c "./scripts/build_app.sh"
+      - name: Nuitka build
+        run: bash -c "./scripts/nuitka_build.sh"
       
-      - run: gh release create v1.2.3 nuitka_build/installer/*
+      # Launch InnoSetup
+      - name: InnoSetup
+      - run: bash -c "./scripts/make_windows_installer.sh"
