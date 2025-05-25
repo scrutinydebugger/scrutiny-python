@@ -1,4 +1,4 @@
-name: Scrutiny App (Windows)
+name: Scrutiny App Windows
 run-name: ${{ github.actor }} is testing out GitHub Actions 🚀
 on:
   release:
