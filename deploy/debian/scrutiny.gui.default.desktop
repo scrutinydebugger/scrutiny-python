@@ -1,0 +1,10 @@
+[Desktop Entry]
+Name=Scrutiny GUI
+Type=Application
+Exec=/opt/scrutinydebugger/scrutiny.bin gui --auto-connect
+Terminal=false
+Icon=/opt/scrutinydebugger/scrutiny-icon.png
+Comment=Scrutiny Debugger
+NoDisplay=false
+Categories=Development
+

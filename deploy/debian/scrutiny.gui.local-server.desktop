@@ -1,0 +1,9 @@
+[Desktop Entry]
+Name=Scrutiny GUI (Local)
+Type=Application
+Exec=/opt/scrutinydebugger/scrutiny.bin gui --auto-connect --start-local-server
+Terminal=false
+Icon=/opt/scrutinydebugger/scrutiny-icon.png
+Comment=Scrutiny Debugger
+NoDisplay=false
+Categories=Development

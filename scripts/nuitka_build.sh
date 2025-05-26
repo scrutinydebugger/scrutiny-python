@@ -9,9 +9,6 @@ cd ${PROJECT_ROOT}
 DEPLOY_FOLDER=${PROJECT_ROOT}/deploy
 ICON_PNG="${DEPLOY_FOLDER}/scrutiny-icon.png"
 
-EXTRA_FILES=
-EXTRA_FILES+=" --include-data-files=${DEPLOY_FOLDER}/windows/scrutiny.ico=scrutiny.ico"
-
 SCRUTINY_VERSION=$(python -m scrutiny version --format short)
 COPYRIGHT_STRING=$(python -m scrutiny version)
 
@@ -28,8 +25,8 @@ python -m nuitka                                    \
     --noinclude-unittest-mode=allow                 \
     --windows-icon-from-ico=${ICON_PNG}             \
     --macos-app-icon=${ICON_PNG}                    \
+    --include-data-files="${ICON_PNG}=$(basename ${ICON_PNG})" \
     --include-package-data=scrutiny.gui.assets      \
-    ${EXTRA_FILES}                                  \
     --product-name="Scrutiny Debugger"              \
     --product-version="${SCRUTINY_VERSION}"         \
     --copyright="${COPYRIGHT_STRING}"               \

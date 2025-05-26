@@ -26,3 +26,8 @@ jobs:
       - name: Nuitka build
         run: ./scripts/nuitka_build.sh
         shell: bash
+
+      # Create a Debian package
+      - name: Create package
+        run: ./scripts/make_debian_package.sh
+        shell: bash

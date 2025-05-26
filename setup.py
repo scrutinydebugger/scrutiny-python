@@ -66,7 +66,11 @@ setup(
     extras_require={
         'test': ['mypy', 'coverage'] + doc_dependencies,
         'dev': ['mypy', 'ipdb', 'autopep8', 'coverage'] + doc_dependencies,
-        'build': ['nuitka', 'imageio', 'build'] 
+        'build': [
+            'nuitka==2.6.9',    # 2.7.3- is broken on Linux/Mac.   
+            'imageio==2.37.0', 
+            'build==1.2.2'
+            ] 
     },
     entry_points={
         "console_scripts": [

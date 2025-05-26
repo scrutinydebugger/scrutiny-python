@@ -18,7 +18,7 @@ SOURCE_DIR=$(realpath "${NUITKA_OUTPUT}/scrutiny.dist")
 SCRUTINY_VERSION=$( ${SOURCE_DIR}/scrutiny.exe version --format short )
 
 # Check version ok
-[ -z ${SCRUTINY_VERSION} ] && fatal "SCRUTINY_VERSION is empty"
+[[ "$SCRUTINY_VERSION" =~ ^[0-9]\.[0-9]\.[0-9]$ ]] || fatal "SCRUTINY_VERSION is not valid: ${SCRUTINY_VERSION}"
 
 cp ${PROJECT_ROOT}/deploy/windows/scrutiny.ico ${SOURCE_DIR}/
 

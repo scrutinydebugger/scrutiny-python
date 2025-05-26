@@ -8,7 +8,6 @@
 
 from struct import *
 import logging
-import ctypes
 import traceback
 from enum import Enum
 import struct
@@ -128,10 +127,10 @@ class Protocol:
         return self.address_format.decode_address(buff)
 
     def compute_challenge_16bits(self, challenge: int) -> int:
-        return ctypes.c_uint16(~challenge).value
+        return 0xFFFF ^ (challenge & 0xFFFF) 
 
     def compute_challenge_32bits(self, challenge: int) -> int:
-        return ctypes.c_uint32(~challenge).value
+        return 0xFFFFFFFF ^ (challenge & 0xFFFFFFFF) 
 
     def get_protocol_version(self) -> Request:
         return Request(cmd.GetInfo, cmd.GetInfo.Subfunction.GetProtocolVersion, response_payload_size=2)
