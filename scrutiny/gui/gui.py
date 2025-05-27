@@ -12,15 +12,12 @@ import ctypes
 import logging
 import enum
 
-from PySide6.QtWidgets import QApplication, QStyleFactory
 from PySide6.QtCore import QTimer, Qt
-from PySide6.QtGui import QPalette, QColor
 
 import scrutiny
 from scrutiny.gui.main_window import MainWindow
 from scrutiny.gui import assets
-from scrutiny.tools.thread_enforcer import register_thread
-from scrutiny.gui.core.threads import QT_THREAD_NAME
+from scrutiny.gui.core.qt import make_qt_app
 from scrutiny.gui.tools.invoker import CrossThreadInvoker
 from scrutiny.gui.tools.opengl import prepare_for_opengl
 from scrutiny.gui.themes import scrutiny_set_theme, scrutiny_get_theme
@@ -85,7 +82,6 @@ class ScrutinyQtGUI:
 
     
     def run(self, args:List[str]) -> int:
-        register_thread(QT_THREAD_NAME)
         logger = logging.getLogger(self.__class__.__name__)
 
         if sys.platform == "win32":
@@ -104,7 +100,9 @@ class ScrutinyQtGUI:
                 if platform == 'wayland':
                     logger.warning("There are known issues with Wayland windowing system and this software dependecies (QT & QT-ADS). Specifying QT_QPA_PLATFORM=xcb may solve display bugs.")
 
-        app = QApplication(args)
+        app = make_qt_app(args)
+        app.setAttribute(Qt.ApplicationAttribute.AA_DontShowIconsInMenus, False) # Mac OS doesn't display the icon by default.
+
         if self._settings.theme == SupportedTheme.Default:
             from scrutiny.gui.themes.default_theme import DefaultTheme
             scrutiny_set_theme(app, DefaultTheme())

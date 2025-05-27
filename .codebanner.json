@@ -737,6 +737,12 @@
         },
         "scrutiny/gui/themes/fusion_theme.py": {
             "docstring": "A ScrutinyTheme that wraps the QT Fusion Style"
+        },
+        "scrutiny/cli/commands/version.py": {
+            "docstring": "A command line utility that outputs the scrutiny version. Used for release purpose"
+        },
+        "scrutiny/gui/core/qt.py": {
+            "docstring": "A single entry point that initialize all the Scrutiny QT tools that the GUI relies on"
         }
     }
 }

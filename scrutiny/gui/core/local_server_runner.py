@@ -177,7 +177,7 @@ class LocalServerRunner:
             flags = 0
             if sys.platform == 'win32':
                 flags |= subprocess.CREATE_NEW_PROCESS_GROUP    # Important for windows. Ctrl+Break will hit the parent process otherwise
-            process:Optional[subprocess.Popen] = None
+            process:Optional[subprocess.Popen[bytes]] = None
             try:
                 process_args = self._cli_cmd + ['server', '--port', str(port)]
                 self._logger.debug(f"Process: {process_args}")
@@ -193,32 +193,32 @@ class LocalServerRunner:
                     self._signals.stderr.emit("Failed to start the process")
                     self._signals.stderr.emit(str(e))
                 
-
-            def read_stream(stream:IO[bytes], signal:SignalInstance) -> None:
-                try:
-                    while True:
-                        line = stream.readline().decode('utf8')
-                        line = line.strip()
-                        if len(line) > 0:
-                            #Prevent errors when the runner is destroyed without calling stop() prior to it
-                            if shiboken6.isValid(self._signals):    # Assumption that this is the signal source.
-                                signal.emit(line)
-                        elif process.poll() is not None:
-                            break
-                except Exception as e:
-                    tools.log_exception(self._logger, e, "Error in process stream reader")
-                
-            def read_stdout() -> None:
-                assert process.stdout is not None
-                read_stream(process.stdout, self._signals.stdout)
-                self._logger.debug(f"stdout reader exit")
-
-            def read_stderr() -> None:
-                assert process.stderr is not None
-                read_stream(process.stderr, self._signals.stderr)
-                self._logger.debug(f"stderr reader exit")
-
             if process is not None:
+                def read_stream(stream:IO[bytes], signal:SignalInstance) -> None:
+                    try:
+                        while True:
+                            line = stream.readline().decode('utf8')
+                            line = line.strip()
+                            if len(line) > 0:
+                                #Prevent errors when the runner is destroyed without calling stop() prior to it
+                                if shiboken6.isValid(self._signals):    # Assumption that this is the signal source.
+                                    signal.emit(line)
+                            elif process.poll() is not None:
+                                break
+                    except Exception as e:
+                        tools.log_exception(self._logger, e, "Error in process stream reader")
+                    
+                def read_stdout() -> None:
+                    assert process.stdout is not None
+                    read_stream(process.stdout, self._signals.stdout)
+                    self._logger.debug(f"stdout reader exit")
+
+                def read_stderr() -> None:
+                    assert process.stderr is not None
+                    read_stream(process.stderr, self._signals.stderr)
+                    self._logger.debug(f"stderr reader exit")
+
+            
                 stdout_reader_thread = threading.Thread(target=read_stdout, daemon=True)
                 stderr_reader_thread = threading.Thread(target=read_stderr, daemon=True)
                 stdout_reader_thread.start()

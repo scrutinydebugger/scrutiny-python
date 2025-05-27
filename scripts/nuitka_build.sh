@@ -3,7 +3,7 @@ set -euo pipefail
 
 OUTPUT_FOLDER=${1:-nuitka_build}
 
-PROJECT_ROOT=$( realpath "$( dirname "${BASH_SOURCE[0]}" )/.." )
+PROJECT_ROOT="$( cd "$( dirname "${BASH_SOURCE[0]}" )"/.. >/dev/null 2>&1 && pwd -P )"
 cd ${PROJECT_ROOT}
 
 DEPLOY_FOLDER=${PROJECT_ROOT}/deploy

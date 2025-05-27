@@ -19,7 +19,7 @@ from scrutiny.core.logging import DUMPDATA_LOGLEVEL
 from typing import Optional, List, Type
 
 class ScrutinyArgumentParser(argparse.ArgumentParser):
-    def error(self, message:str) -> None:
+    def error(self, message:str) -> None:   # type: ignore
         sys.stderr.write('error: %s\n' % message)
         self.print_help()
         sys.exit(2)

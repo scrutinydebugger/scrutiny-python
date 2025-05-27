@@ -11,9 +11,7 @@ from PySide6.QtWidgets import QApplication
 import enum
 import time
 from test import logger
-from scrutiny.gui.core.threads import QT_THREAD_NAME
-from scrutiny.tools.thread_enforcer import ThreadEnforcer
-from scrutiny.gui.tools.invoker import CrossThreadInvoker
+from scrutiny.gui.core.qt import make_qt_app
 from scrutiny.gui.themes import scrutiny_set_theme
 from scrutiny.gui.themes.default_theme import DefaultTheme
 
@@ -43,10 +41,8 @@ class ScrutinyBaseGuiTest(ScrutinyUnitTest):
         self.event_list:List[EventType] = []
         self.app = QApplication.instance()
         if self.app is None:
-            self.app = QApplication([]) # Required to process event because they are emitted in a different thread, therefore the connectiontype is queued
+            self.app = make_qt_app([]) # Required to process event because they are emitted in a different thread, therefore the connectiontype is queued
         scrutiny_set_theme(self.app, DefaultTheme())
-        ThreadEnforcer.register_thread(QT_THREAD_NAME)
-        CrossThreadInvoker.init()
 
     def tearDown(self):
         self.process_events()

@@ -1,3 +1,10 @@
+#    version.py
+#        A command line utility that outputs the scrutiny version. Used for release purpose
+#
+#   - License : MIT - See LICENSE file.
+#   - Project :  Scrutiny Debugger (github.com/scrutinydebugger/scrutiny-python)
+#
+#   Copyright (c) 2021 Scrutiny Debugger
 
 import argparse
 

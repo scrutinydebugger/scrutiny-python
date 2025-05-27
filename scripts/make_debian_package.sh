@@ -4,12 +4,16 @@ set -euo pipefail
 RED='\033[0;31m'; CYAN='\033[0;36m'; YELLOW='\033[1;33m'; NC='\033[0m' 
 fatal() { >&2 echo -e "$RED[Fatal]$NC $1"; exit ${2:-1}; }
 
+absnorm(){ echo $(readlink -m "$1"); }
+
 # Find project root
-PROJECT_ROOT=$( realpath "$( dirname "${BASH_SOURCE[0]}" )/.." )
+NUITKA_OUTPUT=${1:-nuitka_build}
+PROJECT_ROOT=$( absnorm "$( dirname "${BASH_SOURCE[0]}" )/.." )
+SOURCE_DIR=$(absnorm "${NUITKA_OUTPUT}/scrutiny.dist")
+OUTPUT_FOLDER=$(absnorm ${2:-"${SOURCE_DIR}/installer"})
+
 cd ${PROJECT_ROOT}
 
-NUITKA_OUTPUT=${1:-nuitka_build}
-SOURCE_DIR=$(realpath "${NUITKA_OUTPUT}/scrutiny.dist")
 
 # Check Folders exists
 [ -d ${NUITKA_OUTPUT} ] || fatal "${NUITKA_OUTPUT} is not a folder"
@@ -42,7 +46,6 @@ cp  ${PROJECT_ROOT}/deploy/debian/scrutiny.gui.local-server.desktop ${PKG_FOLDER
 ln -s /opt/scrutinydebugger/scrutiny.bin ${PKG_FOLDER}/bin/scrutiny
 dpkg-deb --root-owner-group --build "${PKG_FOLDER}"
 
-OUTPUT_FOLDER=${2:-${SOURCE_DIR}/installer/}
 mkdir -p ${OUTPUT_FOLDER}
 cp ${TEMP_FOLDER}/${PKG_NAME}.deb ${OUTPUT_FOLDER}
 
