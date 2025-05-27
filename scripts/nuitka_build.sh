@@ -1,16 +1,23 @@
 #!/bin/bash
 set -euo pipefail
+source $(dirname ${BASH_SOURCE[0]})/common.sh
 
-OUTPUT_FOLDER=${1:-nuitka_build}
+OUTPUT_FOLDER=$(dir_with_default ${1:-""} "nuitka_build")
+PROJECT_ROOT="$(get_project_root)"
 
-PROJECT_ROOT="$( cd "$( dirname "${BASH_SOURCE[0]}" )"/.. >/dev/null 2>&1 && pwd -P )"
 cd ${PROJECT_ROOT}
 
 DEPLOY_FOLDER=${PROJECT_ROOT}/deploy
+assert_dir "$DEPLOY_FOLDER"
+
 ICON_PNG="${DEPLOY_FOLDER}/scrutiny-icon.png"
+assert_file "$ICON_PNG"
 
 SCRUTINY_VERSION=$(python -m scrutiny version --format short)
 COPYRIGHT_STRING=$(python -m scrutiny version)
+assert_scrutiny_version_format "$SCRUTINY_VERSION"
+
+info "Building scrutiny into ${OUTPUT_FOLDER}"
 
 python -m nuitka                                    \
     --follow-imports                                \
@@ -31,3 +38,5 @@ python -m nuitka                                    \
     --product-version="${SCRUTINY_VERSION}"         \
     --copyright="${COPYRIGHT_STRING}"               \
     --main=scrutiny                                 \
+
+success "Nuitka compilation completed"

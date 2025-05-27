@@ -1,7 +1,7 @@
 #!/bin/bash
 set -euo pipefail
-
-PROJECT_ROOT="$( cd "$( dirname "${BASH_SOURCE[0]}" )"/.. >/dev/null 2>&1 && pwd -P )"
+source $(dirname ${BASH_SOURCE[0]})/common.sh
+PROJECT_ROOT="$(get_project_root)"
 
 SCRUTINY_COVERAGE_SUFFIX="${SCRUTINY_COVERAGE_SUFFIX:-dev}"
 HTML_COVDIR="htmlcov_${SCRUTINY_COVERAGE_SUFFIX}"

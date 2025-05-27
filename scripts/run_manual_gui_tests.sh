@@ -1,7 +1,9 @@
 #!/bin/bash
 set -euo pipefail
 
-PROJECT_ROOT="$( cd "$( dirname "${BASH_SOURCE[0]}" )"/.. >/dev/null 2>&1 && pwd -P )"
+source $(dirname ${BASH_SOURCE[0]})/common.sh
+
+PROJECT_ROOT="$(get_project_root)"
 MANUAL_TEST_ROOT=${PROJECT_ROOT}/test/gui/manual
 FILES=$MANUAL_TEST_ROOT/*.py
 
