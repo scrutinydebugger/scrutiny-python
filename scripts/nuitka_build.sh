@@ -19,6 +19,8 @@ assert_scrutiny_version_format "$SCRUTINY_VERSION"
 
 info "Building scrutiny into ${OUTPUT_FOLDER}"
 
+PRODUCT_NAME="Scrutiny Debugger"
+
 python -m nuitka                                    \
     --follow-imports                                \
     --python-flag=no_docstrings                     \
@@ -32,11 +34,14 @@ python -m nuitka                                    \
     --noinclude-unittest-mode=allow                 \
     --windows-icon-from-ico=${ICON_PNG}             \
     --macos-app-icon=${ICON_PNG}                    \
-    --include-data-files="${ICON_PNG}=$(basename ${ICON_PNG})" \
+    --macos-create-app-bundle                       \
+    --macos-app-name="${PRODUCT_NAME}"              \
+    --macos-app-version="${SCRUTINY_VERSION}"       \
     --include-package-data=scrutiny.gui.assets      \
-    --product-name="Scrutiny Debugger"              \
+    --product-name="${PRODUCT_NAME}"                \
     --product-version="${SCRUTINY_VERSION}"         \
     --copyright="${COPYRIGHT_STRING}"               \
     --main=scrutiny                                 \
+    --output-filename=scrutiny.bin                  \
 
 success "Nuitka compilation completed"
