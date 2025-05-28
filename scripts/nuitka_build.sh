@@ -30,8 +30,8 @@ if [ "$PLATFORM" = "win32" ]; then
 elif [ "$PLATFORM" = "darwin" ]; then
     PLATFORM_ARGS+=" --macos-app-icon=${ICON_PNG}"
     PLATFORM_ARGS+=" --macos-create-app-bundle"
-    PLATFORM_ARGS+=" --macos-app-name="${PRODUCT_NAME}""
-    PLATFORM_ARGS+=" --macos-app-version="${SCRUTINY_VERSION}""
+    PLATFORM_ARGS+=" --macos-app-name=scrutiny"
+    PLATFORM_ARGS+=" --macos-app-version=\"${SCRUTINY_VERSION}\""
 elif [ "$PLATFORM" = "linux" ]; then
     :
 fi
