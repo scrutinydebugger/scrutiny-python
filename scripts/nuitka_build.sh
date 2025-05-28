@@ -22,17 +22,20 @@ info "Building scrutiny into ${OUTPUT_FOLDER}"
 PRODUCT_NAME="Scrutiny Debugger"
 PLATFORM=$(python -c "import sys; print(sys.platform);")
 PLATFORM_ARGS=
+
+OUTPUT_FILENAME="scrutiny.bin"  # default. we manage with symlink on unix based platform
 if [ "$PLATFORM"="win32" ]; then
-    PLATFORM_ARGS+=" --windows-icon-from-ico=${ICON_PNG}" 
+    PLATFORM_ARGS+=" --windows-icon-from-ico=${ICON_PNG}"
+    OUTPUT_FILENAME="scrutiny"  # we do not wnat scrutiny.bin.exe
 elif [ "$PLATFORM"="darwin" ]; then
     PLATFORM_ARGS+=" --macos-app-icon=${ICON_PNG}"
     PLATFORM_ARGS+=" --macos-create-app-bundle"
     PLATFORM_ARGS+=" --macos-app-name="${PRODUCT_NAME}""
     PLATFORM_ARGS+=" --macos-app-version="${SCRUTINY_VERSION}""
+    OUTPUT_FILENAME+=".bin"
 elif [ "$PLATFORM"="linux" ]; then
     :
 fi
-
 
 python -m nuitka                                    \
     --follow-imports                                \
@@ -49,8 +52,8 @@ python -m nuitka                                    \
     --product-name="${PRODUCT_NAME}"                \
     --product-version="${SCRUTINY_VERSION}"         \
     --copyright="${COPYRIGHT_STRING}"               \
-    --main=scrutiny                                 \
-    --output-filename=scrutiny.bin                  \
     ${PLATFORM_ARGS}                                \
+    --output-filename=${OUTPUT_FILENAME}            \
+    --main=scrutiny                                 \
 
 success "Nuitka compilation completed"

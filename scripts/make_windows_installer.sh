@@ -10,10 +10,8 @@ cd ${PROJECT_ROOT}
 
 # Check Folders exists
 info "Source directory: $SOURCE_DIR"
-info "Otuput directory: $OUTPUT_FOLDER"
 
 assert_dir "$SOURCE_DIR"
-assert_dir "$OUTPUT_FOLDER"
 
 SCRUTINY_VERSION=$( ${SOURCE_DIR}/scrutiny.exe version --format short )
 
