@@ -58,6 +58,7 @@ python -m nuitka                                    \
 
 if [ "$PLATFORM" = "darwin" ]; then
     APP_DIR="${OUTPUT_FOLDER}/scrutiny.app"
+    # Let's replace the entry point with our launcher that adds the command line argument
     plutil -replace CFBundleExecutable -string "launcher.sh" "${APP_DIR}/Contents/Info.plist"
 fi
 
