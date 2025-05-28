@@ -30,8 +30,9 @@ if [ "$PLATFORM" = "win32" ]; then
 elif [ "$PLATFORM" = "darwin" ]; then
     PLATFORM_ARGS+=" --macos-app-icon=${ICON_PNG}"
     PLATFORM_ARGS+=" --macos-create-app-bundle"
-    PLATFORM_ARGS+=" --macos-app-name=scrutiny"
+    PLATFORM_ARGS+=" --macos-app-name=Scrutiny"
     PLATFORM_ARGS+=" --macos-app-version=\"${SCRUTINY_VERSION}\""
+    PLATFORM_ARGS+=" --include-data-file=${DEPLOY_FOLDER}/macos/launcher.sh=launcher.sh"
 elif [ "$PLATFORM" = "linux" ]; then
     :
 fi
@@ -54,5 +55,10 @@ python -m nuitka                                    \
     ${PLATFORM_ARGS}                                \
     --output-filename=${OUTPUT_FILENAME}            \
     --main=scrutiny                                 \
+
+if [ "$PLATFORM" = "darwin" ]; then
+    APP_DIR="${OUTPUT_FOLDER}/scrutiny.app"
+    plutil -replace CFBundleExecutable -string "launcher.sh" "${APP_DIR}/Contents/Info.plist"
+fi
 
 success "Nuitka compilation completed"

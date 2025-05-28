@@ -7,7 +7,6 @@ __all__ = [
     '__status__',
     'compiled',
     'get_shell_entry_point', 
-    'CLI_EXECUTABLE_NAME',
     ]
 
 
@@ -27,9 +26,9 @@ import shutil
 from typing import List, Optional, Dict
 
 if sys.platform == 'win32':
-    CLI_EXECUTABLE_NAME = __name__+'.exe'
+    CLI_EXECUTABLE_POSSIBLE_NAMES = [f"{__name__}.exe"]
 else:
-    CLI_EXECUTABLE_NAME = __name__
+    CLI_EXECUTABLE_POSSIBLE_NAMES = [__name__, f"{__name__}.bin"]   
 
 def get_shell_entry_point(env:Optional[Dict[str,str]]=None) -> Optional[List[str]]:
     if not compiled:
@@ -45,15 +44,17 @@ def get_shell_entry_point(env:Optional[Dict[str,str]]=None) -> Optional[List[str
     caller_dir = os.path.dirname(caller)
     caller_basename = os.path.basename(caller)
 
-    if caller_basename == CLI_EXECUTABLE_NAME:
+    if caller_basename in CLI_EXECUTABLE_POSSIBLE_NAMES:
         return [os.path.normpath(os.path.abspath(caller))]
     
-    same_dir_candidate = os.path.join(caller_dir, CLI_EXECUTABLE_NAME)
-    if os.path.isfile(same_dir_candidate):
-        return [os.path.normpath(os.path.abspath(same_dir_candidate))]
+    for executable_name in CLI_EXECUTABLE_POSSIBLE_NAMES:
+        same_dir_candidate = os.path.join(caller_dir, executable_name)
+        if os.path.isfile(same_dir_candidate):
+            return [os.path.normpath(os.path.abspath(same_dir_candidate))]
 
-    executable = shutil.which(CLI_EXECUTABLE_NAME)
-    if executable is not None:
-        return [executable]
+    for executable_name in CLI_EXECUTABLE_POSSIBLE_NAMES:
+        executable = shutil.which(executable_name)
+        if executable is not None:
+            return [executable]
     
     return None
