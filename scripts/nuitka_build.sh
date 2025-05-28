@@ -20,6 +20,19 @@ assert_scrutiny_version_format "$SCRUTINY_VERSION"
 info "Building scrutiny into ${OUTPUT_FOLDER}"
 
 PRODUCT_NAME="Scrutiny Debugger"
+PLATFORM=$(python -c "import sys; print(sys.platform);")
+PLATFORM_ARGS=
+if [ "$PLATFORM"="win32" ]; then
+    PLATFORM_ARGS+=" --windows-icon-from-ico=${ICON_PNG}" 
+elif [ "$PLATFORM"="darwin" ]; then
+    PLATFORM_ARGS+=" --macos-app-icon=${ICON_PNG}"
+    PLATFORM_ARGS+=" --macos-create-app-bundle"
+    PLATFORM_ARGS+=" --macos-app-name="${PRODUCT_NAME}""
+    PLATFORM_ARGS+=" --macos-app-version="${SCRUTINY_VERSION}""
+elif [ "$PLATFORM"="linux" ]; then
+    :
+fi
+
 
 python -m nuitka                                    \
     --follow-imports                                \
@@ -32,16 +45,12 @@ python -m nuitka                                    \
     --enable-plugin=pyside6                         \
     --assume-yes-for-downloads                      \
     --noinclude-unittest-mode=allow                 \
-    --windows-icon-from-ico=${ICON_PNG}             \
-    --macos-app-icon=${ICON_PNG}                    \
-    --macos-create-app-bundle                       \
-    --macos-app-name="${PRODUCT_NAME}"              \
-    --macos-app-version="${SCRUTINY_VERSION}"       \
     --include-package-data=scrutiny.gui.assets      \
     --product-name="${PRODUCT_NAME}"                \
     --product-version="${SCRUTINY_VERSION}"         \
     --copyright="${COPYRIGHT_STRING}"               \
     --main=scrutiny                                 \
     --output-filename=scrutiny.bin                  \
+    ${PLATFORM_ARGS}                                \
 
 success "Nuitka compilation completed"
