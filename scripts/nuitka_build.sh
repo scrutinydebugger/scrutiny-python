@@ -32,7 +32,6 @@ elif [ "$PLATFORM" = "darwin" ]; then
     PLATFORM_ARGS+=" --macos-create-app-bundle"
     PLATFORM_ARGS+=" --macos-app-name="${PRODUCT_NAME}""
     PLATFORM_ARGS+=" --macos-app-version="${SCRUTINY_VERSION}""
-    OUTPUT_FILENAME+=".bin"
 elif [ "$PLATFORM" = "linux" ]; then
     :
 fi
