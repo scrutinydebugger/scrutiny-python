@@ -6,22 +6,21 @@ source $(dirname ${BASH_SOURCE[0]})/common.sh
 NUITKA_OUTPUT=$(dir_with_default ${1:-""} "nuitka_build")
 PROJECT_ROOT="$(get_project_root)"
 SOURCE_DIR="${NUITKA_OUTPUT}/scrutiny.dist"
-OUTPUT_FOLDER=$(dir_with_default ${2:-""} "${SOURCE_DIR}/installer")
+OUTPUT_FOLDER=$(dir_with_default ${2:-""} "${NUITKA_OUTPUT}/installer")
 
 cd ${PROJECT_ROOT}
 
 # Check Folders exists
 info "Source directory: $SOURCE_DIR"
-info "Otuput directory: $OUTPUT_FOLDER"
 
 assert_dir "$SOURCE_DIR"
-assert_dir "$OUTPUT_FOLDER"
 
+# Get verion and validate
 SCRUTINY_VERSION=$( ${SOURCE_DIR}/scrutiny.bin version --format short )
+assert_scrutiny_version_format "$SCRUTINY_VERSION"
 info "Scrutiny version: $SCRUTINY_VERSION"
 
-assert_scrutiny_version_format "$SCRUTINY_VERSION"
-
+# Prepare package
 ARCH="$(dpkg-architecture -qDEB_BUILD_ARCH)"
 TEMP_FOLDER="$(mktemp -d)"
 PKG_NAME="scrutinydebugger_${SCRUTINY_VERSION}_$ARCH"
@@ -33,20 +32,24 @@ info "Work folder: ${PKG_FOLDER}"
 mkdir -p "${PKG_FOLDER}"
 mkdir -p "${PKG_FOLDER}/DEBIAN" "${PKG_FOLDER}/opt" "${PKG_FOLDER}/bin" "${PKG_FOLDER}/usr/share/applications"
 
-cp "${PROJECT_ROOT}/deploy/debian/control" "${PKG_FOLDER}/DEBIAN/control"
-sed -i "s/<VERSION>/${SCRUTINY_VERSION}/g"  "${PKG_FOLDER}/DEBIAN/control"
-sed -i "s/<ARCH>/$ARCH/g"  ${PKG_FOLDER}/DEBIAN/control
+cp "${PROJECT_ROOT}/deploy/debian/control" "${PKG_FOLDER}/DEBIAN/control"   # Copy the template
+sed -i "s/<VERSION>/${SCRUTINY_VERSION}/g"  "${PKG_FOLDER}/DEBIAN/control"  # Set the version in the control file
+sed -i "s/<ARCH>/$ARCH/g"  ${PKG_FOLDER}/DEBIAN/control                     # Set the arch in the control file
 
-cp -r "${SOURCE_DIR}" "${PKG_FOLDER}/opt/scrutinydebugger"
-cp  "${PROJECT_ROOT}/deploy/debian/scrutiny.gui.default.desktop" "${PKG_FOLDER}/usr/share/applications/"
-cp  "${PROJECT_ROOT}/deploy/debian/scrutiny.gui.local-server.desktop" "${PKG_FOLDER}/usr/share/applications/"
+cp -r "${SOURCE_DIR}" "${PKG_FOLDER}/opt/scrutinydebugger"                  # The program
+cp  "${PROJECT_ROOT}/deploy/debian/scrutiny.gui.default.desktop" "${PKG_FOLDER}/usr/share/applications/"        # Desktop Icon : Scrutiny GUI
+cp  "${PROJECT_ROOT}/deploy/debian/scrutiny.gui.local-server.desktop" "${PKG_FOLDER}/usr/share/applications/"   # Desktop Icon : Scrutiny GUI (Local)
 
-ln -s /opt/scrutinydebugger/scrutiny.bin ${PKG_FOLDER}/bin/scrutiny
-dpkg-deb --root-owner-group --build "${PKG_FOLDER}"
+ln -s "/opt/scrutinydebugger/scrutiny.bin" "${PKG_FOLDER}/bin/scrutiny"     # CLI launcher 
+dpkg-deb --root-owner-group --build "${PKG_FOLDER}"                         # Pack
 
+# Move the package in the wnated output folder
 mkdir -p ${OUTPUT_FOLDER}
-cp ${TEMP_FOLDER}/${PKG_NAME}.deb ${OUTPUT_FOLDER}
+OUTFILE="${OUTPUT_FOLDER}/${PKG_NAME}.deb"
+cp "${TEMP_FOLDER}/${PKG_NAME}.deb" "${OUTFILE}"
 
-success "File ${OUTPUT_FOLDER}/${PKG_NAME}.deb as been created!" 
+assert_file "${OUTFILE}"
+success "File ${OUTFILE} as been created!" 
 
+# Cleanup
 rm -rf "${TEMP_FOLDER}"
