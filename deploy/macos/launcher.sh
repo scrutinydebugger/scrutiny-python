@@ -1,4 +1,2 @@
 #!/bin/bash
-
-BIN="$(dirname "${BASH_SOURCE[0]}")/scrutiny.bin"
-$BIN gui --auto-connect
+"$(dirname "${BASH_SOURCE[0]}")/bin/scrutiny" gui --auto-connect ${@}

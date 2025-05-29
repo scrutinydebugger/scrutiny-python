@@ -28,11 +28,9 @@ if [ "$PLATFORM" = "win32" ]; then
     PLATFORM_ARGS+=" --windows-icon-from-ico=${ICON_PNG}"
     OUTPUT_FILENAME="scrutiny"  # we do not want scrutiny.bin.exe
 elif [ "$PLATFORM" = "darwin" ]; then
-    PLATFORM_ARGS+=" --macos-app-icon=${ICON_PNG}"
     PLATFORM_ARGS+=" --macos-create-app-bundle"
-    PLATFORM_ARGS+=" --macos-app-name=Scrutiny"
-    PLATFORM_ARGS+=" --macos-app-version=\"${SCRUTINY_VERSION}\""
     PLATFORM_ARGS+=" --include-data-file=${DEPLOY_FOLDER}/macos/launcher.sh=launcher.sh"
+    PLATFORM_ARGS+=" --macos-app-icon=${ICON_PNG}"
 elif [ "$PLATFORM" = "linux" ]; then
     :
 fi
@@ -58,8 +56,16 @@ python -m nuitka                                    \
 
 if [ "$PLATFORM" = "darwin" ]; then
     APP_DIR="${OUTPUT_FOLDER}/scrutiny.app"
+    PLIST="${APP_DIR}/Contents/Info.plist"
     # Let's replace the entry point with our launcher that adds the command line argument
-    plutil -replace CFBundleExecutable -string "launcher.sh" "${APP_DIR}/Contents/Info.plist"
+    plutil -replace CFBundleExecutable          -string "launcher.sh"       "${PLIST}"  # What to launch when the user click
+    plutil -replace CFBundleDisplayName         -string "Scrutiny GUI"      "${PLIST}"  # Name to display in the info
+    plutil -replace CFBundleShortVersionString  -string "$SCRUTINY_VERSION" "${PLIST}"  # Version of the application to display in the info
+    plutil -replace CFBundleName                -string "Scrutiny"          "${PLIST}"  # A fallback shortname if the display name is not set (it is)
+    plutil -replace CFBundleIdentifier          -string "scrutiny"          "${PLIST}"  # A unique id for the application for code signature. We don't sign (for now)
+    BIN_FOLDER="${APP_DIR}/Contents/MacOS/bin"
+    mkdir "$BIN_FOLDER" # For the user to put in their path.
+    ln -s ../${OUTPUT_FILENAME} $BIN_FOLDER/scrutiny
 fi
 
 success "Nuitka compilation completed"

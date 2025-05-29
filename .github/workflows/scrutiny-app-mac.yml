@@ -26,3 +26,8 @@ jobs:
       - name: Nuitka build
         run: ./scripts/nuitka_build.sh
         shell: bash
+
+      # Create a DMG file
+      - name: Create package
+        run: ./scripts/make_macos_dmg.sh
+        shell: bash
