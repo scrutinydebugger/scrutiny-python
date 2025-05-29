@@ -36,4 +36,4 @@ jobs:
         uses: actions/upload-artifact@v4
         with:
           name: Windows installer
-          path: scrutiny-python/nuitka_build/installer/*.exe
+          path: ./nuitka_build/installer/*.exe

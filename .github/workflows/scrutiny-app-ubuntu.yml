@@ -36,4 +36,4 @@ jobs:
         uses: actions/upload-artifact@v4
         with:
           name: Debian package
-          path: scrutiny-python/nuitka_build/installer/*.deb
+          path: ./nuitka_build/installer/*.deb
