@@ -1,4 +1,13 @@
 #!/bin/bash
+
+#    activate-venv.sh
+#        Activate the virtual environment. Entry point mainly for CI
+#
+#   - License : MIT - See LICENSE file.
+#   - Project :  Scrutiny Debugger (github.com/scrutinydebugger/scrutiny-python)
+#
+#   Copyright (c) 2021 Scrutiny Debugger
+
 set -uo pipefail
 
 source $(dirname ${BASH_SOURCE[0]})/common.sh

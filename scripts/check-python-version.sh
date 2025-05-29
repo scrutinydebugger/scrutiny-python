@@ -1,4 +1,14 @@
 #!/bin/bash
+
+#    check-python-version.sh
+#        Check that the python executable is running the wanted version. Validation used by
+#        CI
+#
+#   - License : MIT - See LICENSE file.
+#   - Project :  Scrutiny Debugger (github.com/scrutinydebugger/scrutiny-python)
+#
+#   Copyright (c) 2021 Scrutiny Debugger
+
 set -euo pipefail
 
 source $(dirname ${BASH_SOURCE[0]})/common.sh

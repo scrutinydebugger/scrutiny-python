@@ -1,4 +1,13 @@
 #!/bin/bash
+
+#    runtests.sh
+#        Run all scrutiny tests. To be run by CI
+#
+#   - License : MIT - See LICENSE file.
+#   - Project :  Scrutiny Debugger (github.com/scrutinydebugger/scrutiny-python)
+#
+#   Copyright (c) 2021 Scrutiny Debugger
+
 set -euo pipefail
 source $(dirname ${BASH_SOURCE[0]})/common.sh
 PROJECT_ROOT="$(get_project_root)"

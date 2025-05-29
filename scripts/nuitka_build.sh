@@ -1,10 +1,21 @@
 #!/bin/bash
+
+#    nuitka_build.sh
+#        Compile the Scrutiny module to a binary using Nuitka.
+#        On Windows and Linux, produces a folder with a binary and all dependencies.
+#        On Mac OS, produces a mac .app bundle
+#
+#   - License : MIT - See LICENSE file.
+#   - Project :  Scrutiny Debugger (github.com/scrutinydebugger/scrutiny-python)
+#
+#   Copyright (c) 2021 Scrutiny Debugger
+
 set -euo pipefail
 source $(dirname ${BASH_SOURCE[0]})/common.sh
 
+# Define the base directories
 OUTPUT_FOLDER=$(dir_with_default ${1:-""} "nuitka_build")
 PROJECT_ROOT="$(get_project_root)"
-
 cd ${PROJECT_ROOT}
 
 DEPLOY_FOLDER=${PROJECT_ROOT}/deploy
@@ -13,12 +24,15 @@ assert_dir "$DEPLOY_FOLDER"
 ICON_PNG="${DEPLOY_FOLDER}/scrutiny-icon.png"
 assert_file "$ICON_PNG"
 
+# Get the scrutiny version and validate
 SCRUTINY_VERSION=$(python -m scrutiny version --format short)
 COPYRIGHT_STRING=$(python -m scrutiny version)
 assert_scrutiny_version_format "$SCRUTINY_VERSION"
 
 info "Building scrutiny into ${OUTPUT_FOLDER}"
+info "Using $(python --version)"
 
+# Per platform specfic parameters
 PRODUCT_NAME="Scrutiny Debugger"
 PLATFORM=$(python -c "import sys; print(sys.platform);")
 PLATFORM_ARGS=
@@ -35,6 +49,7 @@ elif [ "$PLATFORM" = "linux" ]; then
     :
 fi
 
+# Launch the compilation
 python -m nuitka                                    \
     --follow-imports                                \
     --python-flag=no_docstrings                     \
@@ -55,6 +70,8 @@ python -m nuitka                                    \
     --main=scrutiny                                 \
 
 if [ "$PLATFORM" = "darwin" ]; then
+    # Post process stage specific to mac OS. 
+    # Define some app properties + setup a symlink for CLI.
     APP_DIR="${OUTPUT_FOLDER}/scrutiny.app"
     PLIST="${APP_DIR}/Contents/Info.plist"
     # Let's replace the entry point with our launcher that adds the command line argument

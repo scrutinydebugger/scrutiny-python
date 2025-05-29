@@ -1,4 +1,13 @@
 #!/bin/bash
+
+#    run_manual_gui_tests.sh
+#        Run
+#
+#   - License : MIT - See LICENSE file.
+#   - Project :  Scrutiny Debugger (github.com/scrutinydebugger/scrutiny-python)
+#
+#   Copyright (c) 2021 Scrutiny Debugger
+
 set -euo pipefail
 
 source $(dirname ${BASH_SOURCE[0]})/common.sh

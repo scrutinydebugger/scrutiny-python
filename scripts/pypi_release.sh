@@ -1,4 +1,13 @@
 #!/bin/bash
+
+#    pypi_release.sh
+#        Make a PyPi release ad push it to PyPi
+#
+#   - License : MIT - See LICENSE file.
+#   - Project :  Scrutiny Debugger (github.com/scrutinydebugger/scrutiny-python)
+#
+#   Copyright (c) 2021 Scrutiny Debugger
+
 set -eEuo pipefail
 source $(dirname ${BASH_SOURCE[0]})/common.sh
 
