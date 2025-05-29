@@ -36,7 +36,8 @@ assert_scrutiny_version_format "$SCRUTINY_VERSION"
 info "Scrutiny version: $SCRUTINY_VERSION"
 
 # Make the DMG
-DMG_NAME="scrutinydebugger_v${SCRUTINY_VERSION}.dmg"
+PKG_NAME="scrutinydebugger_v${SCRUTINY_VERSION}_$(uname -m)"
+DMG_NAME="${PKG_NAME}.dmg"
 DMG_FILE=${OUTPUT_FOLDER}/${DMG_NAME}
 TEMP_DIR=$(mktemp -d)
 APP_NAME="Scrutiny GUI"

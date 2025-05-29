@@ -32,7 +32,7 @@ info "Scrutiny version: $SCRUTINY_VERSION"
 # Prepare package
 ARCH="$(dpkg-architecture -qDEB_BUILD_ARCH)"
 TEMP_FOLDER="$(mktemp -d)"
-PKG_NAME="scrutinydebugger_${SCRUTINY_VERSION}_$ARCH"
+PKG_NAME="scrutinydebugger_v${SCRUTINY_VERSION}_$(uname -m)"
 
 PKG_FOLDER="${TEMP_FOLDER}/${PKG_NAME}"
 info "Creating debian package: ${PKG_NAME}"
