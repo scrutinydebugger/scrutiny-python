@@ -7,3 +7,4 @@ htmlcov*
 .mypy_cache
 dist
 nuitka_build
+.DS_Store

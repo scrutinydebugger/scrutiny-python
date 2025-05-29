@@ -33,4 +33,4 @@ iscc ${PROJECT_ROOT}/deploy/windows/main.iss    \
 OUTFILE="${OUTPUT_FOLDER}/$PKG_NAME.exe"
 assert_file ${OUTFILE}
 
-success "Installer generated at: $OUTFILE"
+success "File ${OUTFILE} as been created!"
