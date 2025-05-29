@@ -31,3 +31,9 @@ jobs:
       - name: InnoSetup packaging
         run: ./scripts/make_windows_installer.sh
         shell: bash
+
+      - name: 'Upload Artifact'
+        uses: actions/upload-artifact@v4
+        with:
+          name: Windows installer
+          path: scrutiny-python/nuitka_build/installer/*.exe

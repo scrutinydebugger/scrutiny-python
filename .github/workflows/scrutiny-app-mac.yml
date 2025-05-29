@@ -31,3 +31,9 @@ jobs:
       - name: Create package
         run: ./scripts/make_macos_dmg.sh
         shell: bash
+
+      - name: 'Upload Artifact'
+        uses: actions/upload-artifact@v4
+        with:
+          name: Mac OS app
+          path: scrutiny-python/nuitka_build/installer/*.dmg
