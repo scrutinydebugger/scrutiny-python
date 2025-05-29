@@ -49,7 +49,7 @@ OUTFILE="${OUTPUT_FOLDER}/${PKG_NAME}.deb"
 cp "${TEMP_FOLDER}/${PKG_NAME}.deb" "${OUTFILE}"
 
 assert_file "${OUTFILE}"
-success "File ${OUTFILE} as been created!" 
+success "File ${OUTFILE} has been created!" 
 
 # Cleanup
 rm -rf "${TEMP_FOLDER}"

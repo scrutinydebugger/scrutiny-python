@@ -38,6 +38,6 @@ hdiutil create -volname "Scrutiny Debugger v${SCRUTINY_VERSION}" -srcfolder "${P
 
 # Finish and cleanup
 assert_file "$DMG_FILE"
-success "File ${DMG_FILE} as been created!"
+success "File ${DMG_FILE} has been created!"
 
 rm -rf "${TEMP_DIR}"
