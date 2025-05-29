@@ -69,7 +69,8 @@ setup(
         'build': [
             'nuitka==2.6.9',    # 2.7.3- is broken on Linux/Mac.   
             'imageio==2.37.0', 
-            'build==1.2.2'
+            'build==1.2.2',
+            'pip-licenses==5.0.0'
             ] 
     },
     entry_points={

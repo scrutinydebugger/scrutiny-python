@@ -781,6 +781,12 @@
         },
         "scripts/check-python-version.sh": {
             "docstring": "Check that the python executable is running the wanted version. Validation used by CI"
+        },
+        "scripts/make_license.sh": {
+            "docstring": "Creates the license file to be bundled with the release package"
+        },
+        "scripts/format_package_license.py": {
+            "docstring": "Internal script called by make_license.sh to print licenses of each given dependencies in a given format"
         }
     }
 }

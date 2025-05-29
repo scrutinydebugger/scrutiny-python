@@ -49,6 +49,10 @@ elif [ "$PLATFORM" = "linux" ]; then
     :
 fi
 
+LICENSE_FILE="LICENSE.out"
+./scripts/make_license.sh ${LICENSE_FILE}
+assert_file ${LICENSE_FILE}
+
 # Launch the compilation
 python -m nuitka                                    \
     --follow-imports                                \
@@ -62,6 +66,7 @@ python -m nuitka                                    \
     --assume-yes-for-downloads                      \
     --noinclude-unittest-mode=allow                 \
     --include-package-data=scrutiny.gui.assets      \
+    --include-data-file="${LICENSE_FILE}"="LICENSE" \
     --product-name="${PRODUCT_NAME}"                \
     --product-version="${SCRUTINY_VERSION}"         \
     --copyright="${COPYRIGHT_STRING}"               \
