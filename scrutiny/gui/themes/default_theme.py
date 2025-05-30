@@ -59,3 +59,6 @@ class DefaultTheme(ScrutinyTheme):
         
     def is_dark(self) -> bool:
         return False
+
+    def name(self) -> str:
+        return "QT Default"

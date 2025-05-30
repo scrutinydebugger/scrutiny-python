@@ -8,7 +8,6 @@
 #   Copyright (c) 2021 Scrutiny Debugger
 
 import logging
-import traceback
 from enum import Enum, auto
 from dataclasses import dataclass
 
@@ -23,7 +22,7 @@ from scrutiny.core.basic_types import RuntimePublishedValue
 from scrutiny.server.datalogging.datalogging_utilities import extract_signal_from_data
 from scrutiny import tools
 
-from typing import Optional, Any, cast, Callable, List, Dict, Tuple
+from scrutiny.tools.typing import *
 
 
 class FSMState(Enum):
@@ -220,7 +219,7 @@ class DataloggingPoller:
             self.acquisition_request.completion_callback(False, detail, None, None)
             self.acquisition_request = None
 
-    def mark_active_acquisition_success(self, data: bytes, acquisition_meta: device_datalogging.AcquisitionMetadata) -> None:
+    def mark_active_acquisition_success(self, data: Union[bytes, bytearray], acquisition_meta: device_datalogging.AcquisitionMetadata) -> None:
         """Mark the currently processed acquisition request as completed with success. Will call the completing callback with success=True"""
         if self.acquisition_request is not None:
             if self.device_setup is None:

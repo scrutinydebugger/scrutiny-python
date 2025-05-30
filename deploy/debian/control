@@ -1,0 +1,7 @@
+Package: scrutinydebugger
+Version: <VERSION>
+Section: devel
+Priority: optional
+Architecture: <ARCH>
+Maintainer: Scrutiny Debugger <scrutinydebugger@gmail.com>
+Description: An open source debugging, development and testing tool for C/C++ embedded applications that works through instrumentation.

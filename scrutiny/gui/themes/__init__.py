@@ -98,6 +98,10 @@ class ScrutinyTheme(abc.ABC):
     def get_val(self, prop:ScrutinyThemeProperties) -> Any:
         pass
 
+    @abc.abstractmethod
+    def name(self) -> str:
+        pass
+
 _loaded_theme:Optional[ScrutinyTheme] = None
 
 def scrutiny_get_theme() -> ScrutinyTheme:

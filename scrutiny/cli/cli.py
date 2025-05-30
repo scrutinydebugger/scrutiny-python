@@ -8,6 +8,7 @@
 #   Copyright (c) 2021 Scrutiny Debugger
 
 import os
+import sys
 import argparse
 import logging
 import traceback
@@ -17,6 +18,12 @@ from scrutiny.core.logging import DUMPDATA_LOGLEVEL
 
 from typing import Optional, List, Type
 
+class ScrutinyArgumentParser(argparse.ArgumentParser):
+    def error(self, message:str) -> None:   # type: ignore
+        sys.stderr.write('error: %s\n' % message)
+        self.print_help()
+        sys.exit(2)
+
 class CLI:
     """Scrutiny Command Line Interface.
     All commands are executed through this class."""
@@ -24,7 +31,7 @@ class CLI:
     workdir:str
     default_log_level:str
     command_list:List[Type[BaseCommand]]
-    parser:argparse.ArgumentParser
+    parser:ScrutinyArgumentParser
 
 
     def __init__(self, workdir:str='.', default_log_level:str='info'):
@@ -32,7 +39,7 @@ class CLI:
         self.default_log_level = default_log_level
 
         self.command_list = get_all_commands()  # comes from commands module
-        self.parser = argparse.ArgumentParser(
+        self.parser = ScrutinyArgumentParser(
             prog='scrutiny',
             epilog=self.make_command_list_help(),
             add_help=False,

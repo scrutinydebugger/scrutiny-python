@@ -39,7 +39,7 @@ class GUI(BaseCommand):
         
         theme_str:Optional[str] = os.environ.get('SCRUTINY_THEME', None)
 
-        theme = SupportedTheme.Default
+        theme = SupportedTheme.Fusion
         if args.theme is not None:
             theme_str = args.theme
 

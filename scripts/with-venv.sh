@@ -1,7 +1,17 @@
 #!/bin/bash
 
+#    with-venv.sh
+#        Run a command inside the virtual environment
+#
+#   - License : MIT - See LICENSE file.
+#   - Project :  Scrutiny Debugger (github.com/scrutinydebugger/scrutiny-python)
+#
+#   Copyright (c) 2021 Scrutiny Debugger
+
 set -euo pipefail
-PROJECT_ROOT="$( cd "$( dirname "${BASH_SOURCE[0]}" )"/.. >/dev/null 2>&1 && pwd -P )"
+source $(dirname ${BASH_SOURCE[0]})/common.sh
+PROJECT_ROOT="$(get_project_root)"
+
 source "$PROJECT_ROOT/scripts/activate-venv.sh"
 
 set -e  # activate-venv  sets +e

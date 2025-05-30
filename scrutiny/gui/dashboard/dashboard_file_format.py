@@ -11,7 +11,7 @@ from dataclasses import dataclass
 import enum
 
 import PySide6QtAds  as QtAds
-from PySide6.QtCore import Qt, QSize
+from PySide6.QtCore import Qt
 from PySide6.QtWidgets import QSplitter
 
 from scrutiny.gui.components.base_component import ScrutinyGUIBaseComponent

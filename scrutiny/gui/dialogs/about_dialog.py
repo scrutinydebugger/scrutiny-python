@@ -18,6 +18,7 @@ from typing import Optional
 
 import scrutiny
 from scrutiny.gui import assets
+from scrutiny.gui.themes import scrutiny_get_theme
 
 class AboutDialog(QDialog):
 
@@ -56,12 +57,18 @@ class AboutDialog(QDialog):
         layout.addWidget(version_gb)
         self.setLayout(layout)
 
+        if not scrutiny.compiled:
+            scrutiny_location = os.path.dirname(scrutiny.__file__)
+        else:
+            scrutiny_location = sys.argv[0]
+
         fields = [
-            ("Scrutiny location", os.path.dirname(scrutiny.__file__)),
+            ("Scrutiny location", scrutiny_location),
             ("Scrutiny version", scrutiny.__version__),
             ("Python version", "%d.%d.%d" % (sys.version_info.major, sys.version_info.minor, sys.version_info.micro)),
             ("QT version", getattr(PySide6.QtCore, "__version__", "N/A")),
-            ("PySide6 version", PySide6.__version__)
+            ("PySide6 version", PySide6.__version__),
+            ("GUI Theme", scrutiny_get_theme().name())
         ]
 
         for i in range(len(fields)):

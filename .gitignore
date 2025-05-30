@@ -6,3 +6,5 @@ htmlcov*
 .coverage*
 .mypy_cache
 dist
+nuitka_build
+.DS_Store

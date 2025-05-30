@@ -1736,7 +1736,7 @@ class API:
             'device_session_id': self.device_handler.get_comm_session_id(),  # str when connected_ready. None when not connected_ready
             'loaded_sfd_firmware_id': loaded_sfd_firmware_id,
             'device_datalogging_status': {
-                'datalogger_state': cast(api_typing.DataloggerState, datalogger_state_api),
+                'datalogger_state': datalogger_state_api,
                 'completion_ratio': self.device_handler.get_datalogging_acquisition_completion_ratio()
             },
             'device_comm_link': {

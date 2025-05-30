@@ -1,0 +1,106 @@
+name: Build Scrutiny App
+
+on:
+  workflow_dispatch :
+
+jobs:
+  build-ubuntu:
+    runs-on: ubuntu-latest
+    steps:
+      # Check-out repository
+      - name: Checkout Repo
+        uses: actions/checkout@v4
+
+      # Setup Python
+      - name: Setup Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: '3.12' 
+
+      # Fetch all the build dependencies
+      - name: Install dependencies
+        run: pip install -e .[build]
+
+      # Launch Nuitka
+      - name: Nuitka build
+        run: ./scripts/nuitka_build.sh
+        shell: bash
+
+      # Create a Debian package
+      - name: Create package
+        run: ./scripts/make_debian_package.sh
+        shell: bash
+
+      - name: Upload Artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: Debian package
+          path: ./nuitka_build/installer/*.deb
+
+
+  build-mac-os:
+    runs-on: macos-latest
+    steps:
+      # Check-out repository
+      - name: Checkout Repo
+        uses: actions/checkout@v4
+
+      # Setup Python
+      - name: Setup Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: '3.12' 
+
+      # Fetch all the build dependencies
+      - name: Install dependencies
+        run: pip install -e .[build]
+
+      # Launch Nuitka
+      - name: Nuitka build
+        run: ./scripts/nuitka_build.sh
+        shell: bash
+
+      # Create a DMG file
+      - name: Create package
+        run: ./scripts/make_macos_dmg.sh
+        shell: bash
+
+      - name: Upload Artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: Mac OS app
+          path: ./nuitka_build/installer/*.dmg
+
+
+  build-windows:
+    runs-on: windows-latest
+    steps:
+      # Check-out repository
+      - name: Checkout Repo
+        uses: actions/checkout@v4
+
+      # Setup Python
+      - name: Setup Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: '3.12' 
+
+      # Fetch all the build dependencies
+      - name: Install dependencies
+        run: pip install -e .[build]
+
+      # Launch Nuitka
+      - name: Nuitka build
+        run: ./scripts/nuitka_build.sh
+        shell: bash
+      
+      # Launch InnoSetup
+      - name: InnoSetup packaging
+        run: ./scripts/make_windows_installer.sh
+        shell: bash
+
+      - name: Upload Artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: Windows installer
+          path: ./nuitka_build/installer/*.exe

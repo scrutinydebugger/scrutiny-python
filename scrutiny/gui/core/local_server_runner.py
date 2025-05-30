@@ -19,6 +19,7 @@ import enum
 import signal
 import shiboken6
 
+from scrutiny import get_shell_entry_point
 from scrutiny.tools.typing import *
 from scrutiny.tools.thread_enforcer import enforce_thread
 from scrutiny import tools
@@ -61,6 +62,12 @@ class LocalServerRunner:
     """The process of the local server"""
     _started_port:Optional[int]
     """Port the local server is listening on. None if the server is not started"""
+    _env:Dict[str, str]
+    """The environment passed to the subprocess"""
+    _cli_cmd:Optional[List[str]]
+    """The shell command to call to get a scrutiny cli. Adapted based on dev/compiled environment"""
+    _emulate_no_cli:bool
+    """For testing purpose. Simulate that the CLI executable is not available """
 
     def __init__(self) -> None:
         self._logger = logging.getLogger(self.__class__.__name__)
@@ -70,6 +77,9 @@ class LocalServerRunner:
         self._state = self.State.STOPPED
         self._stop_event = threading.Event()
         self._active_process = None
+        self._env = os.environ.copy()
+        self._cli_cmd = None
+        self._emulate_no_cli = False
         
         self._internal_signals.exit.connect(self._exit_slot)
         self._internal_signals.spawned.connect(self._spawed_slot)
@@ -86,7 +96,6 @@ class LocalServerRunner:
             return None
         return self._started_port
 
-    
     def get_process_id(self) -> Optional[int]:
         # _active_process can be set None by another thread. 
         # Copy the ref before using to avoid race conditions
@@ -112,6 +121,9 @@ class LocalServerRunner:
         if changed:
             self._signals.state_changed.emit(new_state)
 
+    def emulate_no_cli(self, val:bool) -> None:
+        self._emulate_no_cli = val
+
     @enforce_thread(QT_THREAD_NAME)
     def start(self, port:int) -> None:
         """Start the local server. Does nothing if not fully stopped.
@@ -121,6 +133,17 @@ class LocalServerRunner:
         self._logger.debug("Requesting to start")
         if self._state != self.State.STOPPED:
             self._logger.debug("Already started")
+            return
+        
+        self._env = os.environ.copy()
+        if self._emulate_no_cli:
+            self._cli_cmd = None
+        else:
+            self._cli_cmd = get_shell_entry_point(self._env)
+        
+        if self._cli_cmd is None :
+            self._signals.stderr.emit("Could not find a Scrutiny process to call. Is Scrutiny in your path?")
+            self._signals.abnormal_termination.emit()
             return
         
         self._started_port = port
@@ -148,82 +171,88 @@ class LocalServerRunner:
     def _thread_func(self, port:int) -> None:
         """The thread function that monitor the subprocess"""
         # Copy the environment for the subprocess
-        env = os.environ.copy()
-        if 'PYTHONPATH' not in env:
-            env['PYTHONPATH'] = ''
-        # Make sure we run exactly the same installation of scrutiny
-        env['PYTHONPATH'] = os.path.dirname(scrutiny.__file__) + ':' +  env['PYTHONPATH']
+        assert self._cli_cmd is not None
 
         try:
             flags = 0
             if sys.platform == 'win32':
                 flags |= subprocess.CREATE_NEW_PROCESS_GROUP    # Important for windows. Ctrl+Break will hit the parent process otherwise
-            process = subprocess.Popen(
-                [sys.executable, '-m', 'scrutiny', 'server', '--port', str(port)], 
-                stdout=subprocess.PIPE, 
-                stderr=subprocess.PIPE,
-                shell=False,
-                creationflags=flags,  
-                env=env)
+            process:Optional[subprocess.Popen[bytes]] = None
+            try:
+                process_args = self._cli_cmd + ['server', '--port', str(port)]
+                self._logger.debug(f"Process: {process_args}")
+                process = subprocess.Popen(
+                    process_args, 
+                    stdout=subprocess.PIPE, 
+                    stderr=subprocess.PIPE,
+                    shell=False,
+                    creationflags=flags,  
+                    env=self._env)
+            except Exception as e:
+                if shiboken6.isValid(self._signals):    # Assumption that this is the signal source.
+                    self._signals.stderr.emit("Failed to start the process")
+                    self._signals.stderr.emit(str(e))
+                
+            if process is not None:
+                def read_stream(stream:IO[bytes], signal:SignalInstance) -> None:
+                    try:
+                        while True:
+                            line = stream.readline().decode('utf8')
+                            line = line.strip()
+                            if len(line) > 0:
+                                #Prevent errors when the runner is destroyed without calling stop() prior to it
+                                if shiboken6.isValid(self._signals):    # Assumption that this is the signal source.
+                                    signal.emit(line)
+                            elif process.poll() is not None:
+                                break
+                    except Exception as e:
+                        tools.log_exception(self._logger, e, "Error in process stream reader")
+                    
+                def read_stdout() -> None:
+                    assert process.stdout is not None
+                    read_stream(process.stdout, self._signals.stdout)
+                    self._logger.debug(f"stdout reader exit")
+
+                def read_stderr() -> None:
+                    assert process.stderr is not None
+                    read_stream(process.stderr, self._signals.stderr)
+                    self._logger.debug(f"stderr reader exit")
+
             
-            def read_stream(stream:IO[bytes], signal:SignalInstance) -> None:
-                try:
-                    while True:
-                        line = stream.readline().decode('utf8')
-                        line = line.strip()
-                        if len(line) > 0:
-                            #Prevent errors when the runner is destroyed without calling stop() prior to it
-                            if shiboken6.isValid(self._signals):    # Assumption that this is the signal source.
-                                signal.emit(line)
-                        elif process.poll() is not None:
-                            break
-                except Exception as e:
-                    tools.log_exception(self._logger, e, "Error in process stream reader")
-                
-            def read_stdout() -> None:
-                assert process.stdout is not None
-                read_stream(process.stdout, self._signals.stdout)
-                self._logger.debug(f"stdout reader exit")
+                stdout_reader_thread = threading.Thread(target=read_stdout, daemon=True)
+                stderr_reader_thread = threading.Thread(target=read_stderr, daemon=True)
+                stdout_reader_thread.start()
+                stderr_reader_thread.start()
 
-            def read_stderr() -> None:
-                assert process.stderr is not None
-                read_stream(process.stderr, self._signals.stderr)
-                self._logger.debug(f"stderr reader exit")
+                self._active_process = process
+                if shiboken6.isValid(self._internal_signals):
+                    self._internal_signals.spawned.emit()   # Will change the state to STARTED in the QT thread.
+                else:   # Something went wrong. App probably crashed right after starting 
+                    self._logger.debug("Cannot emit spawned signal. Deleted")
+                    self._stop_event.set()
 
-            stdout_reader_thread = threading.Thread(target=read_stdout, daemon=True)
-            stderr_reader_thread = threading.Thread(target=read_stderr, daemon=True)
-            stdout_reader_thread.start()
-            stderr_reader_thread.start()
-
-            self._active_process = process
-            if shiboken6.isValid(self._internal_signals):
-                self._internal_signals.spawned.emit()   # Will change the state to STARTED in the QT thread.
-            else:   # Something went wrong. App probably crashed right after starting 
-                self._logger.debug("Cannot emit spawned signal. Deleted")
-                self._stop_event.set()
-
-            # Process is started and running
-            while True:
-                self._stop_event.wait(0.5)
-                if self._stop_event.is_set():
-                    break
-                if process.poll() is not None:
-                    # The process died by itself.
-                    self.signals.abnormal_termination.emit()
-                    break
-                
-            if process.poll() is None:   # Still running
-                self._logger.debug("Terminating process")
-                if sys.platform == 'win32':
-                    # Ctrl+Break is the only signal that seems to be catchable on windows.
-                    # I don't understand Windows.
-                    process.send_signal(signal.CTRL_BREAK_EVENT)
+                # Process is started and running
+                while True:
+                    self._stop_event.wait(0.5)
+                    if self._stop_event.is_set():
+                        break
+                    if process.poll() is not None:
+                        # The process died by itself.
+                        self.signals.abnormal_termination.emit()
+                        break
+                    
+                if process.poll() is None:   # Still running
+                    self._logger.debug("Terminating process")
+                    if sys.platform == 'win32':
+                        # Ctrl+Break is the only signal that seems to be catchable on windows.
+                        # I don't understand Windows.
+                        process.send_signal(signal.CTRL_BREAK_EVENT)
+                    else:
+                        process.send_signal(signal.SIGTERM)
+                    process.wait(5)
                 else:
-                    process.send_signal(signal.SIGTERM)
-                process.wait(5)
-            else:
-                # Already dead. Do nothing
-                pass
+                    # Already dead. Do nothing
+                    pass
 
         except Exception as e:
             # Something unusual happened

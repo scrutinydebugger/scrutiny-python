@@ -1,16 +1,26 @@
 #!/bin/bash
+
+#    activate-venv.sh
+#        Activate the virtual environment. Entry point mainly for CI
+#
+#   - License : MIT - See LICENSE file.
+#   - Project :  Scrutiny Debugger (github.com/scrutinydebugger/scrutiny-python)
+#
+#   Copyright (c) 2021 Scrutiny Debugger
+
 set -uo pipefail
 
-PROJECT_ROOT="$( cd "$( dirname "${BASH_SOURCE[0]}" )"/.. >/dev/null 2>&1 && pwd -P )"
-PY_MODULE_ROOT="$( cd "$( dirname "${BASH_SOURCE[0]}" )/.." >/dev/null 2>&1 && pwd -P )"
+source $(dirname ${BASH_SOURCE[0]})/common.sh
+set +e
+
+PROJECT_ROOT="$(get_project_root)"
+PY_MODULE_ROOT="$PROJECT_ROOT"
 
 SCRUTINY_VENV_DIR="${SCRUTINY_VENV_DIR:-venv}"
 SCRUTINY_VENV_ROOT="${SCRUTINY_VENV_DIR:-$PROJECT_ROOT/$SCRUTINY_VENV_DIR}"
 
-log() { echo -e "\x1B[92m[OK]\x1B[39m $@"; }
-
 [ ! -d "$SCRUTINY_VENV_ROOT" ] \
-    && log "Missing venv. Creating..." \
+    && info "Missing venv. Creating..." \
     && python3 -m venv "$SCRUTINY_VENV_ROOT"
 
 source "$SCRUTINY_VENV_ROOT/bin/activate"
@@ -27,16 +37,16 @@ fi
 pip3 cache info
 
 if ! pip3 show wheel 2>&1 >/dev/null; then
-    log "Installing wheel..."
+    info "Installing wheel..."
     pip3 install wheel
-    log "Upgrading pip..."
+    info "Upgrading pip..."
     pip3 install --upgrade pip
-    log "Upgrading setuptools..."
+    info "Upgrading setuptools..."
     pip3 install --upgrade setuptools
 fi
 
 if ! diff "$PY_MODULE_ROOT/setup.py" "$SCRUTINY_VENV_ROOT/cache/setup.py" 2>&1 >/dev/null; then
-    log "Install scrutiny inside venv"
+    info "Install scrutiny inside venv"
     pip3 install -e "${PY_MODULE_ROOT}${MODULE_FEATURE}"
     mkdir -p "$SCRUTINY_VENV_ROOT/cache/"
     cp "$PY_MODULE_ROOT/setup.py" "$SCRUTINY_VENV_ROOT/cache/setup.py"

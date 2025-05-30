@@ -48,9 +48,9 @@ def get_gui_assets():
 
 
 setup(
-    name='scrutinydebugger',
+    name=scrutiny.__name__,
     python_requires='>=3.9',
-    description='Scrutiny debugger Python framework',
+    description='Scrutiny Debugger Python framework',
     url='https://github.com/scrutinydebugger/scrutiny-python',
     version=scrutiny.__version__,
     author=scrutiny.__author__,
@@ -65,11 +65,19 @@ setup(
     install_requires=dependencies,
     extras_require={
         'test': ['mypy', 'coverage'] + doc_dependencies,
-        'dev': ['mypy', 'ipdb', 'autopep8', 'coverage'] + doc_dependencies
+        'dev': ['mypy', 'ipdb', 'autopep8', 'coverage'] + doc_dependencies,
+        'build': [
+            'nuitka==2.6.9',    # 2.7.3- is broken on Linux/Mac.   
+            'imageio==2.37.0', 
+            'build==1.2.2',
+            'pip-licenses==5.0.0'
+            ] 
     },
     entry_points={
         "console_scripts": [
-            "scrutiny=scrutiny.__main__:main",
+            f"scrutiny=scrutiny.__main__:scrutiny_cli",
+            f"scrutiny_server=scrutiny.__main__:scrutiny_server",
+            f"scrutiny_gui=scrutiny.__main__:scrutiny_gui_with_server",
         ]
     },
 )
