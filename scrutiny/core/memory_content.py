@@ -25,7 +25,7 @@ class Cluster:
     has_data: bool
 
     @property
-    def data(self) -> bytearray:
+    def data(self) -> bytes:
         return self.read(0, self.size)
 
     def __init__(self, start_addr: int, size: int = 0, has_data: bool = True, data: Union[bytes, bytearray] = bytearray()) -> None:
@@ -37,7 +37,7 @@ class Cluster:
         else:
             self.internal_data = None
 
-    def read(self, offset: int, size: int) -> bytearray:
+    def read(self, offset: int, size: int) -> bytes:
         if size < 0:
             raise ValueError('Cannot read a negative size')
 
@@ -46,14 +46,17 @@ class Cluster:
 
         if offset + size > self.size:
             raise IndexError('Index out of range 0x%x to 0x%x' % (offset, offset + size))
-
+        
+        data_out:bytes
         if self.has_data:
             assert self.internal_data is not None
-            data_out = data_out = self.internal_data[offset:offset + size]
-            if isinstance(data_out, int):
-                data_out = bytearray([data_out])
+            chunk = self.internal_data[offset:offset + size]
+            if isinstance(chunk, int):
+                data_out = bytes([chunk])
+            else:
+                data_out = bytes(chunk)
         else:
-            data_out = bytearray(b'\x00' * size)
+            data_out = bytes(b'\x00' * size)
 
         return data_out
 
@@ -118,7 +121,7 @@ class Cluster:
 
         return new_cluster
 
-    def __getitem__(self, key: Union[slice, int]) -> bytearray:
+    def __getitem__(self, key: Union[slice, int]) -> bytes:
         if isinstance(key, slice):
             stop = key.stop
             if key.stop is None:

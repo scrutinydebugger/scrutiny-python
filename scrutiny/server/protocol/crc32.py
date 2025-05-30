@@ -6,7 +6,9 @@
 #
 #   Copyright (c) 2021 Scrutiny Debugger
 
-def crc32(data: bytes) -> int:
+from typing import Union
+
+def crc32(data: Union[bytes, bytearray]) -> int:
     """Computes the CRC32 of a byte array"""
     crc = 0xFFFFFFFF
     for i in range(len(data)):

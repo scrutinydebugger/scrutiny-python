@@ -369,11 +369,11 @@ class DataloggingStorageManager:
             if firmware_id is None:
                 sql = "SELECT COUNT(1) AS n FROM `acquisitions`"
                 cursor.execute(sql)
-                nout = cursor.fetchone()[0]
+                nout = int(cursor.fetchone()[0])
             else:
                 sql = "SELECT COUNT(1) AS n FROM `acquisitions` WHERE `firmware_id`=?"
                 cursor.execute(sql, (firmware_id,))
-                nout = cursor.fetchone()[0]
+                nout = int(cursor.fetchone()[0])
 
         return nout
 

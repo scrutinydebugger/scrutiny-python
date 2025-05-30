@@ -9,10 +9,14 @@
 import scrutiny.server.datalogging.definitions.device as device_datalogging
 from scrutiny.core.basic_types import RuntimePublishedValue
 
-from typing import List, Dict
+from typing import List, Dict, Union
 
 
-def extract_signal_from_data(data: bytes, config: device_datalogging.Configuration, rpv_map: Dict[int, RuntimePublishedValue], encoding: device_datalogging.Encoding) -> List[List[bytes]]:
+def extract_signal_from_data(
+        data: Union[bytes, bytearray], 
+        config: device_datalogging.Configuration, 
+        rpv_map: Dict[int, RuntimePublishedValue], 
+        encoding: device_datalogging.Encoding) -> List[List[bytes]]:
     """
     Takes data written in the format [s1[n], s2[n], s3[n], s1[n+1], s2[n+1], s3[n+1], s1[n+2] ...]
     and put it in the format [s1[n], s1[n+1], s1[n+2]],  [s2[n], s2[n+1], s2[n+2]], [s3[n], s3[n+1], s3[n+2]]
@@ -41,7 +45,7 @@ def extract_signal_from_data(data: bytes, config: device_datalogging.Configurati
                     raise NotImplementedError("Unsupported signal type")
                 if len(data) < cursor + datasize:
                     raise ValueError('Not enough data in buffer for signal #%d' % i)
-                data_out[i].append(data[cursor:cursor + datasize])
+                data_out[i].append(bytes(data[cursor:cursor + datasize]))
                 cursor += datasize
     else:
         raise NotImplementedError('Unsupported encoding %s' % encoding)
