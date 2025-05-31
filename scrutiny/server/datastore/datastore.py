@@ -4,7 +4,7 @@
 #        It's the meeting point of the API (with ValueStreamer) and the DeviceHandler
 #
 #   - License : MIT - See LICENSE file.
-#   - Project :  Scrutiny Debugger (github.com/scrutinydebugger/scrutiny-python)
+#   - Project :  Scrutiny Debugger (github.com/scrutinydebugger/scrutiny-main)
 #
 #   Copyright (c) 2021 Scrutiny Debugger
 

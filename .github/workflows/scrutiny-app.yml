@@ -2,6 +2,9 @@ name: Build Scrutiny App
 
 on:
   workflow_dispatch :
+  push:
+    tags:
+        - 'v*'
 
 jobs:
   build-ubuntu:
@@ -34,7 +37,7 @@ jobs:
       - name: Upload Artifact
         uses: actions/upload-artifact@v4
         with:
-          name: Debian package
+          name: Debian package ${{ github.ref }}
           path: ./nuitka_build/installer/*.deb
 
 
@@ -68,7 +71,7 @@ jobs:
       - name: Upload Artifact
         uses: actions/upload-artifact@v4
         with:
-          name: Mac OS app
+          name: Mac OS app ${{ github.ref }}
           path: ./nuitka_build/installer/*.dmg
 
 
@@ -102,5 +105,5 @@ jobs:
       - name: Upload Artifact
         uses: actions/upload-artifact@v4
         with:
-          name: Windows installer
+          name: Windows installer ${{ github.ref }}
           path: ./nuitka_build/installer/*.exe

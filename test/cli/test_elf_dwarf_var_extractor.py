@@ -2,7 +2,7 @@
 #        Test the extraction of dwarf symbols from a .elf file
 #
 #   - License : MIT - See LICENSE file.
-#   - Project :  Scrutiny Debugger (github.com/scrutinydebugger/scrutiny-python)
+#   - Project :  Scrutiny Debugger (github.com/scrutinydebugger/scrutiny-main)
 #
 #   Copyright (c) 2021 Scrutiny Debugger
 

@@ -6,7 +6,7 @@
 #        On Mac OS, produces a mac .app bundle
 #
 #   - License : MIT - See LICENSE file.
-#   - Project :  Scrutiny Debugger (github.com/scrutinydebugger/scrutiny-python)
+#   - Project :  Scrutiny Debugger (github.com/scrutinydebugger/scrutiny-main)
 #
 #   Copyright (c) 2021 Scrutiny Debugger
 
@@ -73,6 +73,8 @@ python -m nuitka                                    \
     ${PLATFORM_ARGS}                                \
     --output-filename=${OUTPUT_FILENAME}            \
     --main=scrutiny                                 \
+
+rm "${LICENSE_FILE}"
 
 if [ "$PLATFORM" = "darwin" ]; then
     # Post process stage specific to mac OS. 

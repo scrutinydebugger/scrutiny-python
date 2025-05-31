@@ -2,7 +2,7 @@
 #        A base class for a component that are embedded in the gUI, not the dashboard
 #
 #   - License : MIT - See LICENSE file.
-#   - Project :  Scrutiny Debugger (github.com/scrutinydebugger/scrutiny-python)
+#   - Project :  Scrutiny Debugger (github.com/scrutinydebugger/scrutiny-main)
 #
 #   Copyright (c) 2021 Scrutiny Debugger
 

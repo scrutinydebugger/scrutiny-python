@@ -2,7 +2,7 @@
 #        CLI Command to launch the python unit tests
 #
 #   - License : MIT - See LICENSE file.
-#   - Project :  Scrutiny Debugger (github.com/scrutinydebugger/scrutiny-python)
+#   - Project :  Scrutiny Debugger (github.com/scrutinydebugger/scrutiny-main)
 #
 #   Copyright (c) 2021 Scrutiny Debugger
 
@@ -83,7 +83,7 @@ class RunTest(BaseCommand):
                 self.getLogger().critical(
                     'No scrutiny unit tests available in %s. Consider passing a test folder with --root if you run the tests from an installed module' % test_root)
             else:
-                self.getLogger().critical('No unit tests available in %s. Make sure to specify the path to the scrutiny-python repo root' % test_root)
+                self.getLogger().critical('No unit tests available in %s. Make sure to specify the path to the scrutiny-main repo root' % test_root)
         else:
             try:
                 test_suite = unittest.TestSuite()
