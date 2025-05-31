@@ -6,6 +6,8 @@
 #
 #   Copyright (c) 2021 Scrutiny Debugger
 
+#type: ignore 
+
 from setuptools import setup, find_packages #type:ignore
 import sys
 import os 
@@ -48,7 +50,7 @@ def get_gui_assets():
 
 
 setup(
-    name=scrutiny.__name__,
+    name="scrutinydebugger",    # Pypi name
     python_requires='>=3.9',
     description='Scrutiny Debugger Python framework',
     url='https://github.com/scrutinydebugger/scrutiny-python',
