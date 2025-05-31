@@ -2,7 +2,7 @@
 #        Standard installation script
 #
 #   - License : MIT - See LICENSE file.
-#   - Project :  Scrutiny Debugger (github.com/scrutinydebugger/scrutiny-python)
+#   - Project :  Scrutiny Debugger (github.com/scrutinydebugger/scrutiny-main)
 #
 #   Copyright (c) 2021 Scrutiny Debugger
 
@@ -53,7 +53,7 @@ setup(
     name="scrutinydebugger",    # Pypi name
     python_requires='>=3.9',
     description='Scrutiny Debugger Python framework',
-    url='https://github.com/scrutinydebugger/scrutiny-python',
+    url='https://github.com/scrutinydebugger/scrutiny-main',
     version=scrutiny.__version__,
     author=scrutiny.__author__,
     license=scrutiny.__license__,

@@ -49,13 +49,13 @@ html_theme_options = {
     "icon_links": [
         {
             "name": "GitHub",
-            "url": "https://github.com/scrutinydebugger/scrutiny-python",  # required
+            "url": "https://github.com/scrutinydebugger/scrutiny-main",  # required
             "icon": "fa-brands fa-square-github",
             "type": "fontawesome",
         }
     ],
     "external_links": [
-        ("Github", "https://github.com/scrutinydebugger/scrutiny-python")]
+        ("Github", "https://github.com/scrutinydebugger/scrutiny-main")]
 }
 
 autoclass_content = 'class'
