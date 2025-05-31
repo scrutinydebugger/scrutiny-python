@@ -39,7 +39,7 @@ info "Creating debian package: ${PKG_NAME}"
 info "Work folder: ${PKG_FOLDER}"
 
 mkdir -p "${PKG_FOLDER}"
-mkdir -p "${PKG_FOLDER}/DEBIAN" "${PKG_FOLDER}/opt" "${PKG_FOLDER}/bin" "${PKG_FOLDER}/usr/share/applications"
+mkdir -p "${PKG_FOLDER}/DEBIAN" "${PKG_FOLDER}/opt" "${PKG_FOLDER}/usr/local/bin/" "${PKG_FOLDER}/usr/share/applications"
 
 cp "${PROJECT_ROOT}/deploy/debian/control" "${PKG_FOLDER}/DEBIAN/control"   # Copy the template
 sed -i "s/<VERSION>/${SCRUTINY_VERSION}/g"  "${PKG_FOLDER}/DEBIAN/control"  # Set the version in the control file
