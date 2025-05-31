@@ -22,6 +22,7 @@ class ChartStatusOverlay(QGraphicsItem):
 
     _bounding_box:QRectF
     _text_rect:QRectF
+    _text_color:QColor
     _icon_rect : Optional[QRectF]
     _font:QFont
     _text:str
@@ -36,6 +37,7 @@ class ChartStatusOverlay(QGraphicsItem):
         self._icon_rect = None
         self._font  = QFont()
         self._font.setPixelSize(20)
+        self._text_color = scrutiny_get_theme().palette().text().color()
         self._text = ""
         self._icon = None
         self._icon_resized = None
@@ -70,19 +72,23 @@ class ChartStatusOverlay(QGraphicsItem):
         self._icon_rect = None
         self._icon_resized = None
         if self._icon is not None:
+            icon_ratio = self._icon.width()/self._icon.height()
             max_size = self.ICON_MAX_SIZE
-            max_size_ratio = max_size.width()/max_size.height()
 
+            # Clip both dimensions.
             icon_h = min(max_size.height(), icon_max_h)
             icon_w = min(max_size.width(), max_w) 
-            if icon_h > 0 and icon_w > 0:
-                icon_ratio = icon_w/icon_h
-
+            if icon_h > 0 and icon_w > 0:   # Display only if diplayable
+                # Scale the image if necessary. 
+                # If one of the side has been clipped, the other will be reduced. 
+                # If no side has been clipped, the icon should stay the same size.
+                max_size_ratio = icon_w/icon_h  
                 if icon_ratio > max_size_ratio:
-                    icon_w = max_size_ratio * icon_h
+                    icon_h = icon_w/icon_ratio
                 else:
-                    icon_h = icon_w/max_size_ratio
+                    icon_w = icon_ratio * icon_h
 
+                # Center everything and create a rectangle for the paint() method
                 icon_x = parent_rect.width()/2 - icon_w/2
                 icon_y = parent_rect.height()/2 - icon_h/2
                 self._icon_rect = QRectF(icon_x, icon_y, icon_w, icon_h)
@@ -125,10 +131,11 @@ class ChartStatusOverlay(QGraphicsItem):
         if self._icon_resized is not None:
             assert self._icon_rect is not None
             painter.drawPixmap(self._icon_rect.topLeft(), self._icon_resized)
-        painter.setPen(QColor(0,0,0))
+        painter.setPen(self._text_color)
         painter.setFont(self._font)
         painter.drawText(self._text_rect, self._text)
         
     def adjust_sizes(self) -> None:
         """Recompute the position of the overlay elements and update the content"""
         self._compute_geometry()
+

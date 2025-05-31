@@ -12,7 +12,6 @@ from PySide6.QtCore import Signal, QObject, SignalInstance
 import subprocess
 import threading
 import sys
-import scrutiny
 import os
 import logging
 import enum

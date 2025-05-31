@@ -1,9 +1,9 @@
-# Scrutiny Python module
+# Scrutiny main module
 
 
-Scrutiny Python module. Contains
+Scrutiny main module. Contains
  - Server
- - GUI launcher
+ - QT GUI 
  - CLI for build toolchain integration
  - Python SDK
 
@@ -18,12 +18,12 @@ pip install scrutinydebugger
 
 Launch Server
 ```
-scrutiny server --config config/serial.json
+scrutiny server [--config <config>.json] [--port <port>]
 ```
 
-Launch GUI (under development)
+Launch GUI
 ```
-scrutiny gui
+scrutiny gui [--start-local-server] [--auto-connect]
 ```
 
 ## Getting started - Developper 
@@ -31,20 +31,15 @@ scrutiny gui
 Install
 
 ```
-git clone git@github.com:scrutinydebugger/scrutiny-python.git
-```
+git clone ssh://git@github.com/scrutinydebugger/scrutiny-main.git
+python -m venv venv                 # Creates a virtual environment
+source venv/Scripts/activate        # Activates the virutal environment (Windows path)
+source venv/bin/activate            # Activates the virutal environment (Linux path)
+pip install -e scrutiny-main[dev]   # Installs Scrutiny in development mode
 
-Launch Server (Linux)
-```
-./scripts/with-venv.sh scrutiny server --config config/serial.json
-```
-
-Launch Server (Windows):
-
-No automation available. Dependencies can be installed manually inside a venv then the following command can be used:
-
-```
-python -m scrutiny server --config config/serial.json
+python -m scrutiny server [--config <config>.json]          # Launches scrutiny server
+python -m scrutiny gui --start-local-server --auto-connect  # Launches the GUI with a local server
+python -m scrutiny runtest                                  # Launches the unit tests
 ```
 
 ## More info

@@ -1059,7 +1059,7 @@ class EmbeddedGraph(ScrutinyGUIBaseLocalComponent):
         # Promises could be nice here, we don't have that.
 
         self._state.waiting_on_graph = True
-        self._chart_status_overlay.set(assets.Icons.Trigger, "Configuring")
+        self._chart_status_overlay.set(assets.Icons.ThreeDots, "Configuring")
         self._apply_internal_state()
 
         self.logger.debug(f"Requesting datalog for config {config}")
@@ -1086,7 +1086,7 @@ class EmbeddedGraph(ScrutinyGUIBaseLocalComponent):
             else:
                 self._request_to_ignore_completions.clear()
 
-            self._chart_status_overlay.set(assets.Icons.Trigger, "Waiting for trigger...")
+            self._chart_status_overlay.set(assets.Icons.ThreeDots, "Waiting for trigger...")
 
             # We have a pending request. Launch a background task to wait for completion.
             def bg_thread_wait_for_completion(client:ScrutinyClient) -> None:
@@ -1148,14 +1148,14 @@ class EmbeddedGraph(ScrutinyGUIBaseLocalComponent):
             if info.datalogging.state == DataloggerState.Standby:
                 self._chart_status_overlay.set(None, "")
             elif info.datalogging.state == DataloggerState.WaitForTrigger:
-                self._chart_status_overlay.set(assets.Icons.Trigger, "Waiting for trigger...")
+                self._chart_status_overlay.set(assets.Icons.ThreeDots, "Waiting for trigger...")
             elif info.datalogging.state == DataloggerState.Acquiring:
                 s = "Acquiring"
                 ratio = info.datalogging.completion_ratio
                 if ratio is not None:
                     percent = int(round(max(min(ratio, 1), 0) * 100)) 
                     s += f" ({int(percent)}%)"
-                self._chart_status_overlay.set(assets.Icons.Trigger, s)
+                self._chart_status_overlay.set(assets.Icons.ThreeDots, s)
 
     def _callback_acquire_request_failed(self, 
                                  request:Optional[DataloggingRequest], 
