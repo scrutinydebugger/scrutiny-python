@@ -372,6 +372,7 @@ class DeviceConfigDialog(QDialog):
                  apply_callback:Optional[Callable[["DeviceConfigDialog"], None]]=None 
                  ) -> None:
         super().__init__(parent)
+        self.setModal(True)
         self._preferences = gui_persistent_data.get_namespace(self.__class__.__name__)
         self._apply_callback = apply_callback
         self.logger = logging.getLogger(self.__class__.__name__)

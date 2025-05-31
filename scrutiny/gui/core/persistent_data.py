@@ -17,7 +17,6 @@ from scrutiny import tools
 from scrutiny.tools import validation
 from scrutiny.gui.globals import get_gui_storage
 
-import typing
 from scrutiny.tools.typing import *
 
 SAVABLE_VAL_TYPE = Union[str, int, bool, float, None, List[str], List[int], List[bool], List[float]]
