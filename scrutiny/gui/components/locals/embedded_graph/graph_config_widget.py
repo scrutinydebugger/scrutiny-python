@@ -311,7 +311,7 @@ class GraphConfigWidget(QWidget):
         
         return sampling_rate.frequency
 
-    def _compute_estimated_duration(self) -> Optional[float]:
+    def _compute_estimated_duration(self) -> Optional[Tuple[int, float]]:
         """Compute how long the acquisition will be considering:
          - Buffer size
          - Sampling rate
@@ -366,7 +366,7 @@ class GraphConfigWidget(QWidget):
             except Exception:
                 pass
 
-            return duration
+            return nb_sample_max, duration
         else:
             return None
 
@@ -399,9 +399,11 @@ class GraphConfigWidget(QWidget):
                 effective_sampling_rate_label_txt = tools.format_eng_unit(effective_rate, decimal=1, unit="Hz")
 
                 if self._get_signal_dtype_fn is not None:
-                    estimated_duration_sec = self._compute_estimated_duration()
-                    if estimated_duration_sec is not None:
-                        estimated_duration_label_txt = "~"+tools.format_eng_unit(estimated_duration_sec, decimal=1, unit="s")
+                    duration = self._compute_estimated_duration()
+                    if duration is not None:
+                        nb_smaples, estimated_duration_sec = duration
+                        duration_txt = tools.format_eng_unit(estimated_duration_sec, decimal=1, unit="s")
+                        estimated_duration_label_txt = f"~{duration_txt} ({nb_smaples} samples)"
 
         self._lbl_effective_sampling_rate.setText(effective_sampling_rate_label_txt)
         self._lbl_estimated_duration.setText(estimated_duration_label_txt)

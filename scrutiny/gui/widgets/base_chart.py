@@ -454,6 +454,8 @@ class ScrutinyChartCallout(QGraphicsItem):
     """The text displayed into the callout"""
     _point_location_on_chart:QPointF
     """X/Y location of the point that this callout is tied to"""
+    _text_color:QColor
+    """The text color coming from the theme"""
     _font:QFont
     """The text font"""
     _text_rect:QRectF
@@ -477,6 +479,7 @@ class ScrutinyChartCallout(QGraphicsItem):
         self._point_location_on_chart = QPointF()
         self._font  = QFont()
         self._text_rect = QRectF()
+        self._text_color = scrutiny_get_theme().palette().text().color()
         self._callout_rect = QRectF()
         self._bouding_rect = QRectF()
         self._color = QColor()
@@ -541,9 +544,9 @@ class ScrutinyChartCallout(QGraphicsItem):
         painter.setPen(self._color)     # Border color
         painter.drawRoundedRect(self._callout_rect, 5, 5)
         anchor = QPointF(self.mapFromParent(self._point_location_on_chart))
-        painter.setPen(QColor(0,0,0))     # Border color
+        painter.setPen(self._text_color)     # Border color
         painter.drawEllipse(anchor, self._marker_radius, self._marker_radius)
-        painter.setPen(QColor(0,0,0))
+        painter.setPen(self._text_color)
         painter.drawText(self._text_rect, self._text)
 
 @dataclass
@@ -698,6 +701,9 @@ class ScrutinyChartView(QChartView):
     _last_mouse_pos:QPoint
     """Last mouse position recorded onmousemove event in order to compute drag delta"""
     _chart_cursor_broadcast_xval_func:Optional[Callable[[float, bool], None]]
+    """The function to call to display the cursor x-value into the app"""
+    _text_color:QColor
+    """Text color given by the loaded theme"""
     
 
     @tools.copy_type(QChartView.__init__)
@@ -720,6 +726,7 @@ class ScrutinyChartView(QChartView):
         self._cursor_markers_vals=[]
         self._last_mouse_pos = QPoint()
         self._chart_cursor_broadcast_xval_func = None
+        self._text_color = scrutiny_get_theme().palette().text().color()
         
 
     def resizeEvent(self, event:QResizeEvent) -> None:
@@ -1012,8 +1019,8 @@ class ScrutinyChartView(QChartView):
                 cursor_xpos = chart.mapToParent(cursor_xpos_mapped_to_chart, 0).x() # Map it to this chartview
                 y1 = plotarea_mapped_to_chartview.y()
                 y2 = plotarea_mapped_to_chartview.y() + plotarea_mapped_to_chartview.height()
-                painter.setPen(QColor(0,0,0))
-                painter.setBrush(QColor(0,0,0))
+                painter.setPen(self._text_color)
+                painter.setBrush(self._text_color)
                 painter.drawPolygon([QPointF(cursor_xpos,y1), QPointF(cursor_xpos-3,y1-4), QPointF(cursor_xpos+3,y1-4)])
                 painter.setPen(CHART_CURSOR_COLOR)
                 painter.drawLine(QPointF(cursor_xpos, y1), QPointF(cursor_xpos,y2))
@@ -1021,7 +1028,7 @@ class ScrutinyChartView(QChartView):
             plotarea_width = chart.plotArea().width()
             cursor_val_width = (xaxis.max()-xaxis.min()) / plotarea_width
             cursor_xval = self._chart_cursor.xval()
-            painter.setPen(QColor(0,0,0))
+            painter.setPen(self._text_color)
             
             for pair in self._cursor_markers_vals:
                 snap = abs(pair.point.x() - cursor_xval) <= cursor_val_width

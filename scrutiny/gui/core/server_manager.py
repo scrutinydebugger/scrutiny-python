@@ -252,7 +252,7 @@ class ServerManager:
         status_received = Signal()
         device_info_availability_changed = Signal()
         loaded_sfd_availability_changed = Signal()
-        datalogging_storage_updated = Signal(sdk.DataloggingListChangeType, str)  # type, refernece_id
+        datalogging_storage_updated = Signal(sdk.DataloggingListChangeType, str)  # type, reference_id
 
     RECONNECT_DELAY = 1
     _client:ScrutinyClient 

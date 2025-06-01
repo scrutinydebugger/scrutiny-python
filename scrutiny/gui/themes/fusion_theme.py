@@ -46,7 +46,7 @@ class FusionTheme(ScrutinyTheme):
         
         self._prop_dict = {}
         if self.is_dark():
-            self._prop_dict[ScrutinyThemeProperties.CHART_CURSOR_COLOR] = QColor(255,60,60) # Light red
+            self._prop_dict[ScrutinyThemeProperties.CHART_CURSOR_COLOR] = QColor(255,145,70) # Light Orange
             self._prop_dict[ScrutinyThemeProperties.CHART_TOOLBAR_HOVERED_BUTTON_COLOR] =  self.palette().highlight().color().darker(150)
             self._prop_dict[ScrutinyThemeProperties.CHART_TOOLBAR_HOVERED_SELECTED_BORDER_COLOR] = self.palette().highlight().color().darker(200)
             self._prop_dict[ScrutinyThemeProperties.CHART_TOOLBAR_PRESSED_COLOR] = self.palette().highlight().color().darker(200)
