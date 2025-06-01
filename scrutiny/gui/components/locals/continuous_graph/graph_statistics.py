@@ -13,6 +13,7 @@ from PySide6.QtWidgets import ( QWidget, QGraphicsItem, QStyleOptionGraphicsItem
 from PySide6.QtCore import Qt, QRectF, QRect
 from scrutiny.tools.profiling import VariableRateExponentialAverager
 from scrutiny.tools.typing import *
+from scrutiny.gui.themes import scrutiny_get_theme
 
 class GraphStatistics:
     class Overlay(QGraphicsItem):
@@ -20,6 +21,7 @@ class GraphStatistics:
         _bounding_box:QRectF
         _text_rect:QRectF
         _font:QFont
+        _text_color:QColor
         _text:str
 
         def __init__(self, parent:Optional[QGraphicsItem], stats:"GraphStatistics") -> None:
@@ -28,6 +30,7 @@ class GraphStatistics:
             self._bounding_box = QRectF()
             self._text_rect = QRectF()
             self._font  = QFont()
+            self._text_color = scrutiny_get_theme().palette().text().color()
             self._text = ""
             self.setZValue(11)
 
@@ -59,7 +62,7 @@ class GraphStatistics:
 
         def paint(self, painter: QPainter, option: QStyleOptionGraphicsItem, widget: Optional[QWidget]=None) -> None:
             painter.fillRect(self._text_rect, QColor(0xC8, 0xE8, 0xFF, 50))
-            painter.setPen(QColor(0,0,0))
+            painter.setPen(self._text_color)
             painter.drawText(self._text_rect, self._text)
 
 
