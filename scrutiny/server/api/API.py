@@ -20,14 +20,15 @@ import binascii
 import threading
 from datetime import datetime
 
+from scrutiny import tools
+
 from scrutiny.server.timebase import server_timebase
 from scrutiny.server.datalogging.datalogging_storage import DataloggingStorage
 from scrutiny.server.datalogging.datalogging_manager import DataloggingManager
 from scrutiny.server.datastore.datastore import Datastore
-from scrutiny.server.datastore.datastore_entry import DatastoreEntry, UpdateTargetRequestCallback
-from scrutiny.server.device.device_handler import DeviceHandler, DeviceStateChangedCallback, RawMemoryReadRequestCompletionCallback, \
-    RawMemoryReadRequest, RawMemoryWriteRequestCompletionCallback, RawMemoryWriteRequest, UserCommandCallback
-from scrutiny.server.active_sfd_handler import ActiveSFDHandler, SFDLoadedCallback, SFDUnloadedCallback
+from scrutiny.server.datastore.datastore_entry import DatastoreEntry
+from scrutiny.server.device.device_handler import DeviceHandler, RawMemoryReadRequest, RawMemoryWriteRequest, UserCommandCallback
+from scrutiny.server.active_sfd_handler import ActiveSFDHandler
 from scrutiny.server.device.links import LinkConfig
 from scrutiny.server.sfd_storage import SFDStorage
 from scrutiny.core.basic_types import EmbeddedDataType, WatchableType
@@ -38,18 +39,16 @@ from scrutiny.server.device.device_info import ExecLoopType
 from scrutiny.core.basic_types import MemoryRegion
 import scrutiny.core.datalogging as core_datalogging
 from scrutiny.core.typehints import EmptyDict
-from scrutiny import tools
 
-
-from .tcp_client_handler import TCPClientHandler
-from .dummy_client_handler import DummyClientHandler
-from .value_streamer import ValueStreamer
-import scrutiny.server.api.typing as api_typing
-
-from .abstract_client_handler import AbstractClientHandler, ClientHandlerMessage
+from scrutiny.server.api.tcp_client_handler import TCPClientHandler
+from scrutiny.server.api.dummy_client_handler import DummyClientHandler
+from scrutiny.server.api.value_streamer import ValueStreamer
+from scrutiny.server.api.abstract_client_handler import AbstractClientHandler, ClientHandlerMessage
 from scrutiny.server.device.links.abstract_link import LinkConfig as DeviceLinkConfig
 
-from typing import List, Dict, Set, Optional, Callable, Any, TypedDict, cast, Generator, Literal, Type, TYPE_CHECKING
+
+import scrutiny.server.api.typing as api_typing
+from scrutiny.tools.typing import *
 
 if TYPE_CHECKING:
     from scrutiny.server.server import ScrutinyServer
@@ -334,6 +333,13 @@ class API:
 
         return cls.DATATYPE_2_APISTR[datatype]
 
+    @classmethod
+    def get_watchable_type_name(cls, watchable_type: WatchableType) -> api_typing.WatchableType:
+        if watchable_type not in cls.WATCHABLE_TYPE_2_APISTR:
+            raise ValueError('Unknown watchable type : %s' % (str(watchable_type)))
+
+        return cls.WATCHABLE_TYPE_2_APISTR[watchable_type]
+
     def sfd_loaded_callback(self, sfd: FirmwareDescription) -> None:
         # Called when a SFD is loaded after a device connection
         self.logger.debug("SFD Loaded callback called")
@@ -603,9 +609,9 @@ class API:
                     'rpv': len(batch_content[WatchableType.RuntimePublishedValue])
                 },
                 'content': {
-                    'var': [self.make_datastore_entry_definition_no_type(x) for x in batch_content[WatchableType.Variable]],
-                    'alias': [self.make_datastore_entry_definition_no_type(x) for x in batch_content[WatchableType.Alias]],
-                    'rpv': [self.make_datastore_entry_definition_no_type(x) for x in batch_content[WatchableType.RuntimePublishedValue]]
+                    'var': [self.make_datastore_entry_definition(x, include_type=False) for x in batch_content[WatchableType.Variable]],
+                    'alias': [self.make_datastore_entry_definition(x, include_type=False) for x in batch_content[WatchableType.Alias]],
+                    'rpv': [self.make_datastore_entry_definition(x, include_type=False) for x in batch_content[WatchableType.RuntimePublishedValue]]
                 },
                 'done': done
             }
@@ -635,17 +641,11 @@ class API:
             raise InvalidRequestException(req, 'Invalid or missing watchables list')
 
         # Check existence of all watchable before doing anything.
-        subscribed: Dict[str, api_typing.SubscribedInfo] = {}
+        subscribed: Dict[str, api_typing.DatastoreEntryDefinition] = {}
         for path in req['watchables']:
             try:
                 entry = self.datastore.get_entry_by_display_path(path)  # Will raise an exception if not existent
-                subscribed[path] = {
-                    'type': self.WATCHABLE_TYPE_2_APISTR[entry.get_type()],
-                    'datatype': self.DATATYPE_2_APISTR[entry.get_data_type()],
-                    'id': entry.get_id()
-                }
-                if entry.has_enum():
-                    subscribed[path]['enum'] = entry.get_enum().get_def()
+                subscribed[path] = self.make_datastore_entry_definition(entry)
 
             except KeyError as e:
                 raise InvalidRequestException(req, 'Unknown watchable : %s' % str(path))
@@ -1781,15 +1781,28 @@ class API:
         for watcher_conn_id in watchers:
             self.client_handler.send(ClientHandlerMessage(conn_id=watcher_conn_id, obj=msg))
 
-    def make_datastore_entry_definition_no_type(self, entry: DatastoreEntry) -> api_typing.DatastoreEntryDefinitionNoType:
+    def make_datastore_entry_definition(self, 
+                                        entry: DatastoreEntry, 
+                                        include_type:bool=True, 
+                                        include_display_path:bool=True,
+                                        include_datatype:bool=True,
+                                        include_enum:bool=True
+                                        ) -> api_typing.DatastoreEntryDefinition:
         # Craft the data structure sent by the API to give the available watchables
-        definition: api_typing.DatastoreEntryDefinitionNoType = {
-            'id': entry.get_id(),
-            'display_path': entry.get_display_path(),
-            'datatype': self.get_datatype_name(entry.get_data_type())
+        definition: api_typing.DatastoreEntryDefinition = {
+            'id': entry.get_id()
         }
 
-        if entry.has_enum():
+        if include_datatype:
+            definition['datatype'] = self.get_datatype_name(entry.get_data_type())
+
+        if include_display_path:
+            definition['display_path'] = entry.get_display_path()
+
+        if include_type:
+            definition['type'] = self.get_watchable_type_name(entry.get_type())
+
+        if include_enum and entry.has_enum():
             enum = entry.get_enum()
             assert enum is not None
             enum_def = enum.get_def()

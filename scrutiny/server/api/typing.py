@@ -59,17 +59,18 @@ class EnumDefinition(TypedDict):
     values: Dict[str, int]
 
 
-class DatastoreEntryDefinitionNoType(TypedDict, total=False):
+class DatastoreEntryDefinition(TypedDict, total=False):
     id: str
     display_path: str
     datatype: Datatype
-    enum: Optional[EnumDefinition]
+    type:WatchableType              # Can be missing
+    enum: Optional[EnumDefinition]  # Can be missing. Default to None
 
 
 class WatchableListContent(TypedDict):
-    var: List[DatastoreEntryDefinitionNoType]
-    alias: List[DatastoreEntryDefinitionNoType]
-    rpv: List[DatastoreEntryDefinitionNoType]
+    var: List[DatastoreEntryDefinition]
+    alias: List[DatastoreEntryDefinition]
+    rpv: List[DatastoreEntryDefinition]
 
 
 class SamplingRate(TypedDict):
@@ -184,13 +185,6 @@ class DataloggingSignalDataWithAxis(DataloggingSignalData):
 class AxisNameUpdateEntry(TypedDict):
     id: int
     name: str
-
-
-class SubscribedInfo(TypedDict, total=False):
-    type: WatchableType
-    datatype: Datatype
-    enum: EmbeddedEnumDef
-    id: str
 
 
 class C2S:
@@ -324,7 +318,7 @@ class S2C:
         done: bool
 
     class SubscribeWatchable(BaseS2CMessage):
-        subscribed: Dict[str, SubscribedInfo]
+        subscribed: Dict[str, DatastoreEntryDefinition]
 
     class UnsubscribeWatchable(BaseS2CMessage):
         unsubscribed: List[str]
