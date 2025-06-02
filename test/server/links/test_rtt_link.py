@@ -11,27 +11,28 @@ from scrutiny.server.device.links import rtt_link
 from test import ScrutinyUnitTest
 import time
 
+
 class FakeRTTPort:
-    data_written:bytearray
-    data_to_read:bytearray
-    write_chunk_size:int
+    data_written: bytearray
+    data_to_read: bytearray
+    write_chunk_size: int
 
-    _opened:bool
-    _connected:bool
-    _target_connected:bool
-    _tif:Optional[int]
-    _target_device:Optional[str]
+    _opened: bool
+    _connected: bool
+    _target_connected: bool
+    _tif: Optional[int]
+    _target_device: Optional[str]
 
-    def __init__(self, write_chunk_size:int=15) -> None:
+    def __init__(self, write_chunk_size: int = 15) -> None:
         self.data_written = bytearray()
         self.data_to_read = bytearray()
         self.write_chunk_size = write_chunk_size
-        self._opened = False 
+        self._opened = False
         self._connected = False
         self._target_connected = False
         self._target_device = None
 
-    def open(self) ->None:
+    def open(self) -> None:
         self._opened = True
 
     def opened(self) -> bool:
@@ -42,7 +43,7 @@ class FakeRTTPort:
         self._connected = False
         self._target_connected = False
 
-    def set_tif(self, val:int):
+    def set_tif(self, val: int):
         self._tif = val
 
     def connect(self, device) -> None:
@@ -54,13 +55,13 @@ class FakeRTTPort:
 
     def target_connected(self) -> bool:
         return self._target_connected
-    
-    def rtt_write(self, buffer_index:int, data:bytes) -> int:
+
+    def rtt_write(self, buffer_index: int, data: bytes) -> int:
         chunked = data[0:self.write_chunk_size]
         self.data_written.extend(chunked)
         return len(chunked)
 
-    def rtt_read(self, buffer_index:int, max_size:int) -> bytearray:
+    def rtt_read(self, buffer_index: int, max_size: int) -> bytearray:
         read = self.data_to_read[0:max_size]
         self.data_to_read = self.data_to_read[len(read):]
         return read
@@ -68,12 +69,14 @@ class FakeRTTPort:
     @property
     def product_name(self) -> str:
         return self.__class__.__name__
-    
-    def rtt_start(self, block_addr:Optional[int]) -> None:
+
+    def rtt_start(self, block_addr: Optional[int]) -> None:
         self._target_connected = True
 
-def get_link_port(link:rtt_link.RttLink) -> FakeRTTPort:
+
+def get_link_port(link: rtt_link.RttLink) -> FakeRTTPort:
     return link.port    # Glue code between internal property and unit test
+
 
 class TestRTTLink(ScrutinyUnitTest):
 
@@ -81,22 +84,22 @@ class TestRTTLink(ScrutinyUnitTest):
         self._old_port_func = rtt_link._get_jlink_class()
         rtt_link._set_jlink_class(FakeRTTPort)
 
-    def wait_eq(self, func, val, timeout:float):
+    def wait_eq(self, func, val, timeout: float):
         t = time.perf_counter()
         while time.perf_counter() - t < timeout:
             if func() == val:
                 break
         self.assertEqual(func(), val)
-    
-    def wait_true(self, func, timeout:float):
+
+    def wait_true(self, func, timeout: float):
         self.wait_eq(func, True, timeout)
-    
+
     def test_open_close(self):
         config = {
-            'target_device' : "CORTEX-M0",
-            'jlink_interface' : "SWD"
-            }
-        
+            'target_device': "CORTEX-M0",
+            'jlink_interface': "SWD"
+        }
+
         link = rtt_link.RttLink(config)
         link.initialize()
         self.assertTrue(link.operational())
@@ -105,16 +108,16 @@ class TestRTTLink(ScrutinyUnitTest):
 
     def test_write_read(self):
         config = {
-            'target_device' : "CORTEX-M0",
-            'jlink_interface' : "SWD"
-            }
+            'target_device': "CORTEX-M0",
+            'jlink_interface': "SWD"
+        }
         link = rtt_link.RttLink(config)
         link.initialize()
         port = get_link_port(link)
         self.assertIsNotNone(port)
         self.assertIsInstance(port, FakeRTTPort)
         assert isinstance(port, FakeRTTPort)   # mypy
-        
+
         port.data_to_read.extend(b'abcdef')
         data = link.read(timeout=1)
         self.assertIsNotNone(data)
@@ -130,15 +133,15 @@ class TestRTTLink(ScrutinyUnitTest):
     def test_error_on_bad_interface(self):
         with self.assertRaises(Exception):
             rtt_link.RttLink({
-                'target_device' : "CORTEX-M0",
-                'jlink_interface' : "idontexist"
+                'target_device': "CORTEX-M0",
+                'jlink_interface': "idontexist"
             })
-    
+
     def test_report_state(self):
         config = {
-            'target_device' : "CORTEX-M0",
-            'jlink_interface' : "SWD"
-            }
+            'target_device': "CORTEX-M0",
+            'jlink_interface': "SWD"
+        }
         link = rtt_link.RttLink(config)
         link.initialize()
         port = get_link_port(link)
@@ -149,8 +152,6 @@ class TestRTTLink(ScrutinyUnitTest):
         port._connected = False
         self.assertFalse(link.operational())
 
-
     def tearDown(self) -> None:
         rtt_link._set_jlink_class(self._old_port_func)
         return super().tearDown()
-        

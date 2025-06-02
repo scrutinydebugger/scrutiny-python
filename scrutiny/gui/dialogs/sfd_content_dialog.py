@@ -14,9 +14,10 @@ from PySide6.QtCore import Qt
 from scrutiny import sdk
 from scrutiny.tools.typing import *
 
+
 class SFDContentDialog(QDialog):
-    def __init__(self, parent:Optional[QWidget], sfd:sdk.SFDInfo) -> None:
-        super().__init__(parent) 
+    def __init__(self, parent: Optional[QWidget], sfd: sdk.SFDInfo) -> None:
+        super().__init__(parent)
 
         layout = QVBoxLayout(self)
         layout.setAlignment(Qt.AlignmentFlag.AlignTop)
@@ -32,8 +33,8 @@ class SFDContentDialog(QDialog):
         project_gb.setTitle("Project")
         sfd_generation_gb.setTitle("SFD Generation")
         self.setModal(True)
-        
-        def write_fields(gb:QGroupBox, fields:List[Tuple[str, Optional[str]]]) -> None:
+
+        def write_fields(gb: QGroupBox, fields: List[Tuple[str, Optional[str]]]) -> None:
             layout = QFormLayout(gb)
             for field in fields:
                 property_label = QLabel(f"{field[0]}: ")
@@ -46,8 +47,8 @@ class SFDContentDialog(QDialog):
                 value_label.setTextInteractionFlags(Qt.TextInteractionFlag.TextSelectableByMouse)
                 value_label.setCursor(Qt.CursorShape.IBeamCursor)
                 layout.addRow(property_label, value_label)
-        
-        def write_na(gb:QGroupBox) -> None:
+
+        def write_na(gb: QGroupBox) -> None:
             layout = QVBoxLayout(gb)
             label = QLabel("N/A")
             label.setTextInteractionFlags(Qt.TextInteractionFlag.TextSelectableByMouse)
@@ -58,7 +59,7 @@ class SFDContentDialog(QDialog):
         if sfd.metadata is None:
             write_na(project_gb)
         else:
-            project_fields:List[Tuple[str, Optional[str]]] = [
+            project_fields: List[Tuple[str, Optional[str]]] = [
                 ("Project name", sfd.metadata.project_name),
                 ("Version", sfd.metadata.version),
                 ("Author", sfd.metadata.author)
@@ -69,7 +70,7 @@ class SFDContentDialog(QDialog):
         if sfd.metadata is None or sfd.metadata.generation_info is None:
             write_na(sfd_generation_gb)
         else:
-            dt:Optional[str] = None
+            dt: Optional[str] = None
             if sfd.metadata.generation_info.timestamp is not None:
                 dt = sfd.metadata.generation_info.timestamp.strftime(r"%Y-%m-%d %H:%M:%S")
             sfd_generation_fields = [
@@ -79,5 +80,3 @@ class SFDContentDialog(QDialog):
                 ("Created on", dt)
             ]
             write_fields(sfd_generation_gb, sfd_generation_fields)
-
-        

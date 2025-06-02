@@ -6,10 +6,11 @@
 #
 #   Copyright (c) 2024 Scrutiny Debugger
 
-if __name__ != '__main__' : 
+if __name__ != '__main__':
     raise RuntimeError("This script is expected to run from the command line")
 
-import sys, os
+import sys
+import os
 sys.path.insert(0, os.path.dirname(__file__))
 from manual_test_base import make_manual_test_app
 app = make_manual_test_app()
@@ -24,10 +25,11 @@ import datetime
 
 @dataclass
 class Config:
-    add_ro_mem:bool = False
-    add_forbidden_mem:bool = False
-    add_datalogging:bool = False
-    add_sampling_rates:bool = False
+    add_ro_mem: bool = False
+    add_forbidden_mem: bool = False
+    add_datalogging: bool = False
+    add_sampling_rates: bool = False
+
 
 def make_sfd_info() -> SFDInfo:
     return SFDInfo(
@@ -44,6 +46,7 @@ def make_sfd_info() -> SFDInfo:
             )
         )
     )
+
 
 window = QMainWindow()
 central_widget = QWidget()

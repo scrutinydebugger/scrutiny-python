@@ -101,7 +101,7 @@ class SessionInitializer:
         if not self.connection_pending and (self.last_connect_sent is None or time.monotonic() - self.last_connect_sent > self.RECONNECT_DELAY):
             self.success = False
             self.last_connect_sent = time.monotonic()
-            if self.logger.isEnabledFor(logging.DEBUG): # pragma: no cover
+            if self.logger.isEnabledFor(logging.DEBUG):  # pragma: no cover
                 self.logger.debug('Registering a Connect request')
             self.dispatcher.register_request(request=self.protocol.comm_connect(),
                                              success_callback=self.success_callback,

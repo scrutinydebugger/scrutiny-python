@@ -14,33 +14,33 @@ from scrutiny import sdk
 
 from scrutiny.tools.typing import *
 
-enum_rpv_a_c = sdk.EmbeddedEnum("EnumAC", {'aaa' : 0, 'bbb': 1, 'ccc': 2})
+enum_rpv_a_c = sdk.EmbeddedEnum("EnumAC", {'aaa': 0, 'bbb': 1, 'ccc': 2})
 
 DUMMY_DATASET_RPV = {
-    '/rpv/rpv.a/rpv.a.a' : sdk.WatchableConfiguration(server_id='rpv.a.a', watchable_type=sdk.WatchableType.RuntimePublishedValue, datatype=sdk.EmbeddedDataType.float32, enum=None),
-    '/rpv/rpv.a/rpv.a.b' : sdk.WatchableConfiguration(server_id='rpv.a.b', watchable_type=sdk.WatchableType.RuntimePublishedValue, datatype=sdk.EmbeddedDataType.float32, enum=None),
-    '/rpv/rpv.a/rpv.a.c' : sdk.WatchableConfiguration(server_id='rpv.a.c', watchable_type=sdk.WatchableType.RuntimePublishedValue, datatype=sdk.EmbeddedDataType.uint32, enum=enum_rpv_a_c),
-    '/rpv/rpv.b/rpv.b.a' : sdk.WatchableConfiguration(server_id='rpv.b.a', watchable_type=sdk.WatchableType.RuntimePublishedValue, datatype=sdk.EmbeddedDataType.float32, enum=None),
-    '/rpv/rpv.b/rpv.b.b' : sdk.WatchableConfiguration(server_id='rpv.b.b', watchable_type=sdk.WatchableType.RuntimePublishedValue, datatype=sdk.EmbeddedDataType.float32, enum=None),
-    '/rpv/rpv.b/rpv.b.c' : sdk.WatchableConfiguration(server_id='rpv.b.c', watchable_type=sdk.WatchableType.RuntimePublishedValue, datatype=sdk.EmbeddedDataType.float32, enum=None),
+    '/rpv/rpv.a/rpv.a.a': sdk.WatchableConfiguration(server_id='rpv.a.a', watchable_type=sdk.WatchableType.RuntimePublishedValue, datatype=sdk.EmbeddedDataType.float32, enum=None),
+    '/rpv/rpv.a/rpv.a.b': sdk.WatchableConfiguration(server_id='rpv.a.b', watchable_type=sdk.WatchableType.RuntimePublishedValue, datatype=sdk.EmbeddedDataType.float32, enum=None),
+    '/rpv/rpv.a/rpv.a.c': sdk.WatchableConfiguration(server_id='rpv.a.c', watchable_type=sdk.WatchableType.RuntimePublishedValue, datatype=sdk.EmbeddedDataType.uint32, enum=enum_rpv_a_c),
+    '/rpv/rpv.b/rpv.b.a': sdk.WatchableConfiguration(server_id='rpv.b.a', watchable_type=sdk.WatchableType.RuntimePublishedValue, datatype=sdk.EmbeddedDataType.float32, enum=None),
+    '/rpv/rpv.b/rpv.b.b': sdk.WatchableConfiguration(server_id='rpv.b.b', watchable_type=sdk.WatchableType.RuntimePublishedValue, datatype=sdk.EmbeddedDataType.float32, enum=None),
+    '/rpv/rpv.b/rpv.b.c': sdk.WatchableConfiguration(server_id='rpv.b.c', watchable_type=sdk.WatchableType.RuntimePublishedValue, datatype=sdk.EmbeddedDataType.float32, enum=None),
 }
 
 DUMMY_DATASET_ALIAS = {
-    '/alias/alias.a/alias.a.a' : sdk.WatchableConfiguration(server_id='alias.a.a', watchable_type=sdk.WatchableType.Alias, datatype=sdk.EmbeddedDataType.float32, enum=None),
-    '/alias/alias.a/alias.a.b' : sdk.WatchableConfiguration(server_id='alias.a.b', watchable_type=sdk.WatchableType.Alias, datatype=sdk.EmbeddedDataType.float32, enum=None),
-    '/alias/alias.a/alias.a.c' : sdk.WatchableConfiguration(server_id='alias.a.c', watchable_type=sdk.WatchableType.Alias, datatype=sdk.EmbeddedDataType.float32, enum=None),
-    '/alias/alias.b/alias.b.a' : sdk.WatchableConfiguration(server_id='alias.b.a', watchable_type=sdk.WatchableType.Alias, datatype=sdk.EmbeddedDataType.float32, enum=None),
-    '/alias/alias.b/alias.b.b' : sdk.WatchableConfiguration(server_id='alias.b.b', watchable_type=sdk.WatchableType.Alias, datatype=sdk.EmbeddedDataType.float32, enum=None),
-    '/alias/alias.b/alias.b.c' : sdk.WatchableConfiguration(server_id='alias.b.c', watchable_type=sdk.WatchableType.Alias, datatype=sdk.EmbeddedDataType.float32, enum=None),
+    '/alias/alias.a/alias.a.a': sdk.WatchableConfiguration(server_id='alias.a.a', watchable_type=sdk.WatchableType.Alias, datatype=sdk.EmbeddedDataType.float32, enum=None),
+    '/alias/alias.a/alias.a.b': sdk.WatchableConfiguration(server_id='alias.a.b', watchable_type=sdk.WatchableType.Alias, datatype=sdk.EmbeddedDataType.float32, enum=None),
+    '/alias/alias.a/alias.a.c': sdk.WatchableConfiguration(server_id='alias.a.c', watchable_type=sdk.WatchableType.Alias, datatype=sdk.EmbeddedDataType.float32, enum=None),
+    '/alias/alias.b/alias.b.a': sdk.WatchableConfiguration(server_id='alias.b.a', watchable_type=sdk.WatchableType.Alias, datatype=sdk.EmbeddedDataType.float32, enum=None),
+    '/alias/alias.b/alias.b.b': sdk.WatchableConfiguration(server_id='alias.b.b', watchable_type=sdk.WatchableType.Alias, datatype=sdk.EmbeddedDataType.float32, enum=None),
+    '/alias/alias.b/alias.b.c': sdk.WatchableConfiguration(server_id='alias.b.c', watchable_type=sdk.WatchableType.Alias, datatype=sdk.EmbeddedDataType.float32, enum=None),
 }
 
 DUMMY_DATASET_VAR = {
-    '/var/var.a/var.a.a' : sdk.WatchableConfiguration(server_id='var.a.a', watchable_type=sdk.WatchableType.Variable, datatype=sdk.EmbeddedDataType.float32, enum=None),
-    '/var/var.a/var.a.b' : sdk.WatchableConfiguration(server_id='var.a.b', watchable_type=sdk.WatchableType.Variable, datatype=sdk.EmbeddedDataType.float32, enum=None),
-    '/var/var.a/var.a.c' : sdk.WatchableConfiguration(server_id='var.a.c', watchable_type=sdk.WatchableType.Variable, datatype=sdk.EmbeddedDataType.float32, enum=None),
-    '/var/var.b/var.b.a' : sdk.WatchableConfiguration(server_id='var.b.a', watchable_type=sdk.WatchableType.Variable, datatype=sdk.EmbeddedDataType.float32, enum=None),
-    '/var/var.b/var.b.b' : sdk.WatchableConfiguration(server_id='var.b.b', watchable_type=sdk.WatchableType.Variable, datatype=sdk.EmbeddedDataType.float32, enum=None),
-    '/var/var.b/var.b.c' : sdk.WatchableConfiguration(server_id='var.b.c', watchable_type=sdk.WatchableType.Variable, datatype=sdk.EmbeddedDataType.float32, enum=None),
+    '/var/var.a/var.a.a': sdk.WatchableConfiguration(server_id='var.a.a', watchable_type=sdk.WatchableType.Variable, datatype=sdk.EmbeddedDataType.float32, enum=None),
+    '/var/var.a/var.a.b': sdk.WatchableConfiguration(server_id='var.a.b', watchable_type=sdk.WatchableType.Variable, datatype=sdk.EmbeddedDataType.float32, enum=None),
+    '/var/var.a/var.a.c': sdk.WatchableConfiguration(server_id='var.a.c', watchable_type=sdk.WatchableType.Variable, datatype=sdk.EmbeddedDataType.float32, enum=None),
+    '/var/var.b/var.b.a': sdk.WatchableConfiguration(server_id='var.b.a', watchable_type=sdk.WatchableType.Variable, datatype=sdk.EmbeddedDataType.float32, enum=None),
+    '/var/var.b/var.b.b': sdk.WatchableConfiguration(server_id='var.b.b', watchable_type=sdk.WatchableType.Variable, datatype=sdk.EmbeddedDataType.float32, enum=None),
+    '/var/var.b/var.b.c': sdk.WatchableConfiguration(server_id='var.b.c', watchable_type=sdk.WatchableType.Variable, datatype=sdk.EmbeddedDataType.float32, enum=None),
 }
 
 
@@ -66,7 +66,7 @@ class FakeServerManager:
     _device_connected: bool
     _sfd_loaded: bool
 
-    def __init__(self, watchable_registry:WatchableRegistry):
+    def __init__(self, watchable_registry: WatchableRegistry):
         self._signals = self._Signals()
         self._registry = watchable_registry
 
@@ -86,16 +86,14 @@ class FakeServerManager:
         """The watchable registry containing a definition of all the watchables available on the server"""
         return self._registry
 
-
-    def start(self, config:ServerConfig) -> None:
-        self._signals.starting.emit()        
+    def start(self, config: ServerConfig) -> None:
+        self._signals.starting.emit()
         self._started = True
         self._signals.started.emit()
         self._signals.server_connected.emit()
 
         if self.registry.clear():
             self._signals.registry_changed.emit()
-
 
     def stop(self) -> None:
         self._signals.stopping.emit()
@@ -107,12 +105,12 @@ class FakeServerManager:
 
     def simulate_server_connect(self):
         if not self._started:
-            return 
+            return
         need_signal = not self._server_connected
         self._server_connected = True
         if need_signal:
             self._signals.server_connected.emit()
-        
+
         if self.registry.clear():
             self._signals.registry_changed.emit()
 
@@ -123,18 +121,18 @@ class FakeServerManager:
 
     def simulate_server_disconnected(self):
         if not self._started:
-            return 
+            return
         need_signal = self._server_connected
         self._server_connected = False
         if need_signal:
             self._signals.server_disconnected.emit()
-        
+
         if self.registry.clear():
             self._signals.registry_changed.emit()
-    
+
     def is_running(self) -> bool:
         return self._started
-    
+
     def simulate_device_ready(self) -> None:
         if not self._server_connected:
             return
@@ -142,7 +140,7 @@ class FakeServerManager:
         self._signals.device_ready.emit()
         self.registry.clear_content_by_type(sdk.WatchableType.RuntimePublishedValue)
         self.registry.write_content({
-            sdk.WatchableType.RuntimePublishedValue : DUMMY_DATASET_RPV
+            sdk.WatchableType.RuntimePublishedValue: DUMMY_DATASET_RPV
         })
         self._signals.registry_changed.emit()
 
@@ -162,8 +160,8 @@ class FakeServerManager:
         self.registry.clear_content_by_type(sdk.WatchableType.Alias)
         self.registry.clear_content_by_type(sdk.WatchableType.Variable)
         self.registry.write_content({
-            sdk.WatchableType.Variable : DUMMY_DATASET_VAR,
-            sdk.WatchableType.Alias : DUMMY_DATASET_ALIAS,
+            sdk.WatchableType.Variable: DUMMY_DATASET_VAR,
+            sdk.WatchableType.Alias: DUMMY_DATASET_ALIAS,
         })
         self._signals.registry_changed.emit()
 
@@ -175,21 +173,21 @@ class FakeServerManager:
         self.registry.clear_content_by_type(sdk.WatchableType.Alias)
         self.registry.clear_content_by_type(sdk.WatchableType.Variable)
         self._signals.registry_changed.emit()
-        
+
     def get_server_info(self) -> Optional[sdk.ServerInfo]:
         if not self._started:
             return None
-        
+
         if not self._server_connected:
             return None
-        
+
         datalogging = None
         device_comm_state = sdk.DeviceCommState.Disconnected
         device_session_id = None
         if self._device_connected:
             datalogging = sdk.DataloggingInfo(completion_ratio=0, state=sdk.DataloggerState.Standby)
             device_comm_state = sdk.DeviceCommState.ConnectedReady
-            device_session_id='aaa'
+            device_session_id = 'aaa'
 
         sfd_firmware_id = None
         if self._sfd_loaded:
@@ -209,6 +207,5 @@ class FakeServerManager:
 
         return info
 
-    def qt_write_watchable_value(self, fqn:str, value:Union[str, int, float, bool], callback:Callable[[Optional[Exception]], None]) -> None:
+    def qt_write_watchable_value(self, fqn: str, value: Union[str, int, float, bool], callback: Callable[[Optional[Exception]], None]) -> None:
         pass
-        

@@ -11,6 +11,7 @@ __all__ = ['GetInfo']
 from .base_command import BaseCommand
 from enum import Enum
 
+
 class GetInfo(BaseCommand):
     _cmd_id = 1
 

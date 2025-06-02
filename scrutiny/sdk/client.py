@@ -46,6 +46,7 @@ from datetime import datetime
 
 from scrutiny.tools.typing import *
 
+
 class CallbackState(enum.Enum):
     Pending = enum.auto()
     OK = enum.auto()
@@ -109,6 +110,7 @@ class ApiResponseFuture:
             return 'Timed out'
         return ''
 
+
 class CallbackStorageEntry:
     """Represent an entry in the registry of all active requests"""
     _reqid: int
@@ -123,6 +125,7 @@ class CallbackStorageEntry:
         self._future = future
         self._creation_timestamp_monotonic = time.monotonic()
         self._timeout = timeout
+
 
 @dataclass
 class PendingAPIBatchWrite:
@@ -160,35 +163,34 @@ class FlushPoint:
     pass
 
 
-
 @dataclass(init=False)
 class WatchableListDownloadRequest(PendingRequest):
     """Represents a pending watchable download request. It can be used to wait for completion or cancel the request.
-    
+
     :param client: A reference to the client object
     :param request_id:  The request ID of the initiating request
     :param new_data_callback: A callback to process the segmented data as it comes in. Called from the internal thread.     
     """
-    _request_id:int
-    _watchable_list:WatchableListType
-    _new_data_callback:Optional[Callable[[ Dict[sdk.WatchableType, Dict[str, sdk.WatchableConfiguration]], bool ], None]]
+    _request_id: int
+    _watchable_list: WatchableListType
+    _new_data_callback: Optional[Callable[[Dict[sdk.WatchableType, Dict[str, sdk.WatchableConfiguration]], bool], None]]
 
-    def __init__(self, 
-                 client:"ScrutinyClient", 
-                 request_id:int, 
-                 new_data_callback:Optional[Callable[[Dict[sdk.WatchableType, Dict[str, sdk.WatchableConfiguration]], bool], None]] = None
+    def __init__(self,
+                 client: "ScrutinyClient",
+                 request_id: int,
+                 new_data_callback: Optional[Callable[[Dict[sdk.WatchableType, Dict[str, sdk.WatchableConfiguration]], bool], None]] = None
                  ) -> None:
         self._request_id = request_id
         self._watchable_list = {
-            WatchableType.Variable : {},
-            WatchableType.Alias : {},
-            WatchableType.RuntimePublishedValue : {}
+            WatchableType.Variable: {},
+            WatchableType.Alias: {},
+            WatchableType.RuntimePublishedValue: {}
         }
         self._new_data_callback = new_data_callback
 
         super().__init__(client)
 
-    def _add_data(self, data:Dict[sdk.WatchableType, Dict[str, sdk.WatchableConfiguration]], done:bool) -> None:
+    def _add_data(self, data: Dict[sdk.WatchableType, Dict[str, sdk.WatchableConfiguration]], done: bool) -> None:
         if self._new_data_callback is not None:
             self._new_data_callback(data, done)
         else:
@@ -196,11 +198,11 @@ class WatchableListDownloadRequest(PendingRequest):
             for watchable_type in WatchableType.all():
                 if watchable_type in data:
                     self._watchable_list[watchable_type].update(data[watchable_type])
-    
+
     def cancel(self) -> None:
         """Informs the client that this request can be canceled.
          Subsequent server response will be ignored and this request will be marked as completed, but failed.
-        
+
         :raise TimeoutException: If the client fails to cancel the request. Should never happen
         :raise OperationFailure: If called on a completed request
         """
@@ -224,29 +226,28 @@ class WatchableListDownloadRequest(PendingRequest):
             raise sdk.exceptions.InvalidValueError("Watchable list is not finished downloading")
         if not self.is_success:
             raise sdk.exceptions.InvalidValueError("Watchable list failed to download fully")
-        
-        
+
         return self._watchable_list
-    
+
 
 class DataRateMeasurements:
-    rx_data_rate:VariableRateExponentialAverager
-    tx_data_rate:VariableRateExponentialAverager
-    rx_message_rate:VariableRateExponentialAverager
-    tx_message_rate:VariableRateExponentialAverager
-    
+    rx_data_rate: VariableRateExponentialAverager
+    tx_data_rate: VariableRateExponentialAverager
+    rx_message_rate: VariableRateExponentialAverager
+    tx_message_rate: VariableRateExponentialAverager
+
     def __init__(self) -> None:
         self.rx_data_rate = VariableRateExponentialAverager(time_estimation_window=0.1, tau=0.5, near_zero=1)
         self.tx_data_rate = VariableRateExponentialAverager(time_estimation_window=0.1, tau=0.5, near_zero=1)
         self.rx_message_rate = VariableRateExponentialAverager(time_estimation_window=0.1, tau=0.5, near_zero=0.1)
         self.tx_message_rate = VariableRateExponentialAverager(time_estimation_window=0.1, tau=0.5, near_zero=0.1)
-    
+
     def update(self) -> None:
         self.rx_data_rate.update()
         self.tx_data_rate.update()
         self.rx_message_rate.update()
         self.tx_message_rate.update()
-    
+
     def enable(self) -> None:
         self.rx_data_rate.enable()
         self.tx_data_rate.enable()
@@ -265,6 +266,7 @@ class DataRateMeasurements:
         self.rx_message_rate.reset()
         self.tx_message_rate.reset()
 
+
 class ScrutinyClient:
     RxMessageCallback = Callable[["ScrutinyClient", object], None]
     _UPDATE_SERVER_STATUS_INTERVAL = 2
@@ -277,55 +279,55 @@ class ScrutinyClient:
     class Statistics:
         """Performance metrics given by the client useful for diagnostic and debugging"""
 
-        rx_data_rate:float
+        rx_data_rate: float
         """Returns the approximated data input rate coming from the server in Bytes/sec"""
-        rx_message_rate:float
+        rx_message_rate: float
         """Returns the approximated message input rate coming from the server in msg/sec"""
-        tx_data_rate:float
+        tx_data_rate: float
         """Returns the approximated data output rate sent to the server in Bytes/sec"""
-        tx_message_rate:float
+        tx_message_rate: float
         """Returns the approximated message output rate sent to the server in msg/sec"""
-    
+
     class Events:
         @dataclass(frozen=True)
         class ConnectedEvent:
             """Triggered when the client connects to a Scrutiny server"""
             _filter_flag = 0x01
-            host:str
+            host: str
             """The server hostname"""
-            port:int
+            port: int
             """The server port"""
 
             def msg(self) -> str:
                 return f"Connected to a Scrutiny server at {self.host}:{self.port}"
-        
+
         @dataclass(frozen=True)
         class DisconnectedEvent:
             """Triggered when the client disconnects from a Scrutiny server"""
             _filter_flag = 0x02
-            host:str
+            host: str
             """The server hostname"""
-            port:int
+            port: int
             """The server port"""
 
             def msg(self) -> str:
                 return f"Disconnected from server at {self.host}:{self.port}"
-            
+
         @dataclass(frozen=True)
         class DeviceReadyEvent:
             """Triggered when the server establish a communication with a device and the handshake phase is completed"""
             _filter_flag = 0x04
-            session_id:str
+            session_id: str
             """A unique ID assigned to the communication session. This ID will change if the same device disconnects and reconnects."""
 
             def msg(self) -> str:
                 return f"A new device is connected and ready. Session ID: {self.session_id} "
-        
+
         @dataclass(frozen=True)
         class DeviceGoneEvent:
             """Triggered when the the communication between the server and a device stops"""
             _filter_flag = 0x08
-            session_id:str
+            session_id: str
             """The unique ID assigned to the communication session."""
 
             def msg(self) -> str:
@@ -335,50 +337,47 @@ class ScrutinyClient:
         class SFDLoadedEvent:
             """Triggered when the server loads a Scrutiny Firmware Description file, making Aliases and Variables available through the API """
             _filter_flag = 0x10
-            firmware_id:str
+            firmware_id: str
             """The firmware ID that matches the SFD"""
 
             def msg(self) -> str:
                 return f"Server has loaded a Firmware Decription with firmware ID: {self.firmware_id}"
 
-            
-        
         @dataclass(frozen=True)
         class SFDUnLoadedEvent:
             """Triggered when the server unloads a Scrutiny Firmware Description file"""
             _filter_flag = 0x20
-            firmware_id:str
+            firmware_id: str
             """The firmware ID that matches the SFD"""
 
             def msg(self) -> str:
                 return f"Server has unloaded a Firmware Decription with firmware ID: {self.firmware_id}"
-            
-        
+
         @dataclass(frozen=True)
         class DataloggerStateChanged:
             """Triggered when the datalogger state changes or when the completion ratio is updated while acquiring"""
 
             _filter_flag = 0x40
-            details:sdk.DataloggingInfo
+            details: sdk.DataloggingInfo
             """The state of the datalogger and the completion ratio"""
 
             def msg(self) -> str:
                 msg = f"Datalogger state changed: {self.details.state.name}"
                 if self.details.completion_ratio is not None:
-                    msg +=f" ({round(self.details.completion_ratio*100)}%)"
+                    msg += f" ({round(self.details.completion_ratio * 100)}%)"
                 return msg
-        
+
         @dataclass(frozen=True)
         class StatusUpdateEvent:
             """Triggered when the a new server status is received"""
 
             _filter_flag = 0x80
-            info:sdk.ServerInfo
+            info: sdk.ServerInfo
             """The status info received"""
 
             def msg(self) -> str:
                 return f"New server status update received"
-            
+
         @dataclass(frozen=True)
         class DataloggingListChanged:
             """Triggered when the list of datalogging acquisition changed on the server (new, removed or updated). 
@@ -386,16 +385,14 @@ class ScrutinyClient:
             can be used to fetch the details"""
 
             _filter_flag = 0x100
-            
-            change_type:DataloggingListChangeType
+
+            change_type: DataloggingListChangeType
             """The action performed on the datalogging list. Useful to correctly update the client side list"""
-            acquisition_reference_id:Optional[str]
+            acquisition_reference_id: Optional[str]
             """The targeted acquisition. Will have a value for NEW, DELETE, UPDATE.  ``None`` for DELETE_ALL"""
 
             def msg(self) -> str:
-                return f"List of datalogging acquisition has changed"            
-
-
+                return f"List of datalogging acquisition has changed"
 
         LISTEN_NONE = 0x0
         """Listen to no events"""
@@ -419,12 +416,12 @@ class ScrutinyClient:
         """Listen for events of type :class:`DataloggingListChanged<scrutiny.sdk.client.ScrutinyClient.Events.DataloggingListChanged>`"""
         LISTEN_ALL = 0xFFFFFFFF
         """Listen to all events"""
-        
+
         _ANY_EVENTS = Union[
-            ConnectedEvent, DisconnectedEvent, DeviceReadyEvent, DeviceGoneEvent, 
+            ConnectedEvent, DisconnectedEvent, DeviceReadyEvent, DeviceGoneEvent,
             SFDLoadedEvent, SFDUnLoadedEvent, DataloggerStateChanged, StatusUpdateEvent,
             DataloggingListChanged
-            ]
+        ]
 
     @dataclass
     class _ThreadingEvents:
@@ -434,7 +431,7 @@ class ScrutinyClient:
         msg_received: threading.Event
         sync_complete: threading.Event
         require_sync: threading.Event
-        welcome_received:threading.Event
+        welcome_received: threading.Event
 
         def __init__(self) -> None:
             self.stop_worker_thread = threading.Event()
@@ -454,8 +451,8 @@ class ScrutinyClient:
     _encoding: str              # The API string encoding. utf-8
     _sock: Optional[socket.socket]    # The socket talking with the server
     _selector: Optional[selectors.DefaultSelector]  # Used for socket communication
-    _stream_parser : StreamParser         # Used for socket communication
-    _stream_maker : StreamMaker           # Used for socket communication
+    _stream_parser: StreamParser         # Used for socket communication
+    _stream_maker: StreamMaker           # Used for socket communication
     _rx_message_callbacks: List[RxMessageCallback]  # List of callbacks to call for each message received. (mainly for testing)
     _reqid: int                 # The actual request ID. Increasing integer
     _timeout: float             # Default timeout value for server requests
@@ -489,13 +486,13 @@ class ScrutinyClient:
 
     _active_batch_context: Optional[BatchWriteContext]  # The active write batch. All writes are appended to it if not None
 
-    _listeners:List[listeners.BaseListener]   # List of registered listeners
-    _event_queue:"queue.Queue[Events._ANY_EVENTS]"  # A queue containing all the events lsitened for
-    _enabled_events:int                             # Flags indicating what events to listen for
-    _datarate_measurements:DataRateMeasurements     # A measurement of the datarate with the server
-    _server_timebase:RelativeTimebase          # A timebase that can convert server precise timings to unix timestamp.
+    _listeners: List[listeners.BaseListener]   # List of registered listeners
+    _event_queue: "queue.Queue[Events._ANY_EVENTS]"  # A queue containing all the events lsitened for
+    _enabled_events: int                             # Flags indicating what events to listen for
+    _datarate_measurements: DataRateMeasurements     # A measurement of the datarate with the server
+    _server_timebase: RelativeTimebase          # A timebase that can convert server precise timings to unix timestamp.
 
-    _force_fail_request:bool     #  Flag for unit testing that will cause requests to fail prematurely 
+    _force_fail_request: bool  # Flag for unit testing that will cause requests to fail prematurely
 
     def __enter__(self) -> "ScrutinyClient":
         return self
@@ -509,7 +506,7 @@ class ScrutinyClient:
                  rx_message_callbacks: Optional[List[RxMessageCallback]] = None,
                  timeout: float = 4.0,
                  write_timeout: float = 5.0,
-                 enabled_events:int = Events.LISTEN_NONE
+                 enabled_events: int = Events.LISTEN_NONE
                  ):
         """ 
             Creates a client that can communicate with a Scrutiny server
@@ -560,7 +557,7 @@ class ScrutinyClient:
         self._connection_cancel_request = False
 
         self._active_batch_context = None
-        self._listeners=[]
+        self._listeners = []
         self._locked_for_connect = False
 
         self._stream_parser = TCPClientHandler.get_compatible_stream_parser()
@@ -572,7 +569,7 @@ class ScrutinyClient:
         self._force_fail_request = False
         self._server_timebase = RelativeTimebase()
 
-    def _trigger_event(self, evt:Events._ANY_EVENTS, loglevel:int=logging.NOTSET) -> None:
+    def _trigger_event(self, evt: Events._ANY_EVENTS, loglevel: int = logging.NOTSET) -> None:
         if self._enabled_events & evt._filter_flag:
             try:
                 if self._logger.isEnabledFor(loglevel):
@@ -605,7 +602,7 @@ class ScrutinyClient:
         self._require_status_update = True  # Bootstrap status update loop
         self._datarate_measurements.enable()
         started_event.set()
-        
+
         self._request_status_timer.start()
         # _sock will be None after a disconnect
         last_deferred_response_timeout_check = time.monotonic()
@@ -616,7 +613,7 @@ class ScrutinyClient:
                     require_sync_before = True
 
                 self._wt_process_next_server_status_update()
-                
+
                 for msg in self._wt_recv(timeout=0.005):
                     self._wt_process_rx_api_message(msg)
 
@@ -624,7 +621,7 @@ class ScrutinyClient:
                 if time.monotonic() - last_deferred_response_timeout_check > 1.0:   # Avoid locking the main lock too often
                     self._check_deferred_response_timeouts()
                     last_deferred_response_timeout_check = time.monotonic()
-                    
+
                 self._wt_process_write_watchable_requests()
                 self._wt_process_device_state()
                 self._datarate_measurements.update()
@@ -664,7 +661,7 @@ class ScrutinyClient:
     def _wt_process_msg_watchable_update(self, msg: api_typing.S2C.WatchableUpdate, reqid: Optional[int]) -> None:
         updates = api_parser.parse_watchable_update(msg)
 
-        updated_watchables:List[WatchableHandle] = []
+        updated_watchables: List[WatchableHandle] = []
         for update in updates:
             with self._main_lock:
                 watchable: Optional[WatchableHandle] = None
@@ -677,11 +674,11 @@ class ScrutinyClient:
             else:
                 if self._logger.isEnabledFor(DUMPDATA_LOGLEVEL):   # prgama: no cover
                     self._logger.log(DUMPDATA_LOGLEVEL, f"Updating value of {update.server_id} ({watchable.name})")
-            
+
             update_dt = self._server_timebase.micro_to_dt(update.server_time_us)
             watchable._update_value(update.value, timestamp=update_dt)
             updated_watchables.append(watchable)
-        
+
         for listener in self._listeners:
             listener._broadcast_update(updated_watchables)
 
@@ -695,7 +692,7 @@ class ScrutinyClient:
         if completion.batch_index not in batch_write.update_dict:
             self._logger.error("The server returned a write completion with an unknown batch_index")
             return
-            
+
         write_request = batch_write.update_dict[completion.batch_index]
         if completion.success:
             write_request._watchable._set_last_write_datetime()
@@ -735,13 +732,13 @@ class ScrutinyClient:
         self._trigger_event(
             self.Events.DataloggingListChanged(acquisition_reference_id=parsed.reference_id, change_type=parsed.action),
             loglevel=logging.DEBUG
-            )
+        )
 
-    def _wt_process_msg_get_watchable_list_response(self, msg: api_typing.S2C.GetWatchableList, reqid:Optional[int]) -> None:
+    def _wt_process_msg_get_watchable_list_response(self, msg: api_typing.S2C.GetWatchableList, reqid: Optional[int]) -> None:
         if reqid is None:
             self._logger.warning('Received a watchable list message, but the request ID was not available.')
             return
-        
+
         content = api_parser.parse_get_watchable_list(msg)
 
         with self._main_lock:
@@ -755,7 +752,7 @@ class ScrutinyClient:
         if content.done:
             req._mark_complete(success=True)
 
-    def _wt_process_msg_welcome(self, msg: api_typing.S2C.Welcome, reqid:Optional[int]) -> None:
+    def _wt_process_msg_welcome(self, msg: api_typing.S2C.Welcome, reqid: Optional[int]) -> None:
         welcome_data = api_parser.parse_welcome(msg)
         self._server_timebase.set_zero_to(welcome_data.server_time_zero_timestamp)
         self._threading_events.welcome_received.set()
@@ -803,7 +800,7 @@ class ScrutinyClient:
             for kstr in list(self._memory_write_completion_dict.keys()):
                 if time.monotonic() - self._memory_write_completion_dict[kstr].local_monotonic_timestamp > self._MEMORY_WRITE_DATA_LIFETIME:
                     del self._memory_write_completion_dict[kstr]
-            
+
             for kint in list(self._pending_watchable_download_request.keys()):
                 if self._pending_watchable_download_request[kint]._is_expired(self._DOWNLOAD_WATCHABLE_LIST_LIFETIME):
                     del self._pending_watchable_download_request[kint]
@@ -835,7 +832,7 @@ class ScrutinyClient:
                 elif cmd == API.Command.Api2Client.INFORM_DATALOGGING_ACQUISITION_COMPLETE:
                     self._wt_process_msg_datalogging_acquisition_complete(cast(api_typing.S2C.InformDataloggingAcquisitionComplete, msg), reqid)
                 elif cmd == API.Command.Api2Client.INFORM_DATALOGGING_LIST_CHANGED:
-                    self._wt_process_msg_datalogging_list_changed(cast(api_typing.S2C.InformDataloggingListChanged, msg), reqid)                    
+                    self._wt_process_msg_datalogging_list_changed(cast(api_typing.S2C.InformDataloggingListChanged, msg), reqid)
                 elif cmd == API.Command.Api2Client.GET_WATCHABLE_LIST_RESPONSE:
                     self._wt_process_msg_get_watchable_list_response(cast(api_typing.S2C.GetWatchableList, msg), reqid)
                 elif cmd == API.Command.Api2Client.WELCOME:
@@ -972,7 +969,7 @@ class ScrutinyClient:
                         timeout=batch_timeout
                     )
             else:
-                # The WriteRequest is different because we give a future bject to the client and it's 
+                # The WriteRequest is different because we give a future bject to the client and it's
                 # to wait for the initial response. We do our own error message handling because we do not have access to the future object generated by send()
                 error = f"[{state.name}] No error message provided"
                 if state == CallbackState.ServerError and response is not None:
@@ -987,10 +984,10 @@ class ScrutinyClient:
     def _wt_process_device_state(self) -> None:
         """Check the state of the device and take action when it changes"""
         if self._server_info is not None:
-            
+
             # ====  Check Device conn
             if self._last_server_info is not None and self._last_server_info.device_session_id is not None:
-                if self._last_server_info.device_session_id != self._server_info.device_session_id: # New value or None
+                if self._last_server_info.device_session_id != self._server_info.device_session_id:  # New value or None
                     self._wt_clear_all_watchables(ValueStatus.DeviceGone)
                     self._trigger_event(self.Events.DeviceGoneEvent(session_id=self._last_server_info.device_session_id), loglevel=logging.INFO)
                     if self._server_info.device_session_id is not None:
@@ -1001,7 +998,7 @@ class ScrutinyClient:
 
             # ====  Check SFD
             if self._last_server_info is not None and self._last_server_info.sfd_firmware_id is not None:
-                if self._server_info.sfd_firmware_id != self._last_server_info.sfd_firmware_id :    # None or new value
+                if self._server_info.sfd_firmware_id != self._last_server_info.sfd_firmware_id:    # None or new value
                     self._wt_clear_all_watchables(ValueStatus.SFDUnloaded, [WatchableType.Alias, WatchableType.Variable])   # RPVs are still there.
                     self._trigger_event(self.Events.SFDUnLoadedEvent(firmware_id=self._last_server_info.sfd_firmware_id), loglevel=logging.INFO)
                     if self._server_info.sfd_firmware_id is not None:
@@ -1013,7 +1010,8 @@ class ScrutinyClient:
             if self._last_server_info is not None:
                 if self._last_server_info.datalogging.state != self._server_info.datalogging.state:
                     # Passage from/to NA are logged as debug only to keep the info log clean
-                    loglevel = logging.DEBUG if DataloggerState.NA in (self._last_server_info.datalogging.state, self._server_info.datalogging.state) else logging.INFO
+                    loglevel = logging.DEBUG if DataloggerState.NA in (
+                        self._last_server_info.datalogging.state, self._server_info.datalogging.state) else logging.INFO
                     self._trigger_event(self.Events.DataloggerStateChanged(self._server_info.datalogging), loglevel=loglevel)
                 elif self._last_server_info.datalogging.completion_ratio != self._server_info.datalogging.completion_ratio:
                     self._trigger_event(self.Events.DataloggerStateChanged(self._server_info.datalogging), loglevel=logging.DEBUG)
@@ -1021,7 +1019,7 @@ class ScrutinyClient:
             if self._last_server_info is not None:
                 if self._last_server_info.device_session_id is not None:
                     self._trigger_event(self.Events.DeviceGoneEvent(session_id=self._last_server_info.device_session_id), loglevel=logging.INFO)
-                
+
                 if self._last_server_info.sfd_firmware_id is not None:
                     self._trigger_event(self.Events.SFDUnLoadedEvent(firmware_id=self._last_server_info.sfd_firmware_id), loglevel=logging.INFO)
 
@@ -1048,29 +1046,29 @@ class ScrutinyClient:
                     self._sock.close()
                 except socket.error as e:
                     tools.log_exception(self._logger, e, "Failed to close the socket", str_level=logging.DEBUG)
-            
+
             if self._selector is not None:
                 self._selector.close()
-            
+
             self._stream_parser.reset()
 
             self._sock = None
             self._selector = None
-        
-        events_to_trigger:List[ScrutinyClient.Events._ANY_EVENTS] = []
+
+        events_to_trigger: List[ScrutinyClient.Events._ANY_EVENTS] = []
         with self._main_lock:
             if self._last_server_info is not None:
                 if self._last_server_info.device_session_id is not None:
                     events_to_trigger.append(self.Events.DeviceGoneEvent(session_id=self._last_server_info.device_session_id))
-                
+
                 if self._last_server_info.sfd_firmware_id is not None:
                     events_to_trigger.append(self.Events.SFDUnLoadedEvent(firmware_id=self._last_server_info.sfd_firmware_id))
 
                 if self._server_state == ServerState.Connected and self._hostname is not None and self._port is not None:
                     events_to_trigger.append(self.Events.DisconnectedEvent(self._hostname, self._port))
-            
+
             self._last_server_info = None
-            
+
             with self._user_lock:   # Critical part, the user reads those properties
                 self._wt_clear_all_watchables(ValueStatus.ServerGone)
                 self._wt_clear_all_pending_requests("Server is disconnected")
@@ -1078,7 +1076,6 @@ class ScrutinyClient:
                 self._port = None
                 self._server_state = ServerState.Disconnected
                 self._server_info = None
-
 
             for callback_entry in self._callback_storage.values():
                 if callback_entry._future.state == CallbackState.Pending:
@@ -1102,13 +1099,13 @@ class ScrutinyClient:
                     del self._watchable_path_to_id_map[watchable.display_path]
                 del self._watchable_storage[server_id]
 
-    def _wt_clear_all_pending_requests(self, failure_reason:str) -> None:
+    def _wt_clear_all_pending_requests(self, failure_reason: str) -> None:
         """Cancels and clear all request handles that may take a long time to respond.
         These handles are passed to the users."""
         # Don't lock the main lock, supposed to be done beforehand
         self._memory_read_completion_dict.clear()
         self._memory_write_completion_dict.clear()
-        
+
         for request in self._pending_watchable_download_request.values():
             request._mark_complete(success=False, failure_reason=failure_reason)
         self._pending_watchable_download_request.clear()
@@ -1159,11 +1156,11 @@ class ScrutinyClient:
             if self._force_fail_request:
                 future._wt_mark_completed(CallbackState.SimulatedError, None)
 
-        if not self._force_fail_request:   
+        if not self._force_fail_request:
             with self._sock_lock:
                 if self._sock is None or self._stream_maker is None:
                     raise sdk.exceptions.ConnectionError(f"Disconnected from server")
-                
+
                 try:
                     s = json.dumps(obj)
                     if self._logger.isEnabledFor(DUMPDATA_LOGLEVEL):    # pragma: no cover
@@ -1182,12 +1179,12 @@ class ScrutinyClient:
 
         return future
 
-    def _wt_recv(self, timeout:Optional[float]=None) -> Generator[Dict[str, Any], None, None]:
+    def _wt_recv(self, timeout: Optional[float] = None) -> Generator[Dict[str, Any], None, None]:
         # No need to lock sock_lock here. Important is during disconnection
         error: Optional[Exception] = None
         obj: Optional[Dict[str, Any]] = None
 
-        if self._sock is None  or self._selector is None:
+        if self._sock is None or self._selector is None:
             raise sdk.exceptions.ConnectionError(f"Disconnected from server")
 
         server_gone = False
@@ -1201,7 +1198,7 @@ class ScrutinyClient:
                 else:
                     self._datarate_measurements.rx_data_rate.add_data(len(data))
                     self._stream_parser.parse(data)
-        except  socket.error as e:
+        except socket.error as e:
             server_gone = True
             error = e
             self._logger.debug(traceback.format_exc())
@@ -1223,7 +1220,7 @@ class ScrutinyClient:
             except json.JSONDecodeError as e:
                 self._logger.error(f"Received malformed JSON from the server. {e}")
                 self._logger.debug(traceback.format_exc())
-                
+
     def _make_request(self, command: str, data: Optional[Dict[str, Any]] = None) -> api_typing.C2SMessage:
         with self._main_lock:
             reqid = self._reqid
@@ -1258,8 +1255,8 @@ class ScrutinyClient:
             self._active_batch_context.requests.append(request)
         else:
             self._enqueue_write_request(request)
-    
-    def _cancel_download_watchable_list_request(self, reqid:int) -> None:
+
+    def _cancel_download_watchable_list_request(self, reqid: int) -> None:
         with self._main_lock:
             if reqid not in self._pending_watchable_download_request:
                 raise sdk.exceptions.OperationFailure(f"No download reqest identified by request ID : {reqid}")
@@ -1327,7 +1324,7 @@ class ScrutinyClient:
                     self._server_state = ServerState.Connected
                     self._start_worker_thread()
                 except socket.error as e:
-                    # Connect may fail in many way. 
+                    # Connect may fail in many way.
                     # The user can close the socket to unblock the connection thread.
                     self._logger.debug(traceback.format_exc())
                     connect_error = e
@@ -1355,7 +1352,7 @@ class ScrutinyClient:
         if not self._worker_thread.is_alive():
             self._wt_disconnect()  # Can call safely from this thread
             return
-        
+
         self.close_socket()
         self._threading_events.disconnected.clear()
         self._threading_events.disconnect.set()
@@ -1363,9 +1360,9 @@ class ScrutinyClient:
 
         self._stop_worker_thread()
 
-    def listen_events(self, enabled_events:int, disabled_events:int=0) -> None:
+    def listen_events(self, enabled_events: int, disabled_events: int = 0) -> None:
         """Select which events are to be listen for when calling :meth:`read_event<read_event>`.
-        
+
         :param enabled_events: A flag value contructed by ORing values from :class:`ScrutinyClient.Events<scrutiny.sdk.client.ScrutinyClient.Events>`
 
         :raise TypeError: Given parameter not of the expected type
@@ -1374,7 +1371,7 @@ class ScrutinyClient:
         validation.assert_int_range(enabled_events, 'enabled_events', minval=0)
         self._enabled_events = enabled_events & (self.Events.LISTEN_ALL ^ disabled_events)
 
-    def try_get_existing_watch_handle_by_server_id(self, server_id:str) -> Optional[WatchableHandle]:
+    def try_get_existing_watch_handle_by_server_id(self, server_id: str) -> Optional[WatchableHandle]:
         """Retrieve an existing watchable handle created after a call to :meth:`watch()<watch>` if it exists, identified by its unique server_id.
         This methods makes no request to the server and is therefore non-blocking.
 
@@ -1384,14 +1381,14 @@ class ScrutinyClient:
 
         :return: A handle that can read/write the watched element or ``None`` if the element is not being watched.
         """
-        validation.assert_type(server_id, 'server_id', str)        
-        handle:Optional[WatchableHandle] = None
+        validation.assert_type(server_id, 'server_id', str)
+        handle: Optional[WatchableHandle] = None
         with tools.SuppressException(KeyError):
-            handle = self._watchable_storage[server_id] # No need to lock. This is atomic
+            handle = self._watchable_storage[server_id]  # No need to lock. This is atomic
 
         return handle
 
-    def try_get_existing_watch_handle(self, path:str) -> Optional[WatchableHandle]:
+    def try_get_existing_watch_handle(self, path: str) -> Optional[WatchableHandle]:
         """Retrieve an existing watchable handle created after a call to :meth:`watch()<watch>` if it exists.
         This methods makes no request to the server and is therefore non-blocking.
 
@@ -1412,7 +1409,7 @@ class ScrutinyClient:
                     cached_watchable = self._watchable_storage[server_id]
 
         return cached_watchable
-        
+
     def watch(self, path: str) -> WatchableHandle:
         """Starts watching a watchable element identified by its display path (tree-like path)
 
@@ -1454,7 +1451,7 @@ class ScrutinyClient:
 
         if future.state != CallbackState.OK:
             raise sdk.exceptions.OperationFailure(f"Failed to subscribe to the watchable. {future.error_str}")
-        
+
         watchable._assert_configured()
         assert watchable._configuration is not None
         with self._main_lock:
@@ -1515,7 +1512,7 @@ class ScrutinyClient:
 
         if future.state != CallbackState.OK:
             raise sdk.exceptions.OperationFailure(f"Failed to unsubscribe to the watchable. {future.error_str}")
-        
+
         with self._main_lock:
             if watchable.display_path in self._watchable_path_to_id_map:
                 del self._watchable_path_to_id_map[watchable.display_path]
@@ -1567,7 +1564,7 @@ class ScrutinyClient:
         if not self._threading_events.server_status_updated.is_set():
             raise sdk.exceptions.TimeoutException(f"Server status did not update within a {timeout} seconds delay")
 
-    def request_server_status_update(self, wait:bool=False, timeout: Optional[float] = None) -> Optional[sdk.ServerInfo]:
+    def request_server_status_update(self, wait: bool = False, timeout: Optional[float] = None) -> Optional[sdk.ServerInfo]:
         """Request the server with an immediate status update. Avoid waiting for the periodic request to be sent. 
 
         :param wait: Wait for the response if ``True``
@@ -1589,7 +1586,6 @@ class ScrutinyClient:
             return self.get_latest_server_status()
         return None
 
-
     def wait_device_ready(self, timeout: float) -> None:
         """Wait for a device to be connected to the server and have finished its handshake.
 
@@ -1609,14 +1605,14 @@ class ScrutinyClient:
             if server_status is not None:
                 if server_status.device_comm_state == sdk.DeviceCommState.ConnectedReady:
                     break
-            consumed_time = time.perf_counter()-t1
-            remaining_time = max(timeout-consumed_time, 0)
+            consumed_time = time.perf_counter() - t1
+            remaining_time = max(timeout - consumed_time, 0)
             timed_out = False
             try:
                 self.wait_server_status_update(remaining_time)
             except sdk.exceptions.TimeoutException:
                 timed_out = True
-            
+
             if timed_out:
                 raise sdk.exceptions.TimeoutException(f'Device did not become ready within {timeout}s')
 
@@ -1656,7 +1652,7 @@ class ScrutinyClient:
         @dataclass
         class Container:
             obj: Optional[Dict[str, sdk.SFDInfo]]
-        
+
         cb_data: Container = Container(obj=None)  # Force pass by ref
 
         def callback(state: CallbackState, response: Optional[api_typing.S2CMessage]) -> None:
@@ -1823,7 +1819,6 @@ class ScrutinyClient:
         if not completion.success:
             raise sdk.exceptions.OperationFailure(f"Failed to write the device memory. {completion.error}")
 
-
     def read_datalogging_acquisition(self, reference_id: str, timeout: Optional[float] = None) -> sdk.datalogging.DataloggingAcquisition:
         """Reads a datalogging acquisition from the server storage identified by its reference ID
 
@@ -1921,12 +1916,12 @@ class ScrutinyClient:
                 f"Failed to request the datalogging acquisition'. {future.error_str}")
         assert cb_data.request is not None
         return cb_data.request
-    
-    def read_datalogging_acquisitions_metadata(self, reference_id:str,timeout: Optional[float] = None) -> Optional[sdk.datalogging.DataloggingStorageEntry]:
+
+    def read_datalogging_acquisitions_metadata(self, reference_id: str, timeout: Optional[float] = None) -> Optional[sdk.datalogging.DataloggingStorageEntry]:
         """Get the acquisition metadata from the server datalogging storage. 
         Returns a result similar to :meth:`list_stored_datalogging_acquisitions<list_stored_datalogging_acquisitions>`
         but with a single storage entry.
-        
+
         :param reference_id: The acquisition refence_id (unique ID)
         :param timeout: The request timeout value. The default client timeout will be used if set to ``None`` Defaults to ``None``
 
@@ -1941,7 +1936,7 @@ class ScrutinyClient:
             timeout = self._timeout
 
         req = self._make_request(API.Command.Client2Api.LIST_DATALOGGING_ACQUISITION, {
-            'reference_id' : reference_id
+            'reference_id': reference_id
         })
 
         @dataclass
@@ -1963,20 +1958,20 @@ class ScrutinyClient:
                 f"Failed to read the datalogging acquisition list from the server database. {future.error_str}")
 
         assert cb_data.obj is not None
-        
+
         if len(cb_data.obj) == 1:
             return cb_data.obj[0]
         else:
             return None
 
-    def list_stored_datalogging_acquisitions(self, 
-                                             firmware_id:Optional[str]=None, 
-                                             before_datetime:Optional[datetime]=None, 
-                                             count:int=500, 
+    def list_stored_datalogging_acquisitions(self,
+                                             firmware_id: Optional[str] = None,
+                                             before_datetime: Optional[datetime] = None,
+                                             count: int = 500,
                                              timeout: Optional[float] = None) -> List[sdk.datalogging.DataloggingStorageEntry]:
         """Gets the list of datalogging acquisition stored in the server database. 
         Acquisitions are returned ordered by acquisition time, from newest to oldest.
-        
+
         :param firmware_id: When not ``None``, searches for acquisitions takend with this firmware ID
         :param before_datetime: An optional upper limit for the acquisition time. Will download acquisition taken before this datetime. Meant ot be used for UI lazy-loading
         :param count: Maximum number of acquisition to fetch. Upper limit is 10000
@@ -1990,16 +1985,16 @@ class ScrutinyClient:
         timeout = validation.assert_float_range_if_not_none(timeout, 'timeout', minval=0)
         if before_datetime is not None:
             validation.assert_type(before_datetime, 'before_datetime', datetime)
-            
+
         count = validation.assert_int_range(count, 'count', minval=0, maxval=10000)
 
         if timeout is None:
             timeout = self._timeout
 
-        data:Dict[str, Any] = {
-            'firmware_id' : firmware_id,
-            'count' : count,
-            'before_timestamp':None
+        data: Dict[str, Any] = {
+            'firmware_id': firmware_id,
+            'count': count,
+            'before_timestamp': None
         }
         if before_datetime is not None:
             data['before_timestamp'] = before_datetime.timestamp()
@@ -2045,7 +2040,6 @@ class ScrutinyClient:
 
         validation.assert_type(link_type, "link_type", sdk.DeviceLinkType)
         validation.assert_type(link_config, "link_config", sdk.BaseLinkConfig)
-
 
         assert link_type is not None
         assert link_config is not None
@@ -2136,11 +2130,11 @@ class ScrutinyClient:
             info = self._server_info
         if info is None:
             raise sdk.exceptions.InvalidValueError("Server status is not available")
-        
+
         # server_info is readonly and only its reference gets changed when updated.
         # We can safely return a reference here. The user can't mess it up
         return info
-    
+
     def get_device_info(self) -> Optional[sdk.DeviceInfo]:
         """Gets all the available details about the device. 
         This information includes device id, name, communication parameters, special memory regions, datalogging details, available sampling rates, etc.
@@ -2167,7 +2161,7 @@ class ScrutinyClient:
             raise sdk.exceptions.OperationFailure(f"Failed to read the device information. {future.error_str}")
 
         return cb_data.obj
-    
+
     def get_loaded_sfd(self) -> Optional[sdk.SFDInfo]:
         """
         Reads the details of the Scrutiny Firmware Description loaded on the server side. 
@@ -2196,14 +2190,14 @@ class ScrutinyClient:
 
         return cb_data.obj
 
-    def register_listener(self, listener:listeners.BaseListener) -> None:
+    def register_listener(self, listener: listeners.BaseListener) -> None:
         """Register a new listener. The client will notify it each time a new value update is received from the server
-        
+
         :param listener: The listener to register
         """
         with self._main_lock:
             self._listeners.append(listener)
-    
+
     def get_watchable_count(self) -> Dict[WatchableType, int]:
         """
         Request the server with the number of available watchable items, organized per type
@@ -2235,11 +2229,12 @@ class ScrutinyClient:
 
         return cb_data.obj
 
-    def download_watchable_list(self, 
-                                types:Optional[List[WatchableType]]=None, 
-                                max_per_response:int=500,
-                                name_patterns:List[str] = [],
-                                partial_reception_callback:Optional[Callable[[Dict[sdk.WatchableType, Dict[str, sdk.WatchableConfiguration]], bool], None]] = None
+    def download_watchable_list(self,
+                                types: Optional[List[WatchableType]] = None,
+                                max_per_response: int = 500,
+                                name_patterns: List[str] = [],
+                                partial_reception_callback: Optional[Callable[[
+                                    Dict[sdk.WatchableType, Dict[str, sdk.WatchableConfiguration]], bool], None]] = None
                                 ) -> WatchableListDownloadRequest:
         """
             Request the server for the list of watchable items available in its datastore.
@@ -2271,20 +2266,19 @@ class ScrutinyClient:
             validation.assert_type(type, 'types', WatchableType)
             if type not in WatchableType.all():
                 raise ValueError(f"Watchable type {type} is not a valid type to download")
-        
+
         validation.assert_type(name_patterns, 'name_patterns', list)
         for name_pattern in name_patterns:
             validation.assert_type(name_pattern, 'name_pattern', str)
-        
+
         watchable_type_names = {
-            WatchableType.Alias : "alias",
-            WatchableType.RuntimePublishedValue : "rpv",
-            WatchableType.Variable : "var",
+            WatchableType.Alias: "alias",
+            WatchableType.RuntimePublishedValue: "rpv",
+            WatchableType.Variable: "var",
         }
 
-        
         filter_dict = {
-            "type" : [watchable_type_names[wt] for wt in types]
+            "type": [watchable_type_names[wt] for wt in types]
         }
         if len(name_patterns) > 0:
             filter_dict['name'] = name_patterns
@@ -2311,17 +2305,17 @@ class ScrutinyClient:
         :raise OperationFailure: If the request to the server fails
         """
         req = self._make_request(API.Command.Client2Api.DELETE_ALL_DATALOGGING_ACQUISITION)
-        
+
         def callback(state: CallbackState, response: Optional[api_typing.S2CMessage]) -> None:
             pass
         future = self._send(req, callback)
         assert future is not None
         future.wait()
-        
+
         if future.state != CallbackState.OK:
             raise sdk.exceptions.OperationFailure(f"Failed to clear the datalogging storage. {future.error_str}")
 
-    def delete_datalogging_acquisition(self, reference_id:str) -> None:
+    def delete_datalogging_acquisition(self, reference_id: str) -> None:
         """Delete a single datalogging acquisition stored on the server.
         This action is irreversible
 
@@ -2333,19 +2327,20 @@ class ScrutinyClient:
         validation.assert_type(reference_id, 'reference_id', str)
 
         req = self._make_request(API.Command.Client2Api.DELETE_DATALOGGING_ACQUISITION, {
-            'reference_id' : reference_id
+            'reference_id': reference_id
         })
-        
+
         def callback(state: CallbackState, response: Optional[api_typing.S2CMessage]) -> None:
             pass
         future = self._send(req, callback)
         assert future is not None
         future.wait()
-        
-        if future.state != CallbackState.OK:
-            raise sdk.exceptions.OperationFailure(f"Failed to delete the datalogging acquisition with reference ID: {reference_id}. {future.error_str}")
 
-    def update_datalogging_acquisition(self, reference_id:str, name:str) -> None:
+        if future.state != CallbackState.OK:
+            raise sdk.exceptions.OperationFailure(
+                f"Failed to delete the datalogging acquisition with reference ID: {reference_id}. {future.error_str}")
+
+    def update_datalogging_acquisition(self, reference_id: str, name: str) -> None:
         """Update a single datalogging acquisition stored on the server.
 
         :param reference_id: The unique ``reference_id`` of the acquisition to delete.
@@ -2358,33 +2353,34 @@ class ScrutinyClient:
         validation.assert_type(name, 'name', str)
 
         req = self._make_request(API.Command.Client2Api.UPDATE_DATALOGGING_ACQUISITION, {
-            'reference_id' : reference_id,
-            'name' : name
+            'reference_id': reference_id,
+            'name': name
         })
-        
+
         def callback(state: CallbackState, response: Optional[api_typing.S2CMessage]) -> None:
             pass
         future = self._send(req, callback)
         assert future is not None
         future.wait()
-        
+
         if future.state != CallbackState.OK:
-            raise sdk.exceptions.OperationFailure(f"Failed to update the datalogging acquisition with reference ID: {reference_id}. {future.error_str}")
+            raise sdk.exceptions.OperationFailure(
+                f"Failed to update the datalogging acquisition with reference ID: {reference_id}. {future.error_str}")
 
     def has_event_pending(self) -> bool:
         return not self._event_queue.empty()
-    
-    def read_event(self, timeout:Optional[float] = None) -> Optional[Events._ANY_EVENTS]:
+
+    def read_event(self, timeout: Optional[float] = None) -> Optional[Events._ANY_EVENTS]:
         """
         Read an event from the event queue using a blocking read operation
-        
+
         :param timeout: Maximum amount of time to block. Blocks indefinetely if ``None``
 
         :return: The next event in the queue or ``None`` if there is no events after timeout is expired
-        
+
         """
         try:
-            return self._event_queue.get(block=True, timeout = timeout)
+            return self._event_queue.get(block=True, timeout=timeout)
         except queue.Empty:
             return None
 
@@ -2405,7 +2401,7 @@ class ScrutinyClient:
             tx_data_rate=self._datarate_measurements.tx_data_rate.get_value(),
             tx_message_rate=self._datarate_measurements.tx_message_rate.get_value()
         )
-    
+
     def reset_local_stats(self) -> None:
         """Reset all performance metrics that are resettable (have an internal state)"""
         self._datarate_measurements.reset()
@@ -2437,7 +2433,6 @@ class ScrutinyClient:
         assert cb_data.obj is not None
         stats = cb_data.obj
         return stats
-    
 
     @property
     def logger(self) -> logging.Logger:

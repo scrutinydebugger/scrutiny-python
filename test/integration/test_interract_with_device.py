@@ -67,7 +67,6 @@ class TestInterractWithDevice(ScrutinyIntegrationTestWithTestSFD1):
         self.assertEqual(response['device_info']['forbidden_memory_regions'][1]['start'], 0x3000)
         self.assertEqual(response['device_info']['forbidden_memory_regions'][1]['size'], 0x200)
         self.assertEqual(response['device_info']['forbidden_memory_regions'][1]['end'], 0x31FF)
-    
 
     def test_read_status(self):
         self.send_request({
@@ -76,11 +75,11 @@ class TestInterractWithDevice(ScrutinyIntegrationTestWithTestSFD1):
         })
         timeout = 3
         t = time.monotonic()
-        while time.monotonic()-t < timeout:
+        while time.monotonic() - t < timeout:
             response = self.wait_and_load_response(cmd=API.Command.Api2Client.INFORM_SERVER_STATUS)
             self.assert_no_error(response)
             response = cast(api_typing.S2C.InformServerStatus, response)
-            
+
             if response['reqid'] == 123:
                 break
 
@@ -92,7 +91,6 @@ class TestInterractWithDevice(ScrutinyIntegrationTestWithTestSFD1):
         self.assertEqual(response['device_datalogging_status']['completion_ratio'], None)
         loaded_sfd = self.server.sfd_handler.get_loaded_sfd()
         self.assertEqual(response['loaded_sfd_firmware_id'], loaded_sfd.get_firmware_id_ascii())
-
 
     def test_get_loaded_sfd(self):
         self.send_request({
@@ -115,6 +113,7 @@ class TestInterractWithDevice(ScrutinyIntegrationTestWithTestSFD1):
                          loaded_sfd.metadata.generation_info.scrutiny_version)
         self.assertEqual(response['metadata']['generation_info']['system_type'], loaded_sfd.metadata.generation_info.system_type)
         self.assertEqual(response['metadata']['generation_info']['time'], loaded_sfd.metadata.generation_info.timestamp.timestamp())
+
 
 class TestInterractWithDeviceNoThrottling(ScrutinyIntegrationTestWithTestSFD1):
 

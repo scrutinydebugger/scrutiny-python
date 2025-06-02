@@ -12,6 +12,7 @@ from tempfile import TemporaryDirectory
 from pathlib import Path
 import json
 
+
 class TestGuiPreferences(ScrutinyBaseGuiTest):
     def test_save_load(self):
         with TemporaryDirectory() as d:
@@ -52,8 +53,7 @@ class TestGuiPreferences(ScrutinyBaseGuiTest):
             self.assertIsInstance(v, str)
             self.assertEqual(v, "hello")
 
-
-            v = yyy.get_bool('yyy_keybool', default = True)
+            v = yyy.get_bool('yyy_keybool', default=True)
             self.assertIsInstance(v, bool)
             self.assertEqual(v, False)
 
@@ -65,11 +65,10 @@ class TestGuiPreferences(ScrutinyBaseGuiTest):
             self.assertIsInstance(v, float)
             self.assertEqual(v, 1.2)
 
-            v = yyy.get_str('yyy_keystr', default = "")
+            v = yyy.get_str('yyy_keystr', default="")
             self.assertIsInstance(v, str)
             self.assertEqual(v, "hello2")
 
-    
     def test_bad_values(self):
         class TestClass:
             pass
@@ -80,8 +79,8 @@ class TestGuiPreferences(ScrutinyBaseGuiTest):
             for v in [2, None, 'asd', 3.14, obj]:
                 with self.assertRaises(TypeError, msg=f"v={v}"):
                     manager.global_namespace().set_bool('boolval', v)
-            
-            for v in [ None, 'asd', True, obj]:
+
+            for v in [None, 'asd', True, obj]:
                 with self.assertRaises(TypeError, msg=f"v={v}"):
                     manager.global_namespace().set_float('floatval', v)
 
@@ -89,11 +88,9 @@ class TestGuiPreferences(ScrutinyBaseGuiTest):
                 with self.assertRaises(TypeError, msg=f"v={v}"):
                     manager.global_namespace().set_int('aaa', v)
 
-
             for v in [2, None, True, 3.14, obj]:
                 with self.assertRaises(TypeError, msg=f"v={v}"):
                     manager.global_namespace().set_str('aaa', v)
-            
 
     def test_clear_on_corrupted(self):
         with TemporaryDirectory() as d:
@@ -104,7 +101,7 @@ class TestGuiPreferences(ScrutinyBaseGuiTest):
 
             with open(manager.get_storage_file(), 'w') as f:
                 f.write("I am not json")
-            
+
             manager2 = AppPersistentDataManager(Path(d))
             self.assertIsNone(manager2.global_namespace().get('asdasd'))
 
@@ -116,5 +113,5 @@ class TestGuiPreferences(ScrutinyBaseGuiTest):
 
             with open(manager.get_storage_file(), 'r') as f:
                 raw_json = json.load(f)
-            
+
             self.assertNotIn('asd', raw_json)

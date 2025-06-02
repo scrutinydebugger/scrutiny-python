@@ -29,10 +29,10 @@ import PySide6QtAds as QtAds
 
 
 class StubbedComponent(ScrutinyGUIBaseComponent):
-    setup_called:bool
-    ready_called:bool
-    teardown_called:bool
-    state:Dict[Any, Any]
+    setup_called: bool
+    ready_called: bool
+    teardown_called: bool
+    state: Dict[Any, Any]
 
     def __init__(self, *args, **kwargs):
         super().__init__(*args, **kwargs)
@@ -53,9 +53,8 @@ class StubbedComponent(ScrutinyGUIBaseComponent):
     def get_state(self) -> Dict[Any, Any]:
         return self.state
 
-    def load_state(self, state:Dict[Any, Any]) -> bool:
+    def load_state(self, state: Dict[Any, Any]) -> bool:
         self.state = state
-
 
 
 class StubbedGlobalComponent(StubbedComponent, ScrutinyGUIBaseGlobalComponent):
@@ -63,16 +62,18 @@ class StubbedGlobalComponent(StubbedComponent, ScrutinyGUIBaseGlobalComponent):
     _NAME = "Stubbed Global"
     _TYPE_ID = "stubbed_global"
 
+
 class StubbedGlobalComponent2(StubbedComponent, ScrutinyGUIBaseGlobalComponent):
     _ICON = QIcon()
     _NAME = "Stubbed Global 2"
     _TYPE_ID = "stubbed_global2"
 
+
 class StubbedLocalComponent(StubbedComponent, ScrutinyGUIBaseLocalComponent):
     _ICON = QIcon()
     _NAME = "Stubbed Local"
     _TYPE_ID = "stubbed_local"
-    
+
 
 class MainWindowStub(QWidget):
     def __init__(self):
@@ -82,9 +83,10 @@ class MainWindowStub(QWidget):
 
     def get_server_manager(self):
         return self.server_manager
-    
+
     def get_watchable_registry(self):
         return self.registry
+
 
 class TestDashboard(ScrutinyBaseGuiTest):
     def setUp(self):
@@ -112,7 +114,7 @@ class TestDashboard(ScrutinyBaseGuiTest):
         self.assertFalse(global_component.teardown_called)
         self.process_events()
         self.assertTrue(global_component.ready_called)
-        
+
         # Global ha a single instance
         global_dock_widget2 = dashboard.create_or_show_global_component(StubbedGlobalComponent)
         self.assertIs(global_dock_widget2, global_dock_widget)
@@ -151,7 +153,6 @@ class TestDashboard(ScrutinyBaseGuiTest):
         self.assertIn(local_component2.instance_name, dock_widget_map)
         self.assertIs(dock_widget_map[local_component2.instance_name], local_dock_widget2)
 
-
         dashboard.dock_manager().removeDockWidget(local_dock_widget1)
         self.assertTrue(local_component1.teardown_called)
         self.assertFalse(local_component2.teardown_called)
@@ -161,9 +162,9 @@ class TestDashboard(ScrutinyBaseGuiTest):
         self.assertTrue(local_component2.teardown_called)
         self.assertNotIn(local_component2.instance_name, dashboard.dock_manager().dockWidgetsMap())
 
-        self.assertEqual(len(dashboard.dock_manager().dockWidgetsMap()), 1) # Single global
+        self.assertEqual(len(dashboard.dock_manager().dockWidgetsMap()), 1)  # Single global
 
-        global_component.load_state({"aaa" : "bbb"})
+        global_component.load_state({"aaa": "bbb"})
         dashboard.dock_manager().removeDockWidget(global_dock_widget)
         self.assertTrue(global_component.teardown_called)
         self.assertEqual(len(dashboard.dock_manager().dockWidgetsMap()), 0)
@@ -173,7 +174,7 @@ class TestDashboard(ScrutinyBaseGuiTest):
         global_component3 = cast(StubbedGlobalComponent, global_dock_widget3.widget())
         self.assertIsInstance(global_dock_widget3.widget(), StubbedGlobalComponent)
         self.assertNotIn("aaa", global_component3.get_state())  # Make sure the state from the deleted component is gone
-    
+
     def test_clear(self):
         dashboard = Dashboard(self.main_window)
         dw1 = dashboard.add_local_component(StubbedLocalComponent)
@@ -183,16 +184,15 @@ class TestDashboard(ScrutinyBaseGuiTest):
         self.assertEqual(len(dashboard.dock_manager().dockWidgetsMap()), 3)
         for dw in [dw1, dw2, dw3]:
             self.assertFalse(cast(StubbedLocalComponent, dw.widget()).teardown_called)
-        
+
         dashboard.clear()
         self.assertEqual(len(dashboard.dock_manager().dockWidgetsMap()), 0)
-        
+
         for dw in [dw1, dw2, dw3]:
             self.assertTrue(cast(StubbedLocalComponent, dw.widget()).teardown_called)
-        
+
     def test_save_reload(self):
         dashboard = Dashboard(self.main_window)
-
 
         #   ┌------┬-----┬-----┐
         #   |      |  1  |     |
@@ -216,10 +216,9 @@ class TestDashboard(ScrutinyBaseGuiTest):
         dashboard.dock_manager().addDockWidget(QtAds.BottomDockWidgetArea, dw4, dw3.dockAreaWidget())
         dashboard.dock_manager().addDockWidget(QtAds.CenterDockWidgetArea, dw5, dw3.dockAreaWidget())
         dashboard.dock_manager().addDockWidget(QtAds.CenterDockWidgetArea, dw6, dw2.dockAreaWidget())
-        
+
         dw6.setAsCurrentTab()
         dw3.setAsCurrentTab()
-        
 
         dw7 = dashboard.add_local_component(StubbedLocalComponent)
         dw8 = dashboard.add_local_component(StubbedLocalComponent)
@@ -240,9 +239,9 @@ class TestDashboard(ScrutinyBaseGuiTest):
 
         #   ┌---------------┐
         #   |     14,15     |
-        #   ├---------------┤  
+        #   ├---------------┤
         #   |      13       |
-        #   ├---------------┤ 
+        #   ├---------------┤
         #   |      12       |
         #   └---------------┘
 
@@ -256,13 +255,13 @@ class TestDashboard(ScrutinyBaseGuiTest):
         dw17 = dashboard.add_local_component(StubbedLocalComponent)
         dashboard.dock_manager().addAutoHideDockWidgetToContainer(QtAds.SideBarRight, dw16, floating1.dockContainer())
         dashboard.dock_manager().addAutoHideDockWidgetToContainer(QtAds.SideBarRight, dw17, floating1.dockContainer())
-        
-        all_dock_widgets = [dw0, dw1, dw2, dw3, dw4, dw5, dw6, dw7, dw8, dw9, dw10, dw11, dw12, dw13,dw14,dw15,dw16,dw17]
+
+        all_dock_widgets = [dw0, dw1, dw2, dw3, dw4, dw5, dw6, dw7, dw8, dw9, dw10, dw11, dw12, dw13, dw14, dw15, dw16, dw17]
 
         for dw in all_dock_widgets:
             component = cast(StubbedLocalComponent, dw.widget())
-            component.load_state({"original_instance_name" : component.instance_name})
-        
+            component.load_state({"original_instance_name": component.instance_name})
+
         # Create a new dashboard from previous dashboard. State of first dashboard should be transferred to the new one
         new_dashboard = Dashboard(self.main_window)
         self.assertEqual(len(new_dashboard.dock_manager().dockWidgetsMap()), 0)
@@ -270,7 +269,7 @@ class TestDashboard(ScrutinyBaseGuiTest):
             file = Path(os.path.join(d, 'test_dashboard'))
             dashboard.save(file)
             new_dashboard.open(file, exceptions=True)
-        
+
         # New dashboard is reloaded from file. Check that it matches the original one.
         self.assertEqual(len(new_dashboard.dock_manager().dockWidgetsMap()), len(all_dock_widgets))
         containers = new_dashboard.dock_manager().dockContainers()
@@ -283,11 +282,10 @@ class TestDashboard(ScrutinyBaseGuiTest):
         new_main_container = normal_containers[0]
         new_floating_container = floating_containers[0]
 
-
         #  ---- main window ----
         #       Main window Split pane
         main_splitpane_widgets = new_main_container.openedDockWidgets()
-        self.assertEqual(len(main_splitpane_widgets), 7) # 0-6
+        self.assertEqual(len(main_splitpane_widgets), 7)  # 0-6
         main_splitpane_components = [cast(StubbedLocalComponent, x.widget()) for x in main_splitpane_widgets]
         main_splitpane_instance_names = [x.get_state()['original_instance_name'] for x in main_splitpane_components]
         for dw in [dw0, dw1, dw2, dw3, dw4, dw5, dw6]:
@@ -295,43 +293,40 @@ class TestDashboard(ScrutinyBaseGuiTest):
 
         #       Main window Autohide
         main_autohides = new_main_container.autoHideWidgets()
-        self.assertEqual(len(main_autohides), 5) # 7-11
+        self.assertEqual(len(main_autohides), 5)  # 7-11
         autohide_components = [cast(StubbedLocalComponent, x.dockWidget().widget()) for x in main_autohides]
         autohide_instance_names = [x.get_state()['original_instance_name'] for x in autohide_components]
 
         for dw in [dw7, dw8, dw9, dw10, dw11]:
             self.assertIn(cast(StubbedLocalComponent, dw.widget()).instance_name, autohide_instance_names)
 
-
         #  ---- 2nd window ----
         #       2nd window Split pane
         floating_splitpane_widgets = new_floating_container.openedDockWidgets()
-        self.assertEqual(len(floating_splitpane_widgets), 4) # 12-15
+        self.assertEqual(len(floating_splitpane_widgets), 4)  # 12-15
         floating_splitpane_components = [cast(StubbedLocalComponent, x.widget()) for x in floating_splitpane_widgets]
         floating_splitpane_instance_names = [x.get_state()['original_instance_name'] for x in floating_splitpane_components]
         for dw in [dw12, dw13, dw14, dw15]:
-            self.assertIn(cast(StubbedLocalComponent, dw.widget()).instance_name, floating_splitpane_instance_names)        
-        
+            self.assertIn(cast(StubbedLocalComponent, dw.widget()).instance_name, floating_splitpane_instance_names)
+
         #       2nd window autohide
         floating_autohide = new_floating_container.autoHideWidgets()
-        self.assertEqual(len(floating_autohide), 2) # 16, 17
+        self.assertEqual(len(floating_autohide), 2)  # 16, 17
         autohide_components = [cast(StubbedLocalComponent, x.dockWidget().widget()) for x in floating_autohide]
         autohide_instance_names = [x.get_state()['original_instance_name'] for x in autohide_components]
         for dw in [dw16, dw17]:
             self.assertIn(cast(StubbedLocalComponent, dw.widget()).instance_name, autohide_instance_names)
 
-
-        def find_new_dw(old_dw:QtAds.CDockWidget) -> QtAds.CDockWidget:
+        def find_new_dw(old_dw: QtAds.CDockWidget) -> QtAds.CDockWidget:
             for name, dw in new_dashboard.dock_manager().dockWidgetsMap().items():
                 old_component = cast(StubbedLocalComponent, old_dw.widget())
                 component = cast(StubbedLocalComponent, dw.widget())
 
                 if component.get_state()['original_instance_name'] == old_component.instance_name:
                     return dw
-            
+
             raise KeyError("Dock widget not found")
-        
-        
+
         new_dw = [find_new_dw(dw) for dw in all_dock_widgets]
         # Check the layout. Check on both old and new dashboard to make sure they are identical
         for dw_set in (all_dock_widgets, new_dw):
@@ -341,7 +336,7 @@ class TestDashboard(ScrutinyBaseGuiTest):
                 subtest_name = "New dashboard"
             else:
                 raise RuntimeError()
-            
+
             with self.subTest(subtest_name):
                 # Tabs check
                 self.assertTrue(dw_set[2].isTabbed())
@@ -364,15 +359,15 @@ class TestDashboard(ScrutinyBaseGuiTest):
 
                 # Make sure we have 2 containers (windows) and dock widget are owned by the correct one
                 self.assertIsNot(dw_set[0].dockContainer(), dw_set[12].dockContainer())
-                for i in range(0,12):   # Main
+                for i in range(0, 12):   # Main
                     self.assertIs(dw_set[0].dockContainer(), dw_set[i].dockContainer())
 
-                for i in range(12,18):  # Floating
+                for i in range(12, 18):  # Floating
                     self.assertIs(dw_set[12].dockContainer(), dw_set[i].dockContainer())
-                
+
                 # main Split pane
-                self.assertIs(dw_set[0].dockAreaWidget().parent().parent(), dw_set[0].dockContainer().rootSplitter())   
-                
+                self.assertIs(dw_set[0].dockAreaWidget().parent().parent(), dw_set[0].dockContainer().rootSplitter())
+
                 self.assertIsInstance(dw_set[1].dockAreaWidget().parent(), QtAds.CDockSplitter)
                 self.assertIs(dw_set[1].dockAreaWidget().parent(), dw_set[3].dockAreaWidget().parent())
                 self.assertIs(dw_set[1].dockAreaWidget().parent(), dw_set[5].dockAreaWidget().parent())
@@ -381,19 +376,18 @@ class TestDashboard(ScrutinyBaseGuiTest):
                 self.assertIsInstance(dw_set[0].dockAreaWidget().parent(), QtAds.CDockSplitter)
                 self.assertIs(dw_set[0].dockAreaWidget().parent(), dw_set[2].dockAreaWidget().parent())
                 self.assertIs(dw_set[0].dockAreaWidget().parent(), dw_set[6].dockAreaWidget().parent())
-                self.assertIs(dw_set[0].dockAreaWidget().parent(), dw_set[1].dockAreaWidget().parent().parent())                
-                
+                self.assertIs(dw_set[0].dockAreaWidget().parent(), dw_set[1].dockAreaWidget().parent().parent())
 
                 self.assertIs(dw_set[12].dockAreaWidget().parent(), dw_set[13].dockAreaWidget().parent())
                 self.assertIs(dw_set[12].dockAreaWidget().parent(), dw_set[14].dockAreaWidget().parent())
                 self.assertIs(dw_set[12].dockAreaWidget().parent(), dw_set[15].dockAreaWidget().parent())
-                
+
                 self.assertIs(dw_set[12].dockAreaWidget().parent(), dw_set[12].dockContainer().rootSplitter())
 
     def test_make_default_dashboard(self):
         dashboard = Dashboard(self.main_window)
         dashboard.make_default_dashboard()
-        self.assertGreater(len(dashboard.dock_manager().dockWidgetsMap()), 0)  # Creating a default dashboard created something. 
+        self.assertGreater(len(dashboard.dock_manager().dockWidgetsMap()), 0)  # Creating a default dashboard created something.
 
     def test_show_global_component_that_was_moved(self):
         dashboard = Dashboard(self.main_window)
@@ -413,7 +407,7 @@ class TestDashboard(ScrutinyBaseGuiTest):
 
         self.assertIs(dock_widget2, dock_widget4)
         self.assertFalse(dock_widget2.isFloating())
-        self.assertFalse(dock_widget2.dockAreaWidget().isAutoHide()) 
+        self.assertFalse(dock_widget2.dockAreaWidget().isAutoHide())
         self.assertTrue(dock_widget2.isTabbed())    # Share tab with local component
 
     def test_ads_bug_739(self):

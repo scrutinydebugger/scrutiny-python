@@ -27,46 +27,47 @@ from scrutiny import tools
 
 from scrutiny.tools.typing import *
 
+
 class State:
     TYPE_WATCHABLE = 'w'
     TYPE_FOLDER = 'f'
 
     # I don't know why, but mypy doesn't understand that this is a literal without a Literal[] type hint
     # Could not reproduce in a different file... possibly a mypy bug ?
-    KEY_TYPE:Literal['type'] = 'type'
-    KEY_TEXT:Literal['txt'] = 'txt'
-    KEY_FQN:Literal['fqn'] = 'fqn'
-    KEY_CHILDREN:Literal['children'] = 'children'
-    KEY_EXPANDED:Literal['expand'] = 'expand'
+    KEY_TYPE: Literal['type'] = 'type'
+    KEY_TEXT: Literal['txt'] = 'txt'
+    KEY_FQN: Literal['fqn'] = 'fqn'
+    KEY_CHILDREN: Literal['children'] = 'children'
+    KEY_EXPANDED: Literal['expand'] = 'expand'
 
     class Folder(TypedDict):
-        type:str
-        txt:str
-        expand:bool
-        children:List[Union["State.Watchable", "State.Folder" ]]
+        type: str
+        txt: str
+        expand: bool
+        children: List[Union["State.Watchable", "State.Folder"]]
 
     class Watchable(TypedDict):
-        type:str
-        fqn:str
-        txt:str
+        type: str
+        fqn: str
+        txt: str
 
 
 class WatchComponent(ScrutinyGUIBaseLocalComponent):
-    instance_name : str
+    instance_name: str
 
     _NAME = "Watch Window"
     _TYPE_ID = "watch"
 
-    _tree:WatchComponentTreeWidget
-    _tree_model:WatchComponentTreeModel
-    _teared_down:bool
+    _tree: WatchComponentTreeWidget
+    _tree_model: WatchComponentTreeModel
+    _teared_down: bool
 
     expand_if_needed = Signal()
 
     @classmethod
     def get_icon(cls) -> QIcon:
         return scrutiny_get_theme().load_medium_icon(assets.Icons.Watch)
-    
+
     def setup(self) -> None:
         self._tree_model = WatchComponentTreeModel(self, watchable_registry=self.watchable_registry)
         self._tree = WatchComponentTreeWidget(self, self._tree_model)
@@ -76,7 +77,7 @@ class WatchComponent(ScrutinyGUIBaseLocalComponent):
         layout.addWidget(self._tree)
 
         self.expand_if_needed.connect(self._tree.expand_first_column_to_content, Qt.ConnectionType.QueuedConnection)
-        
+
         self._tree.expanded.connect(self._node_expanded_slot)
         self._tree.collapsed.connect(self._node_collapsed_slot)
 
@@ -86,9 +87,9 @@ class WatchComponent(ScrutinyGUIBaseLocalComponent):
         self._tree_model.rowsAboutToBeRemoved.connect(self._row_about_to_be_removed_slot)
         self._tree_model.rowsMoved.connect(self._row_moved_slot)
         self._tree.signals.value_written.connect(self._value_written_slot)
-    
+
         self.update_all_watchable_state()
-    
+
     def teardown(self) -> None:
         for item in self._tree_model.get_all_watchable_items():
             self._unwatch_item(item)
@@ -100,9 +101,8 @@ class WatchComponent(ScrutinyGUIBaseLocalComponent):
                 self.logger.error(f"Tried to unregister watcher {watcher_id}, but was not registered")
         self._teared_down = True
 
-
     def get_state(self) -> Dict[Any, Any]:
-        def _get_children_recursive(parent:Optional[FolderStandardItem]=None) -> Generator[Union[State.Folder, State.Watchable], None, None]:
+        def _get_children_recursive(parent: Optional[FolderStandardItem] = None) -> Generator[Union[State.Folder, State.Watchable], None, None]:
             row_count = self._tree_model.rowCount() if parent is None else parent.rowCount()
             parent_index = QModelIndex() if parent is None else parent.index()
 
@@ -110,23 +110,22 @@ class WatchComponent(ScrutinyGUIBaseLocalComponent):
                 item = self._get_item(parent_index, i)
                 if isinstance(item, WatchableStandardItem):
                     yield cast(State.Watchable, {
-                        State.KEY_TYPE : State.TYPE_WATCHABLE,
-                        State.KEY_TEXT : item.text(),
-                        State.KEY_FQN : item.fqn
+                        State.KEY_TYPE: State.TYPE_WATCHABLE,
+                        State.KEY_TEXT: item.text(),
+                        State.KEY_FQN: item.fqn
                     })
                 elif isinstance(item, FolderStandardItem):
-                    yield cast(State.Folder,{
-                      State.KEY_TYPE : State.TYPE_FOLDER,
-                      State.KEY_TEXT : item.text(),
-                      State.KEY_EXPANDED : self._tree.isExpanded(item.index()),
-                      State.KEY_CHILDREN : list(_get_children_recursive(item))  
+                    yield cast(State.Folder, {
+                        State.KEY_TYPE: State.TYPE_FOLDER,
+                        State.KEY_TEXT: item.text(),
+                        State.KEY_EXPANDED: self._tree.isExpanded(item.index()),
+                        State.KEY_CHILDREN: list(_get_children_recursive(item))
                     })
         return {
-            'root' : list(_get_children_recursive())
+            'root': list(_get_children_recursive())
         }
 
-
-    def load_state(self, state:Dict[Any, Any]) -> bool:
+    def load_state(self, state: Dict[Any, Any]) -> bool:
         # In order to reload a state, we convert the state data into the same data structure that a drag & drop produces
         # then we reuse the same entry point to the tree model to reload it.
         fully_loaded = True
@@ -135,11 +134,11 @@ class WatchComponent(ScrutinyGUIBaseLocalComponent):
         try:
             if 'root' not in state:
                 raise KeyError("Missing root key")
-            
+
             if not isinstance(state['root'], list):
                 raise KeyError("Invalid root key")
-           
-            serialized_data:List[SerializableTreeDescriptor] = []
+
+            serialized_data: List[SerializableTreeDescriptor] = []
             for state_item in state['root']:
                 serialized_data.append(self._state_node_to_dnd_serializable_node_recursive(state_item))
 
@@ -151,36 +150,36 @@ class WatchComponent(ScrutinyGUIBaseLocalComponent):
         except Exception as e:
             fully_loaded = False
             self.logger.warning(f'Invalid state to reload. {e}')
-        
+
         self.update_all_watchable_state()
-        
+
         return fully_loaded
 
-    def visibilityChanged(self, visible:bool) -> None:
+    def visibilityChanged(self, visible: bool) -> None:
         """Called when the dashboard component is either hidden or showed"""
         if self._teared_down:
-            # We're dead. Nothing to do now. 
+            # We're dead. Nothing to do now.
             # This is just the last callback telling that the dockpanel is not visible anymore before deletion
             return
-        
+
         if visible:
             self.update_all_watchable_state()
         else:
             for item in self._tree_model.get_all_watchable_items():
                 self._unwatch_item(item)
 
-    def _state_node_to_dnd_serializable_node_recursive(self, state_item:Union[State.Folder, State.Watchable], level:int=0) -> SerializableTreeDescriptor:
+    def _state_node_to_dnd_serializable_node_recursive(self, state_item: Union[State.Folder, State.Watchable], level: int = 0) -> SerializableTreeDescriptor:
         """Convert a node form the state dict to a serializable node used whil drag&dropping """
         if State.KEY_TYPE not in state_item:
             raise ValueError(f"Missing key {State.KEY_TYPE} on node")
-        
+
         # The output node
-        serializable_item:SerializableTreeDescriptor = {
-            'node' : '',    # type: ignore
+        serializable_item: SerializableTreeDescriptor = {
+            'node': '',    # type: ignore
             'sortkey': level,
-            'children' : []
+            'children': []
         }
-        
+
         # ============= Folder ============
         if state_item[State.KEY_TYPE] == State.TYPE_FOLDER:
             state_item = cast(State.Folder, state_item)
@@ -191,42 +190,41 @@ class WatchComponent(ScrutinyGUIBaseLocalComponent):
             if not isinstance(expanded, bool):
                 expanded = False
 
-            serializable_folder:FolderItemSerializableData = {
-                'text' : state_item[State.KEY_TEXT],
-                'expanded' : expanded,
-                'fqn' : None,
-                'type' : FolderStandardItem.serialized_node_type(),
+            serializable_folder: FolderItemSerializableData = {
+                'text': state_item[State.KEY_TEXT],
+                'expanded': expanded,
+                'fqn': None,
+                'type': FolderStandardItem.serialized_node_type(),
             }
 
             serializable_item['node'] = serializable_folder
 
             for child_state_item in state_item.get(State.KEY_CHILDREN, []):
-                serializable_item['children'].append(self._state_node_to_dnd_serializable_node_recursive(child_state_item, level+1))
-    
+                serializable_item['children'].append(self._state_node_to_dnd_serializable_node_recursive(child_state_item, level + 1))
+
         # ============ Watchable ===========
         elif state_item[State.KEY_TYPE] == State.TYPE_WATCHABLE:
             state_item = cast(State.Watchable, state_item)
-            for k2 in  [State.KEY_TEXT, State.KEY_FQN]:
+            for k2 in [State.KEY_TEXT, State.KEY_FQN]:
                 if k2 not in state_item:
                     raise KeyError(f"Missing key {k2} on node")
-            
-            serializable_watcahble:WatchableItemSerializableData = {
-                'text' : state_item[State.KEY_TEXT],
-                'fqn' : state_item[State.KEY_FQN],
-                'type' : WatchableStandardItem.serialized_node_type()
+
+            serializable_watcahble: WatchableItemSerializableData = {
+                'text': state_item[State.KEY_TEXT],
+                'fqn': state_item[State.KEY_FQN],
+                'type': WatchableStandardItem.serialized_node_type()
             }
 
             serializable_item['node'] = serializable_watcahble
 
         else:
             raise ValueError(f"Unsupported node type : {state_item[State.KEY_TYPE]}")
-        
-        return serializable_item
-        
 
-    def _get_item(self, parent:QModelIndex, row_index:int) -> Optional[BaseWatchableRegistryTreeStandardItem]:
+        return serializable_item
+
+    def _get_item(self, parent: QModelIndex, row_index: int) -> Optional[BaseWatchableRegistryTreeStandardItem]:
         """Get the item pointed by the index and the row (column is assumed 0). Handles the no-parent case
-        
+
         :parent: The parent index. Invalid index for root.
         :row_index: The row number of the item
 
@@ -235,28 +233,29 @@ class WatchComponent(ScrutinyGUIBaseLocalComponent):
         nesting_col = self._tree_model.nesting_col()
         if not parent.isValid():
             return cast(Optional[BaseWatchableRegistryTreeStandardItem], self._tree_model.item(row_index, nesting_col))
-        
+
         return cast(Optional[BaseWatchableRegistryTreeStandardItem], self._tree_model.itemFromIndex(parent).child(row_index, nesting_col))
 
     def _registry_changed_slot(self) -> None:
         self._resubscribe_all_rows_as_watcher()
         self.update_all_watchable_state()
 
-    def _register_watcher_for_row(self, item:WatchableStandardItem)-> None:
+    def _register_watcher_for_row(self, item: WatchableStandardItem) -> None:
         """Take the given row and create a watcher on the registry for the row"""
         value_item = self._tree_model.get_value_item(item)
-        def update_val_closure(watcher_id:Union[str, int], vals:List[ValueUpdate]) -> None:
-            self._update_val_callback(value_item, watcher_id, vals )
 
-        def unwatch_closure(watcher_id:Union[str, int], server_path:str, watchable_config:sdk.WatchableConfiguration) -> None:
+        def update_val_closure(watcher_id: Union[str, int], vals: List[ValueUpdate]) -> None:
+            self._update_val_callback(value_item, watcher_id, vals)
+
+        def unwatch_closure(watcher_id: Union[str, int], server_path: str, watchable_config: sdk.WatchableConfiguration) -> None:
             pass
-        
+
         watcher_id = self._get_watcher_id(item)
         self.watchable_registry.register_watcher(watcher_id, update_val_closure, unwatch_closure, ignore_duplicate=True)
 
-    def _row_inserted_slot(self, parent:QModelIndex, row_index:int, col_index:int) -> None:
+    def _row_inserted_slot(self, parent: QModelIndex, row_index: int, col_index: int) -> None:
         # This slots is called for every row inserted when new rows. Only parent when existing row
-        def func (item:WatchableStandardItem, visible:bool) -> None:
+        def func(item: WatchableStandardItem, visible: bool) -> None:
             self._register_watcher_for_row(item)
             if visible:
                 self._watch_item(item)
@@ -267,50 +266,50 @@ class WatchComponent(ScrutinyGUIBaseLocalComponent):
             if item_inserted.is_expanded():
                 self._tree.expand(item_inserted.index())
 
-    def _row_about_to_be_removed_slot(self, parent:QModelIndex, first_row_index:int, last_row_index:int) -> None:
+    def _row_about_to_be_removed_slot(self, parent: QModelIndex, first_row_index: int, last_row_index: int) -> None:
         # This slot is called only on the node removed, not on the children.
-        def func (item:WatchableStandardItem, visible:bool) -> None:
+        def func(item: WatchableStandardItem, visible: bool) -> None:
             watcher_id = self._get_watcher_id(item)
             try:
-                # Unregistering causes an unwatch of all watched items. 
+                # Unregistering causes an unwatch of all watched items.
                 # In this component, each watcher has a single watched item
                 self.watchable_registry.unregister_watcher(watcher_id)
             except WatcherNotFoundError:
                 # Should not happen (hopefully). The registry is expected to keep the watchers even after a clear
                 self.logger.error(f"Tried to unregister watcher {watcher_id}, but was not registered")
-        
-        for row_index in range(first_row_index, last_row_index+1):
+
+        for row_index in range(first_row_index, last_row_index + 1):
             item_removed = self._get_item(parent, row_index)
             self._tree.map_to_watchable_node(func, parent=item_removed)
-        
-    def _node_expanded_slot(self, index:QModelIndex) -> None:
+
+    def _node_expanded_slot(self, index: QModelIndex) -> None:
         # Added at the end of the event loop because it is a queuedConnection
         # Expanding with star requires that
         self.expand_if_needed.emit()
         self.update_all_watchable_state(start_node=self._tree_model.itemFromIndex(index))
 
-    def _node_collapsed_slot(self, index:QModelIndex) -> None:
+    def _node_collapsed_slot(self, index: QModelIndex) -> None:
         self.update_all_watchable_state(start_node=self._tree_model.itemFromIndex(index))
-    
-    def _row_moved_slot(self, src_parent:QModelIndex, src_row:int, src_col:int, dest_parent:QModelIndex, dst_row:int) -> None:
+
+    def _row_moved_slot(self, src_parent: QModelIndex, src_row: int, src_col: int, dest_parent: QModelIndex, dst_row: int) -> None:
         self.update_all_watchable_state(start_node=self._tree_model.itemFromIndex(dest_parent))
-    
-    def _watch_item(self, item:WatchableStandardItem) -> None:
+
+    def _watch_item(self, item: WatchableStandardItem) -> None:
         """Internal function registering a tree line from the watchable registry"""
         watcher_id = self._get_watcher_id(item)
-        if self.logger.isEnabledFor(logging.DEBUG): #pragma: no cover
+        if self.logger.isEnabledFor(logging.DEBUG):  # pragma: no cover
             self.logger.debug(f"Watching item {item.fqn} (watcher ID = {watcher_id})")
         try:
             self.watchable_registry.watch_fqn(watcher_id, item.fqn)
         except WatchableRegistryNodeNotFoundError:
-            # we tolerate because we could simply try to watch to see if the watchable is available. 
+            # we tolerate because we could simply try to watch to see if the watchable is available.
             # It might not if the server is gone or presently downloading data
             self.logger.debug(f"Cannot watch {item.fqn}. Does not exist")
-    
-    def _unwatch_item(self, item:WatchableStandardItem, quiet:bool=True) -> None:
+
+    def _unwatch_item(self, item: WatchableStandardItem, quiet: bool = True) -> None:
         """Internal function unregistering a tree line from the watchable registry"""
         watcher_id = self._get_watcher_id(item)
-        if self.logger.isEnabledFor(logging.DEBUG): #pragma: no cover
+        if self.logger.isEnabledFor(logging.DEBUG):  # pragma: no cover
             self.logger.debug(f"Unwatching item {item.fqn} (watcher ID = {watcher_id})")
         try:
             self.watchable_registry.unwatch_fqn(watcher_id, item.fqn)
@@ -320,20 +319,20 @@ class WatchComponent(ScrutinyGUIBaseLocalComponent):
             self.logger.debug(f"Cannot unwatch {item.fqn}. Does not exist")
             if not quiet:
                 raise
-    
-    def _get_watcher_id(self, item:WatchableStandardItem) -> int:
+
+    def _get_watcher_id(self, item: WatchableStandardItem) -> int:
         return self._tree_model.get_watcher_id(item)
-    
+
     def _resubscribe_all_rows_as_watcher(self) -> None:
         """Iterate all watchable row in the tree and (re)subscribe them as watchers"""
-        def subscribe_func(item:WatchableStandardItem, visible:bool) -> None:
+        def subscribe_func(item: WatchableStandardItem, visible: bool) -> None:
             self._register_watcher_for_row(item)
         self._tree.map_to_watchable_node(subscribe_func)
 
-    def update_all_watchable_state(self, start_node:Optional[BaseWatchableRegistryTreeStandardItem]=None) -> None:
+    def update_all_watchable_state(self, start_node: Optional[BaseWatchableRegistryTreeStandardItem] = None) -> None:
         """Make a watchable row watch or unwatch the item they refer to based on their visibility to the user"""
-        def update_func(item:WatchableStandardItem, visible:bool) -> None:
-            if visible :
+        def update_func(item: WatchableStandardItem, visible: bool) -> None:
+            if visible:
                 self._watch_item(item)
             else:
                 self._unwatch_item(item)
@@ -341,7 +340,7 @@ class WatchComponent(ScrutinyGUIBaseLocalComponent):
 
         self._tree.map_to_watchable_node(update_func, start_node)
 
-    def _update_val_callback(self, item:ValueStandardItem, watcher_id:Union[str, int], vals:List[ValueUpdate]) -> None:
+    def _update_val_callback(self, item: ValueStandardItem, watcher_id: Union[str, int], vals: List[ValueUpdate]) -> None:
         """The function called when we receive value updates from the server"""
         assert len(vals) > 0
         can_update = True
@@ -349,13 +348,13 @@ class WatchComponent(ScrutinyGUIBaseLocalComponent):
         if self._tree.state() == WatchableTreeWidget.State.EditingState:
             if item.index().siblingAtColumn(nesting_col) == self._tree.currentIndex().siblingAtColumn(nesting_col):
                 can_update = False  # Don't change the content. The user is writing something
-        
+
         if can_update:
             item.setText(str(vals[-1].value))
 
-    def _value_written_slot(self, fqn:str, value:str) -> None:
+    def _value_written_slot(self, fqn: str, value: str) -> None:
         """The QT slot called when the user input a new value in a value field"""
-        def ui_callback(exception:Optional[Exception]) -> None:
+        def ui_callback(exception: Optional[Exception]) -> None:
             if exception is not None:
                 self.logger.warning(f"Failed to write {fqn}. {exception}")
                 self.logger.debug(tools.format_exception(exception))
@@ -363,4 +362,3 @@ class WatchComponent(ScrutinyGUIBaseLocalComponent):
         # No need to parse strings. The server auto-converts
         # Supports : Number as strings. Hexadecimal with 0x prefix, true/false, etc.
         self.server_manager.qt_write_watchable_value(fqn, value, ui_callback)
-        

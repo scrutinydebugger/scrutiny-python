@@ -107,7 +107,7 @@ class DeviceSearcher:
 
         if self.pending == False:
             if self.last_request_timestamp is None or (time.monotonic() - self.last_request_timestamp > self.DISCOVER_INTERVAL):
-                if self.logger.isEnabledFor(logging.DEBUG): #pragma: no cover
+                if self.logger.isEnabledFor(logging.DEBUG):  # pragma: no cover
                     self.logger.debug('Registering a Discover request')
                 self.dispatcher.register_request(
                     request=self.protocol.comm_discover(),
@@ -120,7 +120,7 @@ class DeviceSearcher:
 
     def success_callback(self, request: Request, response: Response, params: Any = None) -> None:
         # Called by the dispatcher when a request is completed and succeeded
-        if self.logger.isEnabledFor(logging.DEBUG): #pragma: no cover
+        if self.logger.isEnabledFor(logging.DEBUG):  # pragma: no cover
             self.logger.debug("Success callback. Request=%s. Response Code=%s, Params=%s" % (request, response.code, params))
 
         if self.started:
@@ -141,7 +141,7 @@ class DeviceSearcher:
 
     def failure_callback(self, request: Request, params: Any = None) -> None:
         # Called by the dispatcher when a request is completed and failed to succeed
-        if self.logger.isEnabledFor(logging.DEBUG): #pragma: no cover
+        if self.logger.isEnabledFor(logging.DEBUG):  # pragma: no cover
             self.logger.debug("Failure callback. Request=%s. Params=%s" % (request, params))
         self.found_device = None
         self.completed()

@@ -14,16 +14,20 @@ from dataclasses import dataclass
 if typing.TYPE_CHECKING:
     from scrutiny.gui.gui import ScrutinyQtGUI
 
+
 @dataclass
 class UnitTests:
-    enable:bool
-    settings:typing.Optional["ScrutinyQtGUI.Settings"]
+    enable: bool
+    settings: typing.Optional["ScrutinyQtGUI.Settings"]
 
-unit_tests = UnitTests(enable = False, settings=None)
 
-def configure_unit_test_app_settings(settings:"ScrutinyQtGUI.Settings") -> None:
+unit_tests = UnitTests(enable=False, settings=None)
+
+
+def configure_unit_test_app_settings(settings: "ScrutinyQtGUI.Settings") -> None:
     unit_tests.settings = settings
     unit_tests.enable = True
+
 
 def app_settings() -> "ScrutinyQtGUI.Settings":
     if unit_tests.enable:

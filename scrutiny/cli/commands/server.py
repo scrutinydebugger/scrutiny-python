@@ -14,6 +14,7 @@ import logging
 from .base_command import BaseCommand
 from scrutiny.tools.typing import *
 
+
 class Server(BaseCommand):
     _cmd_name_ = 'server'
     _brief_ = 'Launch an instance of the server'
@@ -31,12 +32,12 @@ class Server(BaseCommand):
                                  " Specified as a list of key=value where key can be a nested dict where the a dot (.) represent a nesting level. 'a.b.c=val'"
                                  "Overrides file configuration if specified.")
 
-    def str_to_dict(self, path:str, val:Any, separator:str='.') -> Dict[Any, Any]:
+    def str_to_dict(self, path: str, val: Any, separator: str = '.') -> Dict[Any, Any]:
         parts = path.split(separator)
         if len(parts) == 0:
             raise ValueError(f"Invalid dict path string '{path}'")
-        
-        d:Dict[Any, Any] = {}
+
+        d: Dict[Any, Any] = {}
         ref = d
         for i in range(len(parts)):
             if i < len(parts) - 1:
@@ -44,7 +45,7 @@ class Server(BaseCommand):
                 ref = ref[parts[i]]
             else:
                 ref[parts[i]] = val
-        
+
         return d
 
     def run(self) -> Optional[int]:
@@ -54,7 +55,7 @@ class Server(BaseCommand):
         args = self.parser.parse_args(self.args)
         if args.options is None:
             args.options = []
-        
+
         if args.port is not None:
             args.options.append(f'api.client_interface_config.port={args.port}')    # Append should override in case of duplicate
 
@@ -63,7 +64,7 @@ class Server(BaseCommand):
         time_format = r'%Y-%m-%d %H:%M:%S'
         logging.getLogger().handlers[0].setFormatter(logging.Formatter(format_string, time_format))
 
-        extra_configs:Dict[Any, Any] = {}
+        extra_configs: Dict[Any, Any] = {}
         if args.options is not None:
             for o in args.options:
                 parts = o.split('=')

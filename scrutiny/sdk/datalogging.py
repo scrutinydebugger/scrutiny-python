@@ -57,9 +57,9 @@ class XAxisType(enum.Enum):
 
     def to_str(self) -> str:
         return self.value
-    
+
     @classmethod
-    def from_str(cls, v:str) -> "XAxisType":
+    def from_str(cls, v: str) -> "XAxisType":
         return cls(v)
 
 
@@ -93,7 +93,6 @@ class TriggerCondition(enum.Enum):
     IsWithin = "within"
     """`|Operand1 - Operand2|` < `|Operand3|` """
 
-
     def required_operands(self) -> int:
         operand_map = {
             TriggerCondition.AlwaysTrue: 0,
@@ -111,10 +110,11 @@ class TriggerCondition(enum.Enum):
 
     def to_str(self) -> str:
         return self.value
-    
+
     @classmethod
-    def from_str(cls, v:str) -> "TriggerCondition":
+    def from_str(cls, v: str) -> "TriggerCondition":
         return cls(v)
+
 
 @dataclass
 class _Signal:
@@ -204,7 +204,7 @@ class DataloggingConfig:
 
     def add_axis(self, name: str) -> AxisDefinition:
         """Adds a Y axis to the acquisition.
-        
+
         :param name: The name of the axis, for display purpose. 
 
         :return: An :class:`AxisDefinition<scrutiny.sdk.datalogging.AxisDefinition>` object that can be assigned to a signal when calling :meth:`add_signal()<scrutiny.sdk.datalogging.DataloggingConfig.add_signal>`
@@ -279,7 +279,7 @@ class DataloggingConfig:
         """
         validation.assert_type(condition, 'condition', TriggerCondition)
         validation.assert_type(operands, 'operands', (list, type(None)))
-        
+
         nb_operands = condition.required_operands()
 
         if operands is None:
@@ -291,7 +291,7 @@ class DataloggingConfig:
         for i in range(len(operands)):
             if not isinstance(operands[i], (float, int, WatchableHandle, str)):
                 raise TypeError(
-                    f"Operand {i+1} must be a constant (float), a path to the element (string) or a watchable handle. Got {operands[i].__class__.__name__}")
+                    f"Operand {i + 1} must be a constant (float), a path to the element (string) or a watchable handle. Got {operands[i].__class__.__name__}")
 
         position = validation.assert_float_range(position, 'position', 0, 1)
         hold_time = validation.assert_float_range(hold_time, 'hold_time', 0, API.DATALOGGING_MAX_HOLD_TIME)
@@ -373,11 +373,11 @@ class DataloggingRequest(PendingRequest):
         self._request_token = request_token
         self._acquisition_reference_id = None
 
-    def _mark_complete_specialized(self, 
-                       success: bool, 
-                       reference_id: Optional[str], 
-                       failure_reason: str = "", 
-                       server_time_us: Optional[float] = None) -> None:
+    def _mark_complete_specialized(self,
+                                   success: bool,
+                                   reference_id: Optional[str],
+                                   failure_reason: str = "",
+                                   server_time_us: Optional[float] = None) -> None:
         # Put a request in "completed" state. Expected to be called by the client worker thread
         if success:
             assert reference_id is not None
@@ -395,7 +395,7 @@ class DataloggingRequest(PendingRequest):
         :raise OperationFailure: If an error happened that prevented the acquisition to successfully complete
         """
         super().wait_for_completion(timeout)
-        
+
     def fetch_acquisition(self, timeout: Optional[float] = None) -> DataloggingAcquisition:
         """Download and returns an acquisition data from the server. The acquisition must be complete
 
@@ -432,12 +432,11 @@ class DataloggingRequest(PendingRequest):
         self.wait_for_completion(timeout)
         return self.fetch_acquisition(fetch_timeout)  # Use default timeout
 
-
     @property
     def acquisition_reference_id(self) -> Optional[str]:
         """The unique ID used to fetch the acquisition data from the server. Value is set only if request is completed and succeeded. ``None`` otherwise"""
         return self._acquisition_reference_id
-    
+
     @property
     def request_token(self) -> str:
         """A unique token assigned to this request by the server"""

@@ -6,10 +6,11 @@
 #
 #   Copyright (c) 2024 Scrutiny Debugger
 
-if __name__ != '__main__' : 
+if __name__ != '__main__':
     raise RuntimeError("This script is expected to run from the command line")
 
-import sys, os
+import sys
+import os
 sys.path.insert(0, os.path.dirname(__file__))
 from manual_test_base import make_manual_test_app
 app = make_manual_test_app()
@@ -47,12 +48,15 @@ vlayout.addWidget(component_container)
 vlayout.addWidget(status_container)
 
 button_layout = QHBoxLayout(button_container)
-def add_per_group(widgets:List[QWidget]):
+
+
+def add_per_group(widgets: List[QWidget]):
     container = QWidget()
     layout = QVBoxLayout(container)
     for widget in widgets:
         layout.addWidget(widget)
     button_layout.addWidget(container)
+
 
 add_per_group([QLabel("Server Manager"), btn_start, btn_stop])
 add_per_group([QLabel("Server Connection"), btn_connect, btn_disconnect])
@@ -86,6 +90,7 @@ status_layout.addRow("SFD: ", sfd_loaded_label)
 
 window.show()
 
+
 def update_ui():
     btn_start.setEnabled(not server_manager.is_running())
     btn_stop.setEnabled(server_manager.is_running())
@@ -113,41 +118,49 @@ def update_ui():
 
     running_label.setText("Running" if server_manager.is_running() else "Stopped")
     server_connected_label.setText("Connected" if server_connected else "Disconnected")
-    device_connected_label.setText( "Connected" if server_manager._device_connected else "Disconnected")
-    sfd_loaded_label.setText( "Loaded" if server_manager._sfd_loaded else "Unloaded")
+    device_connected_label.setText("Connected" if server_manager._device_connected else "Disconnected")
+    sfd_loaded_label.setText("Loaded" if server_manager._sfd_loaded else "Unloaded")
 
 
 def btn_start_slot():
     server_manager.start(ServerConfig(hostname='localhost', port=12345))
     update_ui()
 
+
 def btn_stop_slot():
     server_manager.stop()
     update_ui()
+
 
 def btn_connect_slot():
     server_manager.simulate_server_connect()
     update_ui()
 
+
 def btn_disconnect_slot():
     server_manager.simulate_server_disconnected()
     update_ui()
+
 
 def btn_device_ready_slot():
     server_manager.simulate_device_ready()
     update_ui()
 
+
 def btn_device_gone_slot():
     server_manager.simulate_device_disconnect()
     update_ui()
+
 
 def btn_load_sfd_slot():
     server_manager.simulate_sfd_loaded()
     update_ui()
 
+
 def btn_unload_sfd_slot():
     server_manager.simulate_sfd_unloaded()
     update_ui()
+
 
 btn_start.clicked.connect(btn_start_slot)
 btn_stop.clicked.connect(btn_stop_slot)

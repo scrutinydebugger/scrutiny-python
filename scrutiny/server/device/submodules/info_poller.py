@@ -12,7 +12,7 @@ __all__ = [
     'ProtocolVersionCallback',
     'CommParamCallback',
     'InfoPoller'
-    ]
+]
 
 import logging
 import enum
@@ -344,16 +344,16 @@ class InfoPoller:
                         next_state = self.FsmState.GetDataloggingSetup
                     else:
                         next_state = self.FsmState.Done
-        
+
         # ======= [GetDataloggingSetup] =====
         elif self.fsm_state == self.FsmState.GetDataloggingSetup:
             if state_entry:
                 self.dispatcher.register_request(
                     request=self.protocol.datalogging_get_setup(),
-                    success_callback=self.success_callback, 
-                    failure_callback=self.failure_callback, 
+                    success_callback=self.success_callback,
+                    failure_callback=self.failure_callback,
                     priority=self.priority
-                    )
+                )
 
             if self.request_failed:
                 next_state = self.FsmState.Error
@@ -372,7 +372,7 @@ class InfoPoller:
             next_state = self.FsmState.Error
 
         if next_state != self.fsm_state:
-            if self.logger.isEnabledFor(logging.DEBUG): # pragma: no cover
+            if self.logger.isEnabledFor(logging.DEBUG):  # pragma: no cover
                 self.logger.debug('Moving state machine to %s' % next_state)
 
         self.last_fsm_state = self.fsm_state
@@ -381,7 +381,7 @@ class InfoPoller:
     def success_callback(self, request: Request, response: Response, params: Any = None) -> None:
         """Called when a request completes and succeeds"""
 
-        if self.logger.isEnabledFor(logging.DEBUG): #pragma: no cover
+        if self.logger.isEnabledFor(logging.DEBUG):  # pragma: no cover
             self.logger.debug("Success callback. Request=%s. Response Code=%s, Params=%s" % (request, response.code, params))
         response_data: protocol_typing.ResponseData
 
@@ -504,7 +504,7 @@ class InfoPoller:
                     self.error_message = "Received the loop definition for an unexpected loop id"
                 else:
                     self.info.loops.append(response_data['loop'])
-            
+
             elif self.fsm_state == self.FsmState.GetDataloggingSetup:
                 response_data = cast(protocol_typing.Response.DatalogControl.GetSetup, response_data)
                 self.info.datalogging_setup = device_datalogging.DataloggingSetup(
@@ -521,7 +521,7 @@ class InfoPoller:
 
     def failure_callback(self, request: Request, params: Any = None) -> None:
         """Callback called by the request dispatcher when a request fails to complete"""
-        if self.logger.isEnabledFor(logging.DEBUG): #pragma: no cover
+        if self.logger.isEnabledFor(logging.DEBUG):  # pragma: no cover
             self.logger.debug("Failure callback. Request=%s. Params=%s" % (request, params))
         if not self.stop_requested:
             self.request_failed = True

@@ -98,8 +98,8 @@ class Struct:
         byte_offset: Optional[int]
         bitsize: Optional[int]
         substruct: Optional['Struct']
-        enum:Optional[EmbeddedEnum]
-        is_unnamed:bool
+        enum: Optional[EmbeddedEnum]
+        is_unnamed: bool
 
         def __init__(self, name: str,
                      is_substruct: bool = False,
@@ -108,8 +108,8 @@ class Struct:
                      bitoffset: Optional[int] = None,
                      bitsize: Optional[int] = None,
                      substruct: Optional['Struct'] = None,
-                     enum:Optional[EmbeddedEnum] = None,
-                     is_unnamed:bool=False
+                     enum: Optional[EmbeddedEnum] = None,
+                     is_unnamed: bool = False
                      ):
 
             if not is_substruct:
@@ -137,7 +137,7 @@ class Struct:
             if substruct is not None:
                 if not isinstance(substruct, Struct):
                     raise ValueError('substruct must be Struct instance')
-            
+
             if is_unnamed:
                 if not is_substruct:
                     raise ValueError("Only substruct members can be unnamed")
@@ -163,11 +163,11 @@ class Struct:
         """Add a member to the struct"""
         if not isinstance(member, Struct.Member):
             raise ValueError('Node must be a Struct.Member')
-        
+
         if member.is_unnamed:
             # Unnamed struct,class,union are defined like this : struct { struct {int a; int b;}} x
             # They are considered as being declared at the same level as the members of the parent
-            assert member.is_substruct==True
+            assert member.is_substruct == True
             assert member.substruct is not None
             assert member.byte_offset is not None
 
@@ -175,15 +175,15 @@ class Struct:
                 substruct_member2 = deepcopy(subtruct_member)
                 if substruct_member2.byte_offset is None:
                     raise RuntimeError("Expect byte_offset to be set to handle unnamed composite type")
-                substruct_member2.byte_offset+=member.byte_offset
+                substruct_member2.byte_offset += member.byte_offset
                 self.add_member(substruct_member2)
-        else:    
+        else:
             if member.name in self.members:
                 raise KeyError('Duplicate member %s' % member.name)
-        
+
             self.members[member.name] = member
-    
-    def inherit(self, other:"Struct", offset:int=0) -> None:
+
+    def inherit(self, other: "Struct", offset: int = 0) -> None:
         for member in other.members.values():
             member2 = deepcopy(member)
             if member2.byte_offset is None:
@@ -209,16 +209,16 @@ class Variable:
     bitoffset: Optional[int]
     enum: Optional[EmbeddedEnum]
 
-    def __init__(self, 
-        name: str, 
-        vartype: EmbeddedDataType, 
-        path_segments: List[str], 
-        location: Union[int, VariableLocation], 
-        endianness: Endianness, 
-        bitsize: Optional[int] = None, 
-        bitoffset: Optional[int] = None, 
-        enum: Optional[EmbeddedEnum] = None
-    ) -> None:
+    def __init__(self,
+                 name: str,
+                 vartype: EmbeddedDataType,
+                 path_segments: List[str],
+                 location: Union[int, VariableLocation],
+                 endianness: Endianness,
+                 bitsize: Optional[int] = None,
+                 bitoffset: Optional[int] = None,
+                 enum: Optional[EmbeddedEnum] = None
+                 ) -> None:
 
         self.name = name
         self.vartype = vartype

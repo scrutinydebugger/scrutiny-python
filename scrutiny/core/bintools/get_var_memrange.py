@@ -10,6 +10,7 @@
 import sys
 from elftools.elf.elffile import ELFFile
 
+
 def main() -> None:
     sections = ['.data', '.bss', '.rodata']
     with open(sys.argv[1], 'rb') as f:
@@ -19,6 +20,7 @@ def main() -> None:
             section = ef.get_section_by_name(section_name)
             if section is not None:
                 print('%s %s ' % (section.header['sh_addr'], section.header['sh_size']), end="")
+
 
 if __name__ == '__main__':
     main()

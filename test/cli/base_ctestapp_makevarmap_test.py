@@ -27,7 +27,6 @@ from scrutiny.tools.typing import *
 class BaseCTestAppMakeVarmapTest:
     init_exception: Optional[Exception]
 
-
     @classmethod
     def setUpClass(cls):
         cls.init_exception = None
@@ -68,17 +67,16 @@ class BaseCTestAppMakeVarmapTest:
             else:
                 self.assertEqual(val, value_at_loc)
         return v
-    
-    def assert_dwarf_version(self, binname:str, version:int):
+
+    def assert_dwarf_version(self, binname: str, version: int):
         with open(binname, 'rb') as f:
             elffile = elftools.elf.elffile.ELFFile(f)
 
             self.assertTrue(elffile.has_dwarf_info())
 
-            dwarfinfo = elffile.get_dwarf_info() 
+            dwarfinfo = elffile.get_dwarf_info()
             for cu in dwarfinfo.iter_CUs():
                 self.assertEqual(cu.header['version'], version)
-
 
     def assert_is_enum(self, v):
         self.assertIsNotNone(v.enum)
@@ -156,7 +154,7 @@ class BaseCTestAppMakeVarmapTest:
     def test_enum(self):
         self.assert_is_enumA('/global/instance_enumA', value_at_loc=101)
         self.assert_is_enumA('/static/file2.c/staticInstance_enumA', value_at_loc=0)
- 
+
     def test_struct_with_enumA(self):
         self.assert_var('/global/instance_structWithEnumA/a', EmbeddedDataType.sint32, value_at_loc=123)
         self.assert_var('/global/instance_structWithEnumA/b', EmbeddedDataType.sint32, value_at_loc=456)
@@ -164,7 +162,7 @@ class BaseCTestAppMakeVarmapTest:
         self.assert_var('/static/file2.c/static_instance_structWithEnumA/a', EmbeddedDataType.sint32, value_at_loc=135)
         self.assert_var('/static/file2.c/static_instance_structWithEnumA/b', EmbeddedDataType.sint32, value_at_loc=246)
         self.assert_is_enumA('/static/file2.c/static_instance_structWithEnumA/instance_enumA', value_at_loc=100)
- 
+
     def test_structA(self):
         v = self.assert_var('/global/file1StructAInstance/structAMemberInt', EmbeddedDataType.sint32, value_at_loc=-654)
         self.assert_var('/global/file1StructAInstance/structAMemberUInt', EmbeddedDataType.uint32, addr=v.get_address() + 4, value_at_loc=258147)

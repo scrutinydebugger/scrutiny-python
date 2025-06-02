@@ -23,21 +23,28 @@ from scrutiny.tools.typing import *
 
 # Hook for unit tests.
 # Allow to change the Jlink class with a stub
+
+
 class ClassContainer:
-    theclass:Type[Any]
-    def __init__(self, o:Type[Any]):
+    theclass: Type[Any]
+
+    def __init__(self, o: Type[Any]):
         self.theclass = o
-    
+
     def __call__(self) -> Any:
         return self.theclass()
-    
-JLINK_CLASS = ClassContainer(pylink.JLink)   
+
+
+JLINK_CLASS = ClassContainer(pylink.JLink)
+
 
 def _set_jlink_class(c):  # type:ignore
     JLINK_CLASS.theclass = c
 
+
 def _get_jlink_class():  # type:ignore
     return JLINK_CLASS.theclass
+
 
 class RttConfig(TypedDict):
     """
@@ -56,21 +63,21 @@ class RttLink(AbstractLink):
     logger: logging.Logger
     config: RttConfig
     _initialized: bool
-    _write_queue:"queue.Queue[Optional[bytes]]" # None is used to wake up the thread
-    _write_thread:Optional[threading.Thread]
-    _request_thread_exit:bool
+    _write_queue: "queue.Queue[Optional[bytes]]"  # None is used to wake up the thread
+    _write_thread: Optional[threading.Thread]
+    _request_thread_exit: bool
 
     port: Optional[pylink.JLink]
-    
+
     STR_TO_JLINK_INTERFACE: Dict[str, int] = {
-        'jtag' : pylink.enums.JLinkInterfaces.JTAG,
-        'swd'  : pylink.enums.JLinkInterfaces.SWD,
-        'fine' : pylink.enums.JLinkInterfaces.FINE,
-        'icsp' : pylink.enums.JLinkInterfaces.ICSP,
-        'spi'  : pylink.enums.JLinkInterfaces.SPI,
-        'c2'   : pylink.enums.JLinkInterfaces.C2
+        'jtag': pylink.enums.JLinkInterfaces.JTAG,
+        'swd': pylink.enums.JLinkInterfaces.SWD,
+        'fine': pylink.enums.JLinkInterfaces.FINE,
+        'icsp': pylink.enums.JLinkInterfaces.ICSP,
+        'spi': pylink.enums.JLinkInterfaces.SPI,
+        'c2': pylink.enums.JLinkInterfaces.C2
     }
-    
+
     @classmethod
     def get_jlink_interface(cls, s: str) -> int:
         " Parse a jlink interface string and convert to JLinkInterfaces constant"
@@ -79,8 +86,6 @@ class RttLink(AbstractLink):
         if s not in cls.STR_TO_JLINK_INTERFACE:
             raise ValueError('Unsupported JLinkInterface "%s"' % s)
         return cls.STR_TO_JLINK_INTERFACE[s]
-    
-    
 
     @classmethod
     def make(cls, config: LinkConfig) -> "RttLink":
@@ -95,11 +100,10 @@ class RttLink(AbstractLink):
         self._write_thread = None
         self._write_queue = queue.Queue()
         self._request_thread_exit = False
-        
 
         self.config = cast(RttConfig, {
             'target_device': str(config['target_device']),
-            'jlink_interface' : str(config.get('jlink_interface','swd'))
+            'jlink_interface': str(config.get('jlink_interface', 'swd'))
         })
 
     def get_config(self) -> LinkConfig:
@@ -111,7 +115,7 @@ class RttLink(AbstractLink):
         jlink_interface = self.get_jlink_interface(self.config['jlink_interface'])
         if self._write_thread is not None:
             raise RuntimeError("Thread already running")
-        
+
         self._initialized = False
         self._write_queue = queue.Queue()   # clear
         self._request_thread_exit = False
@@ -122,7 +126,7 @@ class RttLink(AbstractLink):
         if self.port.opened():
             self.logger.debug("J-Link opened: " + str(self.port.product_name))
         else:
-            self.logger.debug("J-Link not opened." )
+            self.logger.debug("J-Link not opened.")
         self.port.set_tif(jlink_interface)
         self.port.connect(target_device)
         self.port.rtt_start(None)
@@ -133,8 +137,7 @@ class RttLink(AbstractLink):
             self._initialized = True
             self.logger.debug("J-Link connected: " + str(target_device))
         else:
-            self.logger.debug("J-Link not connected: " + str(target_device))     
-
+            self.logger.debug("J-Link not connected: " + str(target_device))
 
     def _write_thread_func(self) -> None:
         assert self.port is not None
@@ -145,8 +148,7 @@ class RttLink(AbstractLink):
                     written_count = cast(int, self.port.rtt_write(0, data))
                     data = data[written_count:]
             else:
-                pass # Other thread wanted to wake us up. Do nothing, we should exit
-
+                pass  # Other thread wanted to wake us up. Do nothing, we should exit
 
     def destroy(self) -> None:
         """ Put the comm channel to a resource-free non-working state"""
@@ -155,11 +157,11 @@ class RttLink(AbstractLink):
                 self.port.close()
 
         self._request_thread_exit = True
-        self._write_queue.put(None) # Will wake the thread
+        self._write_queue.put(None)  # Will wake the thread
         if self._write_thread is not None:
             if self._write_thread.is_alive():
                 self._write_thread.join(2)
-        
+
         self._write_queue = queue.Queue()
         self._write_thread = None
 
@@ -169,23 +171,23 @@ class RttLink(AbstractLink):
         """ Tells if this comm channel is in proper state to be functional"""
         if self.port is None:
             return False
-        
+
         return (
-            self.port.connected() 
-            and self.initialized() 
-            and self.port.opened() 
-            and self.port.target_connected() 
-            and self._write_thread is not None 
+            self.port.connected()
+            and self.initialized()
+            and self.port.opened()
+            and self.port.target_connected()
+            and self._write_thread is not None
             and self._write_thread.is_alive()
         )
 
-    def read(self, timeout:Optional[float] = None) -> Optional[bytes]:
+    def read(self, timeout: Optional[float] = None) -> Optional[bytes]:
         """ Reads bytes in a blocking fashion from the comm channel. None if no data available after timeout"""
         if not self.operational():
             return None
-        
+
         assert self.port is not None    # For mypy
-        data:Optional[bytes] = None
+        data: Optional[bytes] = None
         try:
             bytesArray = self.port.rtt_read(0, 1024)
             data = bytes(bytesArray)
@@ -193,7 +195,6 @@ class RttLink(AbstractLink):
             self.logger.debug("Cannot read data.")
             self.port.close()
         return data
-
 
     def write(self, data: bytes) -> None:
         """ Write data to the comm channel."""
@@ -226,6 +227,6 @@ class RttLink(AbstractLink):
 
         if not isinstance(config['target_device'], str):
             raise ValueError('Tartget device must be a string')
-        
+
         if 'jlink_interface' in config:
             RttLink.get_jlink_interface(config['jlink_interface'])       # raise an exception on bad value

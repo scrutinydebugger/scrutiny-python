@@ -8,5 +8,6 @@
 
 __all__ = ['EnvionmentNotSetUpException']
 
+
 class EnvionmentNotSetUpException(Exception):
     pass

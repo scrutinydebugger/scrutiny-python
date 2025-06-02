@@ -20,6 +20,7 @@ __all__ = [
     'ErrorResponseException'
 ]
 
+
 class ScrutinySDKException(Exception):
     """Base class for all Scrutiny SDK exceptions"""
     pass
@@ -49,9 +50,11 @@ class NameNotFoundError(ScrutinySDKException):
     """Raised when trying to reference an element by its name and the name is invalid or unknown"""
     pass
 
+
 class BadEnumError(ScrutinySDKException):
     """Raised when trying access an enum value that does not exists"""
     pass
+
 
 class NotAllowedError(ScrutinySDKException):
     """Raise when an operation is not allowed by the SDK"""

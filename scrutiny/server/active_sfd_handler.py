@@ -10,7 +10,7 @@ __all__ = [
     'SFDLoadedCallback',
     'SFDUnloadedCallback',
     'ActiveSFDHandler'
-    ]
+]
 
 import logging
 
@@ -27,6 +27,7 @@ from scrutiny.tools.typing import *
 
 SFDLoadedCallback = Callable[[FirmwareDescription], None]
 SFDUnloadedCallback = Callable[[], None]
+
 
 class ActiveSFDHandler:
     """
@@ -48,7 +49,7 @@ class ActiveSFDHandler:
     loaded_callbacks: List[SFDLoadedCallback]       # List of callbacks to call upon SFD loading
     unloaded_callbacks: List[SFDUnloadedCallback]   # List of callbacks to load upon SFD unloading
 
-    def __init__(self, device_handler: DeviceHandler, datastore: Datastore, autoload:bool=True) -> None:
+    def __init__(self, device_handler: DeviceHandler, datastore: Datastore, autoload: bool = True) -> None:
         self.logger = logging.getLogger(self.__class__.__name__)
         self.device_handler = device_handler
         self.datastore = datastore
@@ -114,7 +115,7 @@ class ActiveSFDHandler:
         self.logger.debug("Requested to load SFD for firmware %s" % firmware_id)
         self.requested_firmware_id = firmware_id
 
-    def _load_sfd(self, firmware_id: str, verbose:bool=True) -> None:
+    def _load_sfd(self, firmware_id: str, verbose: bool = True) -> None:
         """Loads a Scrutiny Firmware Description"""
         self.sfd = None
         # We only clear the entry types coming from the SFD.

@@ -159,7 +159,7 @@ class DataloggingManager:
                         logged_watchable=LoggedWatchable(
                             path=signal.entry.get_display_path(),
                             type=signal.entry.get_type()
-                        ) 
+                        )
                     )
                     if signal.name:
                         ds.name = signal.name
@@ -202,8 +202,8 @@ class DataloggingManager:
                     xaxis.set_data(parsed_data)
                     xaxis.name = xaxis_signal.name
                     xaxis.logged_watchable = LoggedWatchable(
-                        path = xaxis_signal.entry.get_display_path(),
-                        type = xaxis_signal.entry.get_type()
+                        path=xaxis_signal.entry.get_display_path(),
+                        type=xaxis_signal.entry.get_type()
                     )
                 else:
                     raise ValueError('Impossible X-Axis type')
@@ -213,7 +213,7 @@ class DataloggingManager:
 
                 acquisition.set_xdata(xaxis)
                 # -1 because we are 0 based. min(a,b)-1 = min(a-1, b-1)
-                trigger_index = max(0, min(metadata.number_of_points - metadata.points_after_trigger, metadata.number_of_points) - 1 )
+                trigger_index = max(0, min(metadata.number_of_points - metadata.points_after_trigger, metadata.number_of_points) - 1)
                 acquisition.set_trigger_index(trigger_index)
                 DataloggingStorage.save(acquisition)
             else:
@@ -356,7 +356,7 @@ class DataloggingManager:
             next_state = FsmState.INIT
 
         if next_state != self.state:
-            if self.logger.isEnabledFor(logging.DEBUG) : #pragma: no cover
+            if self.logger.isEnabledFor(logging.DEBUG):  # pragma: no cover
                 self.logger.debug("Moving FSM from %s to %s" % (self.state.name, next_state.name))
 
         self.previous_state = self.state
@@ -365,7 +365,7 @@ class DataloggingManager:
     @classmethod
     def api_trigger_condition_to_device_trigger_condition(cls, api_cond: api_datalogging.TriggerCondition) -> device_datalogging.TriggerCondition:
         """Converts a TriggerCondition in the API format to the device format"""
-        scaling_operand:Optional[api_datalogging.TriggerConditionOperand] = None
+        scaling_operand: Optional[api_datalogging.TriggerConditionOperand] = None
         device_operands: List[device_datalogging.Operand] = []
 
         for api_operand in api_cond.operands:
@@ -373,7 +373,6 @@ class DataloggingManager:
                 if api_operand.value.has_value_modifier():
                     if scaling_operand is None:
                         scaling_operand = api_operand
-            
 
         for api_operand in api_cond.operands:
             if api_operand.type == api_datalogging.TriggerConditionOperandType.LITERAL:
@@ -382,9 +381,10 @@ class DataloggingManager:
                 value = api_operand.value
                 if scaling_operand is not None:
                     assert isinstance(scaling_operand.value, DatastoreAliasEntry)
-                    value = scaling_operand.value.compute_user_to_device(value, apply_saturation=False) # Scale the literal to math the alias user value.
+                    # Scale the literal to math the alias user value.
+                    value = scaling_operand.value.compute_user_to_device(value, apply_saturation=False)
                 device_operands.append(device_datalogging.LiteralOperand(value))
-            
+
             elif api_operand.type == api_datalogging.TriggerConditionOperandType.WATCHABLE:
                 if not isinstance(api_operand.value, DatastoreEntry):
                     raise ValueError("Watchable operand must have a datastore entry as value")
@@ -399,7 +399,7 @@ class DataloggingManager:
         return device_cond
 
     @classmethod
-    def make_device_config_from_request(self, 
+    def make_device_config_from_request(self,
                                         request: api_datalogging.AcquisitionRequest
                                         ) -> Tuple[device_datalogging.Configuration, Dict[DatastoreEntry, int]]:
         """Converts a Configuration from the API format to the device format"""

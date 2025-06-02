@@ -35,7 +35,7 @@ class _PrintableSFDEntry:
         self.author = 'No author'
         self.padding_target_len = 0
 
-    def set_padding_target_len(self, padding_target_len:int=0) -> None:
+    def set_padding_target_len(self, padding_target_len: int = 0) -> None:
         self.padding_target_len = padding_target_len
 
     def get_len_for_padding(self) -> int:
@@ -47,7 +47,7 @@ class _PrintableSFDEntry:
         if self.create_time is not None:
             create_time_str = " \t Created on %s " % self.create_time.astimezone().strftime(r'%Y-%m-%d %H:%M:%S')
         line = '  %s %s%s (%s)\tScrutiny %s%s' % (self.project_name, self.version, ' ' * padding_len,
-                                                                 self.firmware_id, self.scrutiny_version, create_time_str)
+                                                  self.firmware_id, self.scrutiny_version, create_time_str)
         return line
 
 
@@ -77,14 +77,14 @@ class ListSFD(BaseCommand):
                 entry = _PrintableSFDEntry()
                 entry.firmware_id = firmware_id
                 entry.create_time = metadata.generation_info.timestamp
-                entry.scrutiny_version =  metadata.generation_info.scrutiny_version
+                entry.scrutiny_version = metadata.generation_info.scrutiny_version
                 str(entry)  # Make sure it can be rendered. Otherwise exception will be raised
                 if metadata.project_name is not None:
                     entry.project_name = metadata.project_name
-                
+
                 if metadata.version is not None:
                     entry.version = metadata.version
-                
+
                 if metadata.author is not None:
                     entry.author = metadata.author
 
@@ -93,9 +93,9 @@ class ListSFD(BaseCommand):
                 sfd_list.append(entry)
 
             except Exception as e:
-                tools.log_exception(logging.root, e, 
-                                f'Cannot read SFD with firmware ID {firmware_id}', 
-                                str_level=logging.WARNING)
+                tools.log_exception(logging.root, e,
+                                    f'Cannot read SFD with firmware ID {firmware_id}',
+                                    str_level=logging.WARNING)
         print('Number of valid SFD installed: %d' % len(sfd_list))
 
         sfd_list.sort(key=lambda x: (x.project_name, x.version, x.create_time))

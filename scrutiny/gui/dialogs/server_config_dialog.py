@@ -11,7 +11,7 @@ __all__ = ['ServerConfigDialog']
 
 import enum
 
-from PySide6.QtWidgets import QDialog, QDialogButtonBox, QLabel, QWidget, QVBoxLayout,QPushButton, QHBoxLayout, QGroupBox, QFormLayout, QRadioButton
+from PySide6.QtWidgets import QDialog, QDialogButtonBox, QLabel, QWidget, QVBoxLayout, QPushButton, QHBoxLayout, QGroupBox, QFormLayout, QRadioButton
 from PySide6.QtCore import Qt
 from PySide6.QtGui import QIntValidator, QPixmap
 
@@ -29,34 +29,34 @@ from scrutiny.gui import assets
 
 from scrutiny.tools.typing import *
 
+
 class LocalServerStateLabel(QWidget):
     """A label that shows the state of the server with a colored icon (green/yellow/red)"""
 
-    _indicator_label:QLabel
+    _indicator_label: QLabel
     """The label that hold the icon part"""
-    _text_label:QLabel
+    _text_label: QLabel
     """The label that hold the text part"""
 
-    ICON_RED:QPixmap    
-    ICON_YELLOW:QPixmap
-    ICON_GREEN:QPixmap
+    ICON_RED: QPixmap
+    ICON_YELLOW: QPixmap
+    ICON_GREEN: QPixmap
 
-    def __init__(self, parent:QWidget) -> None:
+    def __init__(self, parent: QWidget) -> None:
         super().__init__(parent)
         self.ICON_RED = scrutiny_get_theme().load_tiny_icon_as_pixmap(assets.Icons.SquareRed)
         self.ICON_YELLOW = scrutiny_get_theme().load_tiny_icon_as_pixmap(assets.Icons.SquareYellow)
         self.ICON_GREEN = scrutiny_get_theme().load_tiny_icon_as_pixmap(assets.Icons.SquareGreen)
-        
+
         self._indicator_label = QLabel()
         self._text_label = QLabel()
         layout = QHBoxLayout(self)
         layout.addWidget(self._indicator_label)
         layout.addWidget(self._text_label)
         layout.setAlignment(Qt.AlignmentFlag.AlignLeft)
-        layout.setContentsMargins(0,0,0,0)
-        
-    
-    def set_state(self, state:LocalServerRunner.State, pid:Optional[int]) -> None:
+        layout.setContentsMargins(0, 0, 0, 0)
+
+    def set_state(self, state: LocalServerRunner.State, pid: Optional[int]) -> None:
         """Update the display based on the state of the runner"""
         if state == LocalServerRunner.State.STOPPED:
             text = "Stopped"
@@ -74,9 +74,10 @@ class LocalServerStateLabel(QWidget):
             icon = self.ICON_YELLOW
         else:
             raise NotImplementedError("Unknown local server state")
-        
+
         self._indicator_label.setPixmap(icon)
         self._text_label.setText(text)
+
 
 class LocalServerConfigurator(QWidget):
     """A widget meant for the user to start/stop a local isntance of the Scrutiny server.
@@ -85,27 +86,25 @@ class LocalServerConfigurator(QWidget):
     class PersistentDataKeys:
         LOCAL_PORT = 'local_port'
 
-
-    _port:int
+    _port: int
     """Port configured. Used for reloading the textbox on cancel"""
-    _runner:LocalServerRunner
+    _runner: LocalServerRunner
     """The local server runner that controls the subprocess"""
-    _txt_port:ValidableLineEdit
+    _txt_port: ValidableLineEdit
     """The port textbox"""
-    _btn_start:QPushButton
+    _btn_start: QPushButton
     """Start button"""
-    _btn_stop:QPushButton
+    _btn_stop: QPushButton
     """Stop button"""
-    _state_label:LocalServerStateLabel
+    _state_label: LocalServerStateLabel
     """The label that says Running/Stopped/Stopping/Starting with a colored icon"""
-    _feedback_label:FeedbackLabel
+    _feedback_label: FeedbackLabel
     """A label that shows error (when the server exits by itself)"""
-    _log_viewer:LogViewer
+    _log_viewer: LogViewer
     """The log viewer box"""
-    _persistent_data:AppPersistentData
+    _persistent_data: AppPersistentData
 
-
-    def __init__(self, parent:QWidget, runner:LocalServerRunner) -> None:
+    def __init__(self, parent: QWidget, runner: LocalServerRunner) -> None:
         super().__init__(parent)
         self.setWindowTitle("Local Server")
         self._runner = runner
@@ -113,31 +112,31 @@ class LocalServerConfigurator(QWidget):
         self._persistent_data = gui_persistent_data.get_namespace(self.__class__.__name__)
 
         main_vlayout = QVBoxLayout(self)
-        top_menu =  QWidget()
+        top_menu = QWidget()
         top_menu_hlayout = QHBoxLayout(top_menu)
         top_menu_hlayout.setAlignment(Qt.AlignmentFlag.AlignLeft)
-        
+
         self._state_label = LocalServerStateLabel(self)
         self._txt_port = ValidableLineEdit(
             hard_validator=QIntValidator(0, 0xFFFF),
             soft_validator=IpPortValidator()
         )
-        
+
         port_label_txtbox = QWidget()
         port_label_txtbox_layout = QHBoxLayout(port_label_txtbox)
         port_label_txtbox_layout.setAlignment(Qt.AlignmentFlag.AlignLeft)
-        port_label_txtbox_layout.setContentsMargins(0,0,0,0)
+        port_label_txtbox_layout.setContentsMargins(0, 0, 0, 0)
         port_label = QLabel("Port: ")
         port_label.setMaximumWidth(port_label.sizeHint().width())
         port_label_txtbox_layout.addWidget(port_label)
         port_label_txtbox_layout.addWidget(self._txt_port)
-        
+
         self._txt_port.setText(str(self._persistent_data.get_int(self.PersistentDataKeys.LOCAL_PORT, DEFAULT_SERVER_PORT)))
         self._txt_port.setMaximumWidth(self._txt_port.sizeHint().width())
 
         self._feedback_label = FeedbackLabel()
         self._feedback_label.setVisible(False)
-        
+
         self._btn_start = QPushButton("Start")
         self._btn_stop = QPushButton("Stop")
         self._log_viewer = LogViewer(self, 100)
@@ -150,10 +149,10 @@ class LocalServerConfigurator(QWidget):
         main_vlayout.addWidget(top_menu)
         main_vlayout.addWidget(self._feedback_label)
         main_vlayout.addWidget(self._log_viewer)
-        
+
         self.setTabOrder(port_label_txtbox, self._btn_start)
         self.setTabOrder(self._btn_start, self._btn_stop)
-        self.setTabOrder(self._btn_stop,  self._log_viewer)
+        self.setTabOrder(self._btn_stop, self._log_viewer)
 
         self._runner.signals.state_changed.connect(self.update_state)
         self._runner.signals.abnormal_termination.connect(self._abnormal_termination_slot)
@@ -164,17 +163,17 @@ class LocalServerConfigurator(QWidget):
 
         self.update_state(LocalServerRunner.State.STOPPED)
 
-    def update_state(self, state:LocalServerRunner.State) -> None:
+    def update_state(self, state: LocalServerRunner.State) -> None:
         """Called when the runner state changes"""
-        self._state_label.set_state(state, pid = self._runner.get_process_id())
+        self._state_label.set_state(state, pid=self._runner.get_process_id())
         self._txt_port.setEnabled(state == LocalServerRunner.State.STOPPED)
         self._btn_start.setEnabled(state == LocalServerRunner.State.STOPPED)
-        self._btn_stop.setEnabled(state in ( LocalServerRunner.State.STARTING, LocalServerRunner.State.STARTED ))
-    
+        self._btn_stop.setEnabled(state in (LocalServerRunner.State.STARTING, LocalServerRunner.State.STARTED))
+
     def runner(self) -> LocalServerRunner:
         """Return the local server runner"""
         return self._runner
-    
+
     def _try_start(self) -> None:
         """Starts the runner if the port number is correct"""
         self.clear_error()
@@ -184,20 +183,20 @@ class LocalServerConfigurator(QWidget):
             return
         self._log_viewer.add_line('---------')
         self._runner.start(port)
-    
+
     def _try_stop(self) -> None:
         """Stops the runner"""
         self._runner.stop()
-    
+
     def _abnormal_termination_slot(self) -> None:
         """The running thread emits a signal if the subprocess exits without a request for it."""
         self.display_error("Server exited abnormally")
-    
-    def display_error(self, err:str) -> None:
+
+    def display_error(self, err: str) -> None:
         """Display an error message on the feedback label"""
         self._feedback_label.set_error(err)
         self._feedback_label.setVisible(True)
-    
+
     def clear_error(self) -> None:
         """Clear the feedback label from its error emssage"""
         self._feedback_label.clear()
@@ -206,7 +205,7 @@ class LocalServerConfigurator(QWidget):
     def is_running(self) -> bool:
         """Return true if the subprocess is allive and well"""
         return self._runner.get_state() == LocalServerRunner.State.STARTED
-    
+
     def get_running_port(self) -> Optional[int]:
         """Return the port on which the subprocess is listening on. ``None`` if no subprocess is runinng"""
         return self._runner.get_port()
@@ -226,14 +225,14 @@ class LocalServerConfigurator(QWidget):
     def validate(self) -> bool:
         """Check if the widget is in a valid state for connection. Highlight in the UI what needs to be fixed in order to be valid."""
         self._txt_port.validate_expect_valid()
-        
+
         if self._runner.get_state() != LocalServerRunner.State.STARTED:
             self.display_error("Server not started")
         else:
             self.clear_error()
 
         return self.is_valid()
-    
+
     def set_normal_state(self) -> None:
         """Undo the visual feedback caused by ``validate``"""
         self._txt_port.set_default_state()
@@ -244,11 +243,12 @@ class LocalServerConfigurator(QWidget):
             port = self.get_ui_port()
             assert port is not None
             self._persistent_data.set(self.PersistentDataKeys.LOCAL_PORT, port)
-    
-    def set_port(self, port:int) -> None:
+
+    def set_port(self, port: int) -> None:
         if port > 0 and port < 0xFFFF:
             self._txt_port.setText(str(port))
             self.commit_ui_data()
+
 
 class RemoteServerConfigurator(QWidget):
     """A widget to edit the connection parameters to a remote server"""
@@ -257,23 +257,23 @@ class RemoteServerConfigurator(QWidget):
         HOSTNAME = 'server_hostname'
         PORT = 'server_port'
 
-    _hostname:str
+    _hostname: str
     """The active hostname"""
-    _port:int
+    _port: int
     """The active port number """
 
-    _hostname_textbox:ValidableLineEdit
+    _hostname_textbox: ValidableLineEdit
     """The textbox for editing the hostname"""
-    _port_textbox:ValidableLineEdit
+    _port_textbox: ValidableLineEdit
     """The hostname for editing the port number"""
-    _persistent_data:AppPersistentData
+    _persistent_data: AppPersistentData
     """A handle to a specific storage namespace"""
 
-    def __init__(self, parent:QWidget) -> None:
+    def __init__(self, parent: QWidget) -> None:
         super().__init__(parent)
         self._persistent_data = gui_persistent_data.get_namespace(self.__class__.__name__)
         self._hostname_textbox = ValidableLineEdit(soft_validator=NotEmptyValidator())
-        self._port_textbox = ValidableLineEdit(hard_validator=QIntValidator(0,0xFFFF), soft_validator=IpPortValidator())
+        self._port_textbox = ValidableLineEdit(hard_validator=QIntValidator(0, 0xFFFF), soft_validator=IpPortValidator())
 
         self._hostname_textbox.textChanged.connect(self._hostname_textbox.validate_expect_not_wrong_default_slot)
         self._port_textbox.textChanged.connect(self._port_textbox.validate_expect_not_wrong_default_slot)
@@ -297,13 +297,13 @@ class RemoteServerConfigurator(QWidget):
     def get_hostname(self) -> str:
         """Returns the effective hostname, not the one in the textbox"""
         return self._hostname
-    
-    def set_port(self, port:int) -> None:
+
+    def set_port(self, port: int) -> None:
         """Change the effective port number and update the port textbox too"""
         self._port = port
         self._port_textbox.setText(str(port))
 
-    def set_hostname(self, hostname:str) -> None:
+    def set_hostname(self, hostname: str) -> None:
         """Change the effective hostname number and update the hostname textbox too"""
         self._hostname = hostname
         self._hostname_textbox.setText(hostname)
@@ -318,7 +318,7 @@ class RemoteServerConfigurator(QWidget):
         v1 = self._hostname_textbox.validate_expect_valid()
         v2 = self._port_textbox.validate_expect_valid()
         return v1 and v2
-    
+
     def set_normal_state(self) -> None:
         """Undo the visual feedback caused by ``validate``"""
         self._hostname_textbox.set_default_state()
@@ -328,14 +328,15 @@ class RemoteServerConfigurator(QWidget):
         """Save the data from the UI into the persistent storage to reload the same content on next startup"""
         if self._port_textbox.is_valid() and self._hostname_textbox.is_valid():
             self._hostname = self._hostname_textbox.text()
-            self._port = int(self._port_textbox.text()) # Validator is supposed to guarantee the validity of this
+            self._port = int(self._port_textbox.text())  # Validator is supposed to guarantee the validity of this
             self._persistent_data.set(self.PersistentDataKeys.HOSTNAME, self._hostname)
             self._persistent_data.set(self.PersistentDataKeys.PORT, self._port)
+
 
 class ServerConfigDialog(QDialog):
     """A dialog to edit the connection parameter of the server"""
     class PersistentDataKeys:
-        SERVER_TYPE='server_type'
+        SERVER_TYPE = 'server_type'
 
     class ServerType(enum.Enum):
         LOCAL = 'local'
@@ -343,38 +344,38 @@ class ServerConfigDialog(QDialog):
 
         def to_str(self) -> str:
             return self.value
-        
+
         @classmethod
-        def from_str(cls, v:str) -> Self:
+        def from_str(cls, v: str) -> Self:
             return cls(v)
 
-    _radio_remote_server:QRadioButton
+    _radio_remote_server: QRadioButton
     """Radio button for "Remote" """
-    _radio_local_server:QRadioButton
+    _radio_local_server: QRadioButton
     """Radio button for "Local" """
-    _remote_server_configurator:RemoteServerConfigurator
+    _remote_server_configurator: RemoteServerConfigurator
     """The widget shown when the user select "Remote" """
-    _local_server_configurator:LocalServerConfigurator
+    _local_server_configurator: LocalServerConfigurator
     """The widget shown when the user select "Local" """
-    _apply_callback:Callable[["ServerConfigDialog"], None]
+    _apply_callback: Callable[["ServerConfigDialog"], None]
     """A function to be called when the user click OK and the configuration is valid"""
-    _buttons:QDialogButtonBox
+    _buttons: QDialogButtonBox
     """The buttons"""
-    _server_type:ServerType
+    _server_type: ServerType
     """The type of server configuration presently selected (Local or remote)"""
-    _persistent_data:AppPersistentData
+    _persistent_data: AppPersistentData
     """The configuration persistent across startup"""
 
-    def __init__(self, 
-                 parent:QWidget, 
-                 apply_callback:Callable[["ServerConfigDialog"], None],
-                 local_server_runner:LocalServerRunner) -> None:
+    def __init__(self,
+                 parent: QWidget,
+                 apply_callback: Callable[["ServerConfigDialog"], None],
+                 local_server_runner: LocalServerRunner) -> None:
         super().__init__(parent)
         self._persistent_data = gui_persistent_data.get_namespace(self.__class__.__name__)
         self.setWindowFlags(Qt.WindowType.WindowCloseButtonHint | Qt.WindowType.WindowTitleHint | Qt.WindowType.Dialog)
         self.setModal(True)
         self.setWindowTitle("Server configuration")
-        self.setMinimumSize(200,100)    # Default minimum size is too big for hte remote server case.
+        self.setMinimumSize(200, 100)    # Default minimum size is too big for hte remote server case.
         self._apply_callback = apply_callback
         radio_btn_group = QGroupBox("Server type")
         radio_btn_group_hlayout = QHBoxLayout(radio_btn_group)
@@ -388,7 +389,7 @@ class ServerConfigDialog(QDialog):
         self._local_server_configurator = LocalServerConfigurator(self, local_server_runner)
 
         main_vlayout = QVBoxLayout(self)
-        self._buttons = QDialogButtonBox(QDialogButtonBox.StandardButton.Ok | QDialogButtonBox.StandardButton.Cancel) # cast is for mypy issue
+        self._buttons = QDialogButtonBox(QDialogButtonBox.StandardButton.Ok | QDialogButtonBox.StandardButton.Cancel)  # cast is for mypy issue
         main_vlayout.setAlignment(Qt.AlignmentFlag.AlignTop)
         main_vlayout.addWidget(radio_btn_group)
         main_vlayout.addWidget(self._local_server_configurator)
@@ -398,7 +399,7 @@ class ServerConfigDialog(QDialog):
         self.setTabOrder(radio_btn_group, self._local_server_configurator)
         self.setTabOrder(self._local_server_configurator, self._remote_server_configurator)
         self.setTabOrder(self._remote_server_configurator, self._buttons)
-        
+
         self._buttons.accepted.connect(self._btn_ok_click)
         self._buttons.rejected.connect(self._btn_cancel_click)
 
@@ -418,7 +419,7 @@ class ServerConfigDialog(QDialog):
         """Put back the values from the state variables into the UI. Called on Cancel"""
         self._remote_server_configurator.reset()
 
-    def set_local_server_port(self, port:int) -> None:
+    def set_local_server_port(self, port: int) -> None:
         self._local_server_configurator.set_port(port)
 
     def _btn_ok_click(self) -> None:
@@ -449,7 +450,7 @@ class ServerConfigDialog(QDialog):
             self._local_server_configurator.commit_ui_data()
         else:
             self._remote_server_configurator.commit_ui_data()
-        
+
         self._persistent_data.set_str(self.PersistentDataKeys.SERVER_TYPE, self._server_type.to_str())
 
     def _btn_cancel_click(self) -> None:
@@ -459,7 +460,7 @@ class ServerConfigDialog(QDialog):
 
     def _use_local_server(self) -> bool:
         return self._radio_local_server.isChecked()
-    
+
     def get_config(self) -> Optional[ServerConfig]:
         """Return the configuration presently loaded in the state variables of this dialog.
         Returns ``None`` if the configuration is not valid.
@@ -468,16 +469,16 @@ class ServerConfigDialog(QDialog):
             port = self._local_server_configurator.get_running_port()
             if port is None:
                 return None
-            
+
             return ServerConfig(
                 hostname='localhost',
-                port = port
+                port=port
             )
         elif self._server_type == self.ServerType.REMOTE:
             port = self._remote_server_configurator.get_port()
             if port < 0 or port > 0xFFFF:
                 return None
-            
+
             return ServerConfig(
                 hostname=self._remote_server_configurator.get_hostname(),
                 port=self._remote_server_configurator.get_port()
@@ -485,17 +486,17 @@ class ServerConfigDialog(QDialog):
         else:
             raise NotImplementedError("Unsupported server connection type")
 
-    def _radio_local_server_toggled_slot(self, checked:bool) -> None:
+    def _radio_local_server_toggled_slot(self, checked: bool) -> None:
         """When Local radio button is clicked"""
         if checked:
             self.set_server_type(self.ServerType.LOCAL)
 
-    def _radio_remote_server_toggled_slot(self, checked:bool) -> None:
+    def _radio_remote_server_toggled_slot(self, checked: bool) -> None:
         """When Remote radio button is clicked"""
         if checked:
             self.set_server_type(self.ServerType.REMOTE)
 
-    def set_server_type(self, server_type:ServerType) -> None:
+    def set_server_type(self, server_type: ServerType) -> None:
         """Change the type of server connection"""
         if server_type == self.ServerType.LOCAL:
             if not self._radio_local_server.isChecked():

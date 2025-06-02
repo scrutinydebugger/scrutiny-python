@@ -13,6 +13,7 @@ from abc import ABC, abstractmethod
 import logging
 from scrutiny.tools.typing import *
 
+
 class BaseCommand(ABC):
     _cmd_name_: str
     _brief_: str

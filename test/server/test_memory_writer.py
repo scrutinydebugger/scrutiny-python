@@ -48,7 +48,8 @@ def d2f(d):
     return struct.unpack('f', struct.pack('f', d))[0]
 
 
-no_callback:UpdateTargetRequestCallback = lambda *args, **kwargs: None
+no_callback: UpdateTargetRequestCallback = lambda *args, **kwargs: None
+
 
 class TestMemoryWriterBasicReadOperation(ScrutinyUnitTest):
 

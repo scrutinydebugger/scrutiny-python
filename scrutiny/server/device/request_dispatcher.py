@@ -23,6 +23,7 @@ from scrutiny.tools.typing import *
 SuccessCallback = Callable[[Request, Response, Any], None]
 FailureCallback = Callable[[Request, Any], None]
 
+
 class RequestQueue:
     """
     Non-thread-safe Queue with priority.

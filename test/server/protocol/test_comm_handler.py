@@ -33,7 +33,7 @@ class TestCommHandler(ScrutinyUnitTest):
     def tearDown(self):
         self.comm_handler.close()
 
-    def emulate_device_write_and_wait_avail_event(self, data:bytes, timeout:float=0.5):
+    def emulate_device_write_and_wait_avail_event(self, data: bytes, timeout: float = 0.5):
         self.rx_event.clear()
         self.link.emulate_device_write(data)
         self.rx_event.wait(0.5)
@@ -110,7 +110,7 @@ class TestCommHandler(ScrutinyUnitTest):
         data = self.link.emulate_device_read()
         for b in response2.to_bytes():
             self.assertFalse(self.comm_handler.response_available())
-            self.emulate_device_write_and_wait_avail_event(bytes([b]))   
+            self.emulate_device_write_and_wait_avail_event(bytes([b]))
             self.comm_handler.process()
         self.assertTrue(self.comm_handler.response_available())
         response2_ = self.comm_handler.get_response()
@@ -126,8 +126,8 @@ class TestCommHandler(ScrutinyUnitTest):
             self.comm_handler.send_request(req1)
             data = self.link.emulate_device_read()
             self.assertFalse(self.comm_handler.response_available())
-            if first_chunk_size  > 0:
-                self.emulate_device_write_and_wait_avail_event(response_data[0:first_chunk_size])   
+            if first_chunk_size > 0:
+                self.emulate_device_write_and_wait_avail_event(response_data[0:first_chunk_size])
             self.comm_handler.process()
             self.assertFalse(self.comm_handler.response_available())
             if first_chunk_size < len(response_data):

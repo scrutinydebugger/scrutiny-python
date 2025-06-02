@@ -61,7 +61,7 @@ class TestDataloggingStorage(ScrutinyUnitTest):
             self.assertEqual(DataloggingStorage.count(), 2)
             DataloggingStorage.save(acq3)
             self.assertEqual(DataloggingStorage.count(), 3)
-            
+
             acq_list = DataloggingStorage.list()
             self.assertEqual(len(acq_list), 3)
             self.assertIn(acq1.reference_id, acq_list)
@@ -70,7 +70,6 @@ class TestDataloggingStorage(ScrutinyUnitTest):
 
             self.assertEqual(DataloggingStorage.count(firmware_id="firmwareid1"), 2)
             self.assertEqual(DataloggingStorage.count(firmware_id="firmwareid2"), 1)
-
 
             # Test list filters
             acq_list = DataloggingStorage.list(count=2)

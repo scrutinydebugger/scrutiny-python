@@ -26,7 +26,7 @@ from scrutiny.server.datalogging.datalogging_manager import DataloggingManager
 from scrutiny import tools
 from scrutiny.tools.signals import SignalExitHandler
 
-from scrutiny.tools.typing import * 
+from scrutiny.tools.typing import *
 
 
 class ServerConfig(TypedDict, total=False):
@@ -62,12 +62,11 @@ class ScrutinyServer:
     """The Scrutiny server that communicate with a device running libscrutiny-embedded and make
     the device internal data available through a multi-client socket API"""
 
-
     @dataclass(frozen=True)
     class Statistics:
-        device:DeviceHandler.Statistics
-        api:API.Statistics
-        uptime:float
+        device: DeviceHandler.Statistics
+        api: API.Statistics
+        uptime: float
 
     server_name: str
     logger: logging.Logger
@@ -77,11 +76,11 @@ class ScrutinyServer:
     device_handler: DeviceHandler
     sfd_handler: ActiveSFDHandler
     datalogging_manager: DataloggingManager
-    rx_data_event:threading.Event
-    start_time:float
-    stop_event:threading.Event
+    rx_data_event: threading.Event
+    start_time: float
+    stop_event: threading.Event
 
-    def __init__(self, 
+    def __init__(self,
                  input_config: Optional[Union[str, ServerConfig]] = None,
                  additional_config: Optional[ServerConfig] = None
                  ) -> None:
@@ -92,18 +91,18 @@ class ScrutinyServer:
             if isinstance(input_config, str):
                 if not os.path.isfile(input_config):
                     raise FileNotFoundError(f"Given config does not exist: {input_config}")
-                
+
                 self.logger.debug('Loading user configuration file: "%s"' % input_config)
                 del self.config['name']  # remove "default config" from name
                 with open(input_config) as f:
                     try:
                         user_cfg = json.loads(f.read())
-                        tools.update_dict_recursive(cast(Dict[Any, Any],self.config), cast(Dict[Any, Any], user_cfg))
+                        tools.update_dict_recursive(cast(Dict[Any, Any], self.config), cast(Dict[Any, Any], user_cfg))
                     except Exception as e:
                         raise Exception("Invalid configuration JSON. %s" % e)
             elif isinstance(input_config, dict):
-                tools.update_dict_recursive(cast(Dict[Any, Any],self.config), cast(Dict[Any, Any],input_config))
-        
+                tools.update_dict_recursive(cast(Dict[Any, Any], self.config), cast(Dict[Any, Any], input_config))
+
         if additional_config is not None:
             tools.update_dict_recursive(cast(Dict[Any, Any], self.config), cast(Dict[Any, Any], additional_config))
 
@@ -113,17 +112,17 @@ class ScrutinyServer:
         self.rx_data_event = threading.Event()
         self.datastore = Datastore()
         self.device_handler = DeviceHandler(
-            config=self.config['device'], 
-            datastore=self.datastore, 
+            config=self.config['device'],
+            datastore=self.datastore,
             rx_event=self.rx_data_event
         )
         self.datalogging_manager = DataloggingManager(
-            datastore=self.datastore, 
+            datastore=self.datastore,
             device_handler=self.device_handler
         )
         self.sfd_handler = ActiveSFDHandler(
-            device_handler=self.device_handler, 
-            datastore=self.datastore, 
+            device_handler=self.device_handler,
+            datastore=self.datastore,
             autoload=self.config['autoload_sfd']
         )
         self.api = API(
@@ -172,7 +171,6 @@ class ScrutinyServer:
             raise
         finally:
             self.close_all()
-            
 
     def stop(self) -> None:
         """ Stop the server """
@@ -196,6 +194,6 @@ class ScrutinyServer:
         """Return the server statistics"""
         return self.Statistics(
             device=self.device_handler.get_stats(),
-            api = self.api.get_stats(),
+            api=self.api.get_stats(),
             uptime=time.monotonic() - self.start_time
         )

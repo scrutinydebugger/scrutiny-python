@@ -14,6 +14,7 @@ from .abstract_link import AbstractLink, LinkConfig
 from scrutiny.tools.typing import *
 import queue
 
+
 class DummyLink(AbstractLink):
     """
     Non-thread safe fake communication channel that implement the 
@@ -62,11 +63,11 @@ class DummyLink(AbstractLink):
             return None
         self.to_device_data.put(data)
 
-    def read(self, timeout:Optional[float] = None) -> Optional[bytes]:
+    def read(self, timeout: Optional[float] = None) -> Optional[bytes]:
         """Reads data from the communication channel. Returns None if not available"""
         if self.emulate_broken:
             return bytes()
-        
+
         data = bytes()
         try:
             data = self.from_device_data.get(timeout=timeout)
@@ -74,7 +75,7 @@ class DummyLink(AbstractLink):
                 data += self.from_device_data.get_nowait()
         except queue.Empty:
             return data
-        
+
         return data
 
     def emulate_device_read(self) -> bytes:

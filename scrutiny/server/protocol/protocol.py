@@ -65,7 +65,6 @@ class Protocol:
 
         def get_address_mask(self) -> int:
             return self.mask
-        
 
         def encode_address(self, address: int) -> bytes:
             address &= self.get_address_mask()
@@ -93,8 +92,8 @@ class Protocol:
     def get_address_size_bits(self) -> int:
         return self.address_format.get_address_size_bits()
 
-    def get_truncated_address(self, address:int) -> int:
-        return address & self.address_format.get_address_mask() 
+    def get_truncated_address(self, address: int) -> int:
+        return address & self.address_format.get_address_mask()
 
     def set_version(self, major: int, minor: int) -> None:
         if not isinstance(major, int) or not isinstance(minor, int):
@@ -127,10 +126,10 @@ class Protocol:
         return self.address_format.decode_address(buff)
 
     def compute_challenge_16bits(self, challenge: int) -> int:
-        return 0xFFFF ^ (challenge & 0xFFFF) 
+        return 0xFFFF ^ (challenge & 0xFFFF)
 
     def compute_challenge_32bits(self, challenge: int) -> int:
-        return 0xFFFFFFFF ^ (challenge & 0xFFFFFFFF) 
+        return 0xFFFFFFFF ^ (challenge & 0xFFFFFFFF)
 
     def get_protocol_version(self) -> Request:
         return Request(cmd.GetInfo, cmd.GetInfo.Subfunction.GetProtocolVersion, response_payload_size=2)
@@ -640,6 +639,7 @@ class Protocol:
 
 
 # ======================== Response =================
+
 
     def respond_not_ok(self, req: Request, code: Union[int, Enum]) -> Response:
         return Response(req.command, req.subfn, Response.ResponseCode(code))

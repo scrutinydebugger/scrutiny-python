@@ -16,6 +16,7 @@ from test import ScrutinyUnitTest
 import threading
 from datetime import datetime
 
+
 class TestThrottler(ScrutinyUnitTest):
 
     def test_throttler_measurement(self):
@@ -61,33 +62,34 @@ class TestThrottler(ScrutinyUnitTest):
 
         logger.info('Maximum buffer peak = %dbits' % (math.ceil(buffer_peak)))
 
+
 class TestTools(ScrutinyUnitTest):
     def test_update_dict_recursive(self):
         from scrutiny.tools import update_dict_recursive
         d = {
-            'x' : 'y',
-            'aaa' : {
-                'xxx' : 1,
-                'yyy' : [1,2,3],
-                'zzz' : {
-                    'hello' : 'world'
+            'x': 'y',
+            'aaa': {
+                'xxx': 1,
+                'yyy': [1, 2, 3],
+                'zzz': {
+                    'hello': 'world'
                 }
             }
         }
-        
-        update_dict_recursive(d, {'b' : 2})
-        update_dict_recursive(d, {'aaa' : {'xxx': 3,  'bbb' : 'ccc', 'zzz': {'potato' : 'tomato'} }})
+
+        update_dict_recursive(d, {'b': 2})
+        update_dict_recursive(d, {'aaa': {'xxx': 3, 'bbb': 'ccc', 'zzz': {'potato': 'tomato'}}})
 
         expected_dict = {
-            'b' : 2,
-            'x' : 'y',
-            'aaa' : {
-                'xxx' : 3,
-                'bbb' : 'ccc',
-                'yyy' : [1,2,3],
-                'zzz' : {
-                    'hello' : 'world',
-                    'potato' : 'tomato'
+            'b': 2,
+            'x': 'y',
+            'aaa': {
+                'xxx': 3,
+                'bbb': 'ccc',
+                'yyy': [1, 2, 3],
+                'zzz': {
+                    'hello': 'world',
+                    'potato': 'tomato'
                 }
             }
         }
@@ -97,7 +99,7 @@ class TestTools(ScrutinyUnitTest):
 
 class TestThreadEnforcer(ScrutinyUnitTest):
     def test_thread_enforce(self):
-        
+
         @enforce_thread("AAA")
         def func_AAA():
             pass
@@ -117,22 +119,20 @@ class TestThreadEnforcer(ScrutinyUnitTest):
         bbb_called = threading.Event()
         exit_bbb = threading.Event()
 
-
         @thread_func("BBB")
         def BBB_thread_func():
             bbb_started.set()
-            
+
             with self.assertRaises(Exception):
                 func_AAA()
-            
+
             call_bbb.wait(2)
             func_BBB()
             bbb_called.set()
             exit_bbb.wait(2)
 
-
         BBB2_started = threading.Event()
-        
+
         @thread_func("BBB")
         def duplicate_BBB():
             BBB2_started.set()
@@ -143,19 +143,19 @@ class TestThreadEnforcer(ScrutinyUnitTest):
 
         with self.assertRaises(Exception):
             func_BBB()
-        
+
         call_bbb.set()
         bbb_called.wait(1)
         self.assertTrue(bbb_called.is_set())
         self.assertTrue(thread_BBB.is_alive())
 
         BBB2_dead = threading.Event()
+
         def duplicate_BBB_no_exc():
             try:
                 duplicate_BBB()
             except Exception:
                 BBB2_dead.set()
-            
 
         thread_BBB2 = threading.Thread(target=duplicate_BBB_no_exc, daemon=True)
         thread_BBB2.start()
@@ -167,19 +167,17 @@ class TestThreadEnforcer(ScrutinyUnitTest):
         self.assertFalse(thread_BBB2.is_alive())
         exit_bbb.set()
 
-
     def test_ignore_error(self):
         with self.assertRaises(ValueError):
             with SuppressException(TypeError):
                 raise TypeError("aaa")
-            
+
             with SuppressException(TypeError):
                 raise ValueError("bbb")
-            
-        
+
         with SuppressException(TypeError, NotImplementedError):
             raise NotImplementedError("aaa")
-        
+
         with SuppressException():
             raise ValueError("aaa")
 
@@ -192,7 +190,7 @@ class TestRelativeTimebase(ScrutinyUnitTest):
         self.assertLess(tb.get_milli(), 0.5e3)
         self.assertLess(tb.get_sec(), 0.5)
 
-        for i in range (3):
+        for i in range(3):
             tb.set_zero_now()
             now = datetime.now()
             self.assertLess(tb.get_nano(), 0.5e9)
@@ -205,7 +203,6 @@ class TestRelativeTimebase(ScrutinyUnitTest):
             self.assertLess(tb.dt_to_milli(now), 0.5e3)
             self.assertLess(tb.dt_to_sec(now), 0.5)
 
-
             self.assertLess((tb.nano_to_dt(0) - now).total_seconds(), 0.5)
             self.assertLess((tb.micro_to_dt(0) - now).total_seconds(), 0.5)
             self.assertLess((tb.milli_to_dt(0) - now).total_seconds(), 0.5)
@@ -213,14 +210,14 @@ class TestRelativeTimebase(ScrutinyUnitTest):
 
             sec = 10
             margin = 0.5
-            self.assertLess((tb.nano_to_dt(sec * 1e9) - now).total_seconds(),sec + margin)
-            self.assertLess((tb.micro_to_dt(sec * 1e6) - now).total_seconds(),sec + margin)
-            self.assertLess((tb.milli_to_dt(sec * 1e3) - now).total_seconds(),sec + margin)
-            self.assertLess((tb.sec_to_dt(sec * 1) - now).total_seconds(),sec + margin)
-            self.assertGreater((tb.nano_to_dt(sec * 1e9) - now).total_seconds(),sec-margin)
-            self.assertGreater((tb.micro_to_dt(sec * 1e6) - now).total_seconds(),sec-margin)
-            self.assertGreater((tb.milli_to_dt(sec * 1e3) - now).total_seconds(),sec-margin)
-            self.assertGreater((tb.sec_to_dt(sec * 1) - now).total_seconds(),sec-margin)
+            self.assertLess((tb.nano_to_dt(sec * 1e9) - now).total_seconds(), sec + margin)
+            self.assertLess((tb.micro_to_dt(sec * 1e6) - now).total_seconds(), sec + margin)
+            self.assertLess((tb.milli_to_dt(sec * 1e3) - now).total_seconds(), sec + margin)
+            self.assertLess((tb.sec_to_dt(sec * 1) - now).total_seconds(), sec + margin)
+            self.assertGreater((tb.nano_to_dt(sec * 1e9) - now).total_seconds(), sec - margin)
+            self.assertGreater((tb.micro_to_dt(sec * 1e6) - now).total_seconds(), sec - margin)
+            self.assertGreater((tb.milli_to_dt(sec * 1e3) - now).total_seconds(), sec - margin)
+            self.assertGreater((tb.sec_to_dt(sec * 1) - now).total_seconds(), sec - margin)
 
             time.sleep(1)   # make sure the clock moves
 
@@ -233,7 +230,6 @@ class TestRelativeTimebase(ScrutinyUnitTest):
             self.assertGreater(tb.get_nano(), 1e9)
             self.assertLess(tb.get_nano(), 2e9)
 
-        
 
 if __name__ == '__main__':
     import unittest

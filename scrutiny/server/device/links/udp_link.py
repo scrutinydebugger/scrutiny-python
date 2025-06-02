@@ -84,7 +84,7 @@ class UdpLink(AbstractLink):
                 self.ip_address = socket.gethostbyname(self.config['host'])
             except OSError:
                 self.logger.error("Invalid hostname. DNS resolution failed")
-            
+
             if self.ip_address:
                 self.sock = socket.socket(socket.AF_INET, socket.SOCK_DGRAM)
                 self.sock.bind(('0.0.0.0', 0))  # 0.0.0.0 listen on all interface.  Port 0 = takes any available
@@ -111,7 +111,7 @@ class UdpLink(AbstractLink):
             return True
         return False
 
-    def read(self,  timeout:Optional[float] = None) -> Optional[bytes]:
+    def read(self, timeout: Optional[float] = None) -> Optional[bytes]:
         """ Reads bytes in a blocking fashion from the comm channel. None if no data available after timeout"""
         if not self.operational():
             return None

@@ -1,6 +1,6 @@
 #    comm_handler.py
 #        The CommHandler task is to convert Requests and Response from or to a stream of bytes.
-#        
+#
 #        This class manage send requests, wait for response, indicates if a response timeout
 #        occurred and decodes bytes.
 #        It manages the low level part of the communication protocol with the device
@@ -30,6 +30,7 @@ from scrutiny.tools import Timer, Throttler
 from scrutiny.core.logging import DUMPDATA_LOGLEVEL
 from scrutiny.tools.typing import *
 
+
 class CommHandler:
     """
     This class is the bridge between the application and the communication channel with the device.
@@ -41,10 +42,9 @@ class CommHandler:
 
     @dataclass
     class Statistics:
-        tx_datarate_byte_per_sec:float
-        rx_datarate_byte_per_sec:float
-        request_per_sec:float
-
+        tx_datarate_byte_per_sec: float
+        rx_datarate_byte_per_sec: float
+        request_per_sec: float
 
     class Params(TypedDict):
         response_timeout: int
@@ -68,7 +68,7 @@ class CommHandler:
         'response_timeout': 1
     }
 
-    READ_TIMEOUT=0.2
+    READ_TIMEOUT = 0.2
 
     _active_request: Optional[Request]
     _received_response: Optional[Response]
@@ -84,16 +84,16 @@ class CommHandler:
     _pending_request: Optional[Request]
     _link_type: str
     _last_open_error: Optional[str]
-    _rx_data_event:Optional[threading.Event]
-    
-    _rx_queue:"queue.Queue[bytes]"
-    _rx_thread:Optional[threading.Thread]
-    _rx_thread_started:threading.Event
-    _rx_thread_stop_requested:threading.Event
+    _rx_data_event: Optional[threading.Event]
 
-    _tx_datarate_measurement:VariableRateExponentialAverager
-    _rx_datarate_measurement:VariableRateExponentialAverager
-    _request_per_sec_measurement:VariableRateExponentialAverager
+    _rx_queue: "queue.Queue[bytes]"
+    _rx_thread: Optional[threading.Thread]
+    _rx_thread_started: threading.Event
+    _rx_thread_stop_requested: threading.Event
+
+    _tx_datarate_measurement: VariableRateExponentialAverager
+    _rx_datarate_measurement: VariableRateExponentialAverager
+    _request_per_sec_measurement: VariableRateExponentialAverager
 
     def __init__(self, params: Dict[str, Any] = {}) -> None:
         self._active_request = None      # Contains the request object that has been sent to the device. When None, no request sent and we are standby
@@ -138,9 +138,8 @@ class CommHandler:
             else:
                 time.sleep(0.2)
         self._logger.debug("RX thread exiting")
-        
 
-    def set_rx_data_event(self, evt:threading.Event) -> None:
+    def set_rx_data_event(self, evt: threading.Event) -> None:
         self._rx_data_event = evt
 
     def enable_throttling(self, bitrate: float) -> None:
@@ -211,7 +210,7 @@ class CommHandler:
             link_class = SerialLink
         elif link_type == 'rtt':
             from scrutiny.server.device.links.rtt_link import RttLink
-            link_class = RttLink    
+            link_class = RttLink
         elif link_type == 'dummy':
             from scrutiny.server.device.links.dummy_link import DummyLink
             link_class = DummyLink
@@ -220,7 +219,7 @@ class CommHandler:
 
         return link_class
 
-    def _stop_rx_thread(self, timeout:float = 1) -> None:
+    def _stop_rx_thread(self, timeout: float = 1) -> None:
         """Stop the internal thread dedicated to reading the device link object"""
         if self._rx_thread is not None:
             if self._rx_thread.is_alive():
@@ -228,7 +227,7 @@ class CommHandler:
                 self._rx_thread.join(timeout)
                 if self._rx_thread.is_alive():
                     self._logger.error("Failed to stop the RX thread")
-        
+
         self._rx_thread = None
 
     def open(self) -> None:
@@ -250,7 +249,7 @@ class CommHandler:
             if not self._rx_thread_started.wait(timeout=1):
                 self._stop_rx_thread()
                 raise TimeoutError("RX thread did not start")
-            
+
             self._opened = True
             self._last_open_error = None
             self._logger.debug("Communication with device opened")
@@ -262,7 +261,7 @@ class CommHandler:
             elif self._logger.isEnabledFor(logging.DEBUG):  # pragma: no cover
                 self._logger.debug(full_error)
             self._last_open_error = err
-            self._opened = False 
+            self._opened = False
 
     def is_open(self) -> bool:
         """Return True if the communication channel is open with the device"""
@@ -296,7 +295,7 @@ class CommHandler:
         if self._link is None:
             self.reset()
             return
-        
+
         self._tx_datarate_measurement.update()
         self._rx_datarate_measurement.update()
         self._request_per_sec_measurement.update()
@@ -306,7 +305,7 @@ class CommHandler:
             # Something broken here. Hardware disconnected maybe?
             self.close()    # Destroy and deinit the link
             return
- 
+
         if self.is_operational():
             self._link.process()  # Process the link handling
             self._throttler.process()
@@ -329,11 +328,11 @@ class CommHandler:
         datasize_bits = len(data) * 8
         self._throttler.consume_bandwidth(datasize_bits)
         self._rx_datarate_measurement.add_data(len(data))
-        if self._logger.isEnabledFor(DUMPDATA_LOGLEVEL): #pragma: no cover
+        if self._logger.isEnabledFor(DUMPDATA_LOGLEVEL):  # pragma: no cover
             self._logger.log(DUMPDATA_LOGLEVEL, 'Received : %s' % (hexlify(data).decode('ascii')))
 
         if self.response_available() or not self.waiting_response():
-            if self._logger.isEnabledFor(logging.DEBUG): #pragma: no cover
+            if self._logger.isEnabledFor(logging.DEBUG):  # pragma: no cover
                 self._logger.debug('Received unwanted data: ' + hexlify(data).decode('ascii'))
             return  # Purposely discard data if we are not expecting any
 
@@ -353,7 +352,7 @@ class CommHandler:
                     self._received_response = Response.from_bytes(self._rx_data.data_buffer)  # CRC validation is done here
 
                     # Decoding did not raised an exception, we have a valid payload!
-                    if self._logger.isEnabledFor(logging.DEBUG): # pragma: no cover
+                    if self._logger.isEnabledFor(logging.DEBUG):  # pragma: no cover
                         self._logger.debug("Received Response %s" % self._received_response)
                     self._rx_data.clear()        # Empty the receive buffer
                     self._response_timer.stop()  # Timeout timer can be stop
@@ -361,10 +360,10 @@ class CommHandler:
                         # Validate that the response match the request
                         if self._received_response.command != self._active_request.command:
                             raise RuntimeError("Unexpected Response command ID : %s Expecting: %s" %
-                                            (str(self._received_response), self._active_request.command))
+                                               (str(self._received_response), self._active_request.command))
                         if self._received_response.subfn != self._active_request.subfn:
                             raise RuntimeError("Unexpected Response subfunction : %s. Expecting: %s" %
-                                            (str(self._received_response), self._active_request.subfn))
+                                               (str(self._received_response), self._active_request.subfn))
                     else:
                         # Should never happen. waiting_response() is checked above
                         raise RuntimeError('Got a response while having no request in process')
@@ -384,7 +383,7 @@ class CommHandler:
                 self._active_request = self._pending_request
                 self._pending_request = None
                 data = self._active_request.to_bytes()
-                if self._logger.isEnabledFor(logging.DEBUG): # pragma: no cover
+                if self._logger.isEnabledFor(logging.DEBUG):  # pragma: no cover
                     self._logger.debug("Sending request %s" % self._active_request)
                 if self._logger.isEnabledFor(DUMPDATA_LOGLEVEL):   # pragma: no cover
                     self._logger.log(DUMPDATA_LOGLEVEL, "Sending : %s" % (hexlify(data).decode('ascii')))
@@ -397,7 +396,7 @@ class CommHandler:
 
                 if not err:
                     self._tx_datarate_measurement.add_data(len(data))
-                    self._throttler.consume_bandwidth(len(data)*8)
+                    self._throttler.consume_bandwidth(len(data) * 8)
                     self._response_timer.start(self.params['response_timeout'])
             elif not self._throttler.possible(approx_delta_bandwidth):
                 self._logger.critical("Throttling doesn't allow to send request. Dropping %s" % self._pending_request)
@@ -470,7 +469,7 @@ class CommHandler:
 
     def get_average_bitrate(self) -> float:
         """Get the measured average bitrate since last reset. Use an IIR low pass filter"""
-        return (self._rx_datarate_measurement.get_value() + self._tx_datarate_measurement.get_value())*8
+        return (self._rx_datarate_measurement.get_value() + self._tx_datarate_measurement.get_value()) * 8
 
     def get_stats(self) -> Statistics:
         return self.Statistics(

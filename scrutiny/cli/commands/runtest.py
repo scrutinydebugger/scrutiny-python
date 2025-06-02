@@ -61,8 +61,8 @@ class RunTest(BaseCommand):
         format_string = ""
         logging_level_str = self.requested_log_level if self.requested_log_level else "critical"
         if logging_level_str.upper().strip() == 'DUMPDATA':
-            logging_level = DUMPDATA_LOGLEVEL 
-        else:  
+            logging_level = DUMPDATA_LOGLEVEL
+        else:
             logging_level = getattr(logging, logging_level_str.upper())
         if logging_level == logging.DEBUG:
             format_string += "%(relativeCreated)0.3f (#%(thread)d)"
@@ -76,7 +76,7 @@ class RunTest(BaseCommand):
         except ImportError as e:
             test_load_fail_error = str(e)
             test_loaded = False
-        
+
         success = False
         if not test_loaded:
             self.getLogger().critical('No unit tests available in %s. %s' % (test_root, test_load_fail_error))
@@ -93,7 +93,7 @@ class RunTest(BaseCommand):
                 if len(args.modules) == 0:
                     test_suite.addTests(loader.discover(test_root))
                 else:
-                    # First we handle the folder case 
+                    # First we handle the folder case
                     # no loader function discover all test in a folder based on the module path.
                     for module_name in args.modules:
                         loaded_from_module_folder = False
@@ -111,7 +111,7 @@ class RunTest(BaseCommand):
                         # If we haven't launched a discover on a folder, rely on the loader to find the test.
                         if not loaded_from_module_folder:
                             test_suite.addTests(loader.loadTestsFromName(module_name))
-                
+
                 from test import ScrutinyRunner
                 success = False
                 result = ScrutinyRunner(verbosity=int(args.verbosity), failfast=failfast).run(test_suite)
@@ -122,5 +122,5 @@ class RunTest(BaseCommand):
                 # So unrecoverable error such as importError and syntax errors needs to be printed
                 traceback.print_exc(file=sys.stderr)
                 success = False
-        
+
         return 0 if success else -1

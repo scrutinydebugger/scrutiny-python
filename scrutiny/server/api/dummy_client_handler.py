@@ -82,6 +82,7 @@ class DummyConnection:
     def __repr__(self) -> str:
         return '<%s - %s>' % (self.__class__.__name__, self.get_id())
 
+
 class DummyClientHandler(AbstractClientHandler):
 
     rxqueue: "queue.Queue[ClientHandlerMessage]"
@@ -92,11 +93,11 @@ class DummyClientHandler(AbstractClientHandler):
     connections: List[DummyConnection]
     connection_map: Dict[str, DummyConnection]
     started: bool
-    rx_event:Optional[threading.Event]
+    rx_event: Optional[threading.Event]
 
-    def __init__(self, 
-                 config: ClientHandlerConfig, 
-                 rx_event:Optional[threading.Event]=None
+    def __init__(self,
+                 config: ClientHandlerConfig,
+                 rx_event: Optional[threading.Event] = None
                  ) -> None:
         super().__init__(config, rx_event)
         self.rxqueue = queue.Queue()
@@ -108,7 +109,7 @@ class DummyClientHandler(AbstractClientHandler):
         self.connection_map = {}
         self.connections = []
         self.started = False
-        self.rx_event=rx_event
+        self.rx_event = rx_event
 
     def set_connections(self, connections: List[DummyConnection]) -> None:
         self.connections = connections
@@ -139,7 +140,7 @@ class DummyClientHandler(AbstractClientHandler):
                         msg = conn.read_from_client()
                         if msg is not None:
                             try:
-                                if self.logger.isEnabledFor(logging.DEBUG): #pragma: no cover
+                                if self.logger.isEnabledFor(logging.DEBUG):  # pragma: no cover
                                     self.logger.debug('Received from ID %s. "%s"' % (conn.get_id(), msg))
                                 obj = json.loads(msg)
                                 self.rxqueue.put(ClientHandlerMessage(conn_id=conn.get_id(), obj=obj))
@@ -154,7 +155,7 @@ class DummyClientHandler(AbstractClientHandler):
                         try:
                             msg = json.dumps(container.obj)
                             conn_id = container.conn_id
-                            if self.logger.isEnabledFor(logging.DEBUG): #pragma: no cover
+                            if self.logger.isEnabledFor(logging.DEBUG):  # pragma: no cover
                                 self.logger.debug('Writing to ID %s. "%s"' % (conn_id, msg))
                             if conn_id in self.connection_map:
                                 self.connection_map[conn_id].write_to_client(msg)

@@ -25,9 +25,9 @@ from scrutiny.server.datastore.datastore_entry import *
 from scrutiny.server.sfd_storage import SFDStorage
 from scrutiny.core.basic_types import EmbeddedDataType, Endianness, WatchableType
 from scrutiny.server.api.dummy_client_handler import DummyConnection, DummyClientHandler, AbstractClientHandler
-from scrutiny.server.device.device_handler import ( DeviceHandler, DeviceStateChangedCallback, RawMemoryReadRequest,
-    RawMemoryWriteRequest, RawMemoryReadRequestCompletionCallback, RawMemoryWriteRequestCompletionCallback, 
-    UserCommandCallback, DataloggerStateChangedCallback)
+from scrutiny.server.device.device_handler import (DeviceHandler, DeviceStateChangedCallback, RawMemoryReadRequest,
+                                                   RawMemoryWriteRequest, RawMemoryReadRequestCompletionCallback, RawMemoryWriteRequestCompletionCallback,
+                                                   UserCommandCallback, DataloggerStateChangedCallback)
 from scrutiny.server.device.device_info import DeviceInfo, FixedFreqLoop, VariableFreqLoop
 from scrutiny.server.protocol.comm_handler import CommHandler
 from scrutiny.server.active_sfd_handler import ActiveSFDHandler
@@ -61,8 +61,8 @@ class StubbedDeviceHandler:
     datalogging_setup: Optional[device_datalogging.DataloggingSetup]
     device_state_change_callbacks: List[DeviceStateChangedCallback]
     datalogger_state_change_callbacks: List[DataloggerStateChangedCallback]
-    comm_link:DummyLink
-    device_info:DeviceInfo
+    comm_link: DummyLink
+    device_info: DeviceInfo
 
     read_memory_queue: "queue.Queue[RawMemoryReadRequest]"
     write_memory_queue: "queue.Queue[RawMemoryWriteRequest]"
@@ -87,7 +87,7 @@ class StubbedDeviceHandler:
         self.write_memory_queue = queue.Queue()
         self.user_command_history_queue = queue.Queue()
         self.comm_link = DummyLink()
-        
+
         self.device_info = DeviceInfo()
         self.device_info.device_id = self.device_id
         self.device_info.display_name = self.__class__.__name__
@@ -99,12 +99,12 @@ class StubbedDeviceHandler:
         self.device_info.address_size_bits = 32
         self.device_info.protocol_major = 1
         self.device_info.protocol_minor = 0
-        self.device_info.supported_feature_map =  {
+        self.device_info.supported_feature_map = {
             'memory_write': True,
             'datalogging': False,
             'user_command': True,
             '_64bits': True
-            }
+        }
         self.device_info.forbidden_memory_regions = [MemoryRegion(0x1000, 0x500)]
         self.device_info.readonly_memory_regions = [MemoryRegion(0x2000, 0x600), MemoryRegion(0x3000, 0x700)]
         self.device_info.runtime_published_values = []
@@ -115,9 +115,9 @@ class StubbedDeviceHandler:
             VariableFreqLoop("Variable Freq No DL", support_datalogging=False)
         ]
         self.device_info.datalogging_setup = device_datalogging.DataloggingSetup(
-            buffer_size = 4096,
-            encoding = device_datalogging.Encoding.RAW,
-            max_signal_count = 32
+            buffer_size=4096,
+            encoding=device_datalogging.Encoding.RAW,
+            max_signal_count=32
         )
 
     def get_connection_status(self) -> DeviceHandler.ConnectionStatus:
@@ -125,7 +125,7 @@ class StubbedDeviceHandler:
 
     def set_connection_status(self, connection_status: DeviceHandler.ConnectionStatus) -> None:
         if connection_status == DeviceHandler.ConnectionStatus.CONNECTED_READY and (
-            self.connection_status != DeviceHandler.ConnectionStatus.CONNECTED_READY or self.server_session_id is None): 
+                self.connection_status != DeviceHandler.ConnectionStatus.CONNECTED_READY or self.server_session_id is None):
             self.server_session_id = uuid4().hex
         elif connection_status != DeviceHandler.ConnectionStatus.CONNECTED_READY:
             self.server_session_id = None
@@ -287,7 +287,7 @@ class StubbedDataloggingManager:
             return []
         if info.loops is None:
             return []
-        
+
         i = 0
         for loop in info.loops:
             if loop.support_datalogging:
@@ -303,11 +303,12 @@ class StubbedDataloggingManager:
             i += 1
         return sampling_rates
 
+
 @dataclass
 class FakeServer:
     datastore: Datastore
     device_handler: StubbedDeviceHandler
-    datalogging_manager : StubbedDataloggingManager
+    datalogging_manager: StubbedDataloggingManager
     sfd_handler: ActiveSFDHandler
 
     def get_stats(self) -> ScrutinyServer.Statistics:
@@ -363,7 +364,7 @@ class TestAPI(ScrutinyUnitTest):
             datalogging_manager=self.fake_datalogging_manager,
             device_handler=self.fake_device_handler,
             sfd_handler=self.sfd_handler
-            )
+        )
         self.api = API(
             config=config,
             server=fake_server
@@ -411,9 +412,7 @@ class TestAPI(ScrutinyUnitTest):
     def wait_and_load_response(self, conn_idx=0, timeout=2):
         json_str = self.wait_for_response(conn_idx=conn_idx, timeout=timeout)
         self.assertIsNotNone(json_str)
-        return  json.loads(json_str)
-
-
+        return json.loads(json_str)
 
     def send_request(self, req, conn_idx=0):
         self.connections[conn_idx].write_to_server(json.dumps(req))
@@ -434,19 +433,19 @@ class TestAPI(ScrutinyUnitTest):
     def assert_is_response_command(self, resp, cmd):
         self.assertIn('cmd', resp)
         self.assertEqual(resp['cmd'], cmd)
-    
+
     def wait_and_load_inform_server_status(self):
         response = cast(api_typing.S2C.InformServerStatus, self.wait_and_load_response())
         self.assert_is_response_command(response, API.Command.Api2Client.INFORM_SERVER_STATUS)
         return response
 
-    def make_dummy_entries(self, 
-        n, 
-        entry_type=WatchableType.Variable, 
-        prefix='path',
-        alias_bucket: List[DatastoreEntry] = [],
-        enum_dict:Optional[Dict[str, int]] = None
-    ) -> List[DatastoreEntry]:
+    def make_dummy_entries(self,
+                           n,
+                           entry_type=WatchableType.Variable,
+                           prefix='path',
+                           alias_bucket: List[DatastoreEntry] = [],
+                           enum_dict: Optional[Dict[str, int]] = None
+                           ) -> List[DatastoreEntry]:
         entries = []
         if entry_type == WatchableType.Alias:
             assert len(alias_bucket) >= n
@@ -456,11 +455,11 @@ class TestAPI(ScrutinyUnitTest):
         for i in range(n):
             name = '%s_%d' % (prefix, i)
             if entry_type == WatchableType.Variable:
-                enum:Optional[EmbeddedEnum] = None
+                enum: Optional[EmbeddedEnum] = None
                 if enum_dict is not None:
                     enum = EmbeddedEnum('some_enum')
-                    for k,v in enum_dict.items():
-                        enum.add_value(k,v)
+                    for k, v in enum_dict.items():
+                        enum.add_value(k, v)
                 dummy_var = Variable('dummy', vartype=EmbeddedDataType.float32, path_segments=[
                     'a', 'b', 'c'], location=0x12345678, endianness=Endianness.Little, enum=enum)
                 entry = DatastoreVariableEntry(name, variable_def=dummy_var)
@@ -893,7 +892,7 @@ class TestAPI(ScrutinyUnitTest):
         self.assertEqual(update['v'], 1234)
 
     def test_subscribe_single_var_get_enum(self):
-        subscribed_entry = self.make_dummy_entries(1, entry_type=WatchableType.Variable, prefix='var', enum_dict={'a':1, 'b':2, 'c':3})[0]
+        subscribed_entry = self.make_dummy_entries(1, entry_type=WatchableType.Variable, prefix='var', enum_dict={'a': 1, 'b': 2, 'c': 3})[0]
         self.datastore.add_entry(subscribed_entry)
 
         req = {
@@ -920,7 +919,7 @@ class TestAPI(ScrutinyUnitTest):
         self.assertIn('name', obj1['enum'])
         self.assertIn('values', obj1['enum'])
         self.assertEqual(obj1['enum']['name'], 'some_enum')
-        self.assertEqual(obj1['enum']['values'], {'a':1, 'b':2, 'c':3})
+        self.assertEqual(obj1['enum']['values'], {'a': 1, 'b': 2, 'c': 3})
 
     def test_stop_watching_on_disconnect(self):
         entries = self.make_dummy_entries(2, entry_type=WatchableType.Variable, prefix='var')
@@ -1047,7 +1046,7 @@ class TestAPI(ScrutinyUnitTest):
             # load #1
             req = {
                 'cmd': 'load_sfd',
-                'firmware_id': sfd1.get_firmware_id_ascii()            
+                'firmware_id': sfd1.get_firmware_id_ascii()
             }
 
             self.send_request(req, 0)
@@ -1063,7 +1062,7 @@ class TestAPI(ScrutinyUnitTest):
             self.assertIn('metadata', response)
             self.assertIn('firmware_id', response)
             self.assertEqual(response['firmware_id'], sfd1.get_firmware_id_ascii())
-            self.assertEqual(response['metadata'], sfd1.get_metadata().to_dict() )
+            self.assertEqual(response['metadata'], sfd1.get_metadata().to_dict())
 
             # load #2
             req = {
@@ -1094,14 +1093,14 @@ class TestAPI(ScrutinyUnitTest):
         self.fake_device_handler.set_connection_status(DeviceHandler.ConnectionStatus.CONNECTED_READY)
         self.fake_device_handler.get_comm_link().initialize()   # Makes operational
         self.assertTrue(self.fake_device_handler.get_comm_link().operational())
-        
+
         self.wait_and_load_inform_server_status()   # ignore it. Triggered because of device status change
 
         req = {'cmd': 'get_device_info'}
         self.send_request(req, 0)
         response = cast(api_typing.S2C.GetDeviceInfo, self.wait_and_load_response())
         self.assert_no_error(response)
-        
+
         self.assertEqual(response['cmd'], 'response_get_device_info')
         self.assertIn('available', response)
         self.assertIn('device_info', response)
@@ -1127,8 +1126,7 @@ class TestAPI(ScrutinyUnitTest):
 
                         self.assertEqual(region_list[i].start, response['device_info'][attr][i]['start'])
                         self.assertEqual(region_list[i].size, response['device_info'][attr][i]['size'])
-                        self.assertEqual(region_list[i].end, response['device_info'][attr][i]['end']) 
-
+                        self.assertEqual(region_list[i].end, response['device_info'][attr][i]['end'])
 
         self.fake_device_handler.device_info = None
         req = {'cmd': 'get_device_info'}
@@ -1141,12 +1139,10 @@ class TestAPI(ScrutinyUnitTest):
         self.assertFalse(response['available'])
         self.assertIsNone(response['device_info'])
 
-
     def test_get_server_status(self):
         self.fake_device_handler.set_datalogger_state(device_datalogging.DataloggerState.TRIGGERED)
         self.wait_and_load_inform_server_status()   # Datalogger state change trigers a message
 
-        
         dummy_sfd1_filename = get_artifact('test_sfd_1.sfd')
         dummy_sfd2_filename = get_artifact('test_sfd_2.sfd')
         with SFDStorage.use_temp_folder():
@@ -1185,11 +1181,10 @@ class TestAPI(ScrutinyUnitTest):
             self.assertIn('link_type', response['device_comm_link'])
             self.assertEqual(response['device_comm_link']['link_type'], 'dummy')
             self.assertIn('link_operational', response['device_comm_link'])
-            self.assertEqual(response['device_comm_link']['link_operational'], True)            
+            self.assertEqual(response['device_comm_link']['link_operational'], True)
             self.assertIn('link_config', response['device_comm_link'])
             self.assertEqual(response['device_comm_link']['link_config'], {})
-           
-               
+
             # Redo the test, but with no SFD loaded. We should get None
             self.sfd_handler.reset_active_sfd()
             response = self.wait_and_load_response()    # unloading an SFD should trigger an "inform_server_status" message
@@ -1217,13 +1212,13 @@ class TestAPI(ScrutinyUnitTest):
             self.assertIn('link_type', response['device_comm_link'])
             self.assertEqual(response['device_comm_link']['link_type'], 'dummy')
             self.assertIn('link_config', response['device_comm_link'])
-            self.assertEqual(response['device_comm_link']['link_config'], {})           
+            self.assertEqual(response['device_comm_link']['link_config'], {})
 
             SFDStorage.uninstall(sfd1.get_firmware_id_ascii())
             SFDStorage.uninstall(sfd2.get_firmware_id_ascii())
 
             # Changing the datalogger state should trigger a status message
-            self.fake_device_handler.set_datalogger_state(device_datalogging.DataloggerState.ARMED) 
+            self.fake_device_handler.set_datalogger_state(device_datalogging.DataloggerState.ARMED)
             response = cast(api_typing.S2C.InformServerStatus, self.wait_and_load_response())
             self.assert_no_error(response)
             self.assertIn('device_datalogging_status', response)
@@ -1231,7 +1226,8 @@ class TestAPI(ScrutinyUnitTest):
             self.assertIn('datalogger_state', response['device_datalogging_status'])
             self.assertIn('completion_ratio', response['device_datalogging_status'])
             self.assertEqual(response['device_datalogging_status']['datalogger_state'], 'waiting_for_trigger')
-            self.assertEqual(response['device_datalogging_status']['completion_ratio'], self.fake_device_handler.get_datalogging_acquisition_completion_ratio())
+            self.assertEqual(response['device_datalogging_status']['completion_ratio'],
+                             self.fake_device_handler.get_datalogging_acquisition_completion_ratio())
 
             # Changing the connection status should trigger a status message
             self.fake_device_handler.set_connection_status(DeviceHandler.ConnectionStatus.DISCONNECTED)
@@ -1304,7 +1300,7 @@ class TestAPI(ScrutinyUnitTest):
         self.assertNotEqual(self.fake_device_handler.link_type, 'potato')
         self.assertNotEqual(self.fake_device_handler.link_config, {'mium': 'mium'})
         self.fake_device_handler.reject_link_config = False
-        
+
         # Missing link_config
         req = {
             'cmd': 'set_link_config',
@@ -1842,7 +1838,7 @@ class TestAPI(ScrutinyUnitTest):
                 acq3 = core_datalogging.DataloggingAcquisition(firmware_id=sfd2.get_firmware_id_ascii(),
                                                                reference_id="refid3", name="baz",
                                                                acq_time=datetime.fromtimestamp(dtnow.timestamp() + 2000))
-                acq4 = core_datalogging.DataloggingAcquisition(firmware_id="unknown_sfd", 
+                acq4 = core_datalogging.DataloggingAcquisition(firmware_id="unknown_sfd",
                                                                reference_id="refid4", name="meow",
                                                                acq_time=datetime.fromtimestamp(dtnow.timestamp() + 1000))  # Oldest
                 acq1.set_xdata(core_datalogging.DataSeries())
@@ -1857,7 +1853,7 @@ class TestAPI(ScrutinyUnitTest):
 
                 req: api_typing.C2S.ListDataloggingAcquisitions = {
                     'cmd': 'list_datalogging_acquisitions',
-                    'count' : 100
+                    'count': 100
                 }
 
                 self.send_request(req)
@@ -1891,37 +1887,35 @@ class TestAPI(ScrutinyUnitTest):
 
                 req: api_typing.C2S.ListDataloggingAcquisitions = {
                     'cmd': 'list_datalogging_acquisitions',
-                    'count' : 2
+                    'count': 2
                 }
 
                 self.send_request(req)
                 response = cast(api_typing.S2C.ListDataloggingAcquisition, self.wait_and_load_response())
                 self.assert_no_error(response)
-                
+
                 self.assertEqual(len(response['acquisitions']), 2)
                 self.assertEqual(response['acquisitions'][0]['reference_id'], 'refid1')
                 self.assertEqual(response['acquisitions'][1]['reference_id'], 'refid2')
 
-
                 req: api_typing.C2S.ListDataloggingAcquisitions = {
                     'cmd': 'list_datalogging_acquisitions',
-                    'before_timestamp' : int(dtnow.timestamp() + 2001),
-                    'count' : 100
+                    'before_timestamp': int(dtnow.timestamp() + 2001),
+                    'count': 100
                 }
 
                 self.send_request(req)
                 response = cast(api_typing.S2C.ListDataloggingAcquisition, self.wait_and_load_response())
                 self.assert_no_error(response)
-                
+
                 self.assertEqual(len(response['acquisitions']), 2)
                 self.assertEqual(response['acquisitions'][0]['reference_id'], 'refid3')
                 self.assertEqual(response['acquisitions'][1]['reference_id'], 'refid4')
-                
 
                 req: api_typing.C2S.ListDataloggingAcquisitions = {
                     'cmd': 'list_datalogging_acquisitions',
                     'firmware_id': sfd1.get_firmware_id_ascii(),
-                    'count' : 100
+                    'count': 100
                 }
 
                 self.send_request(req)
@@ -1945,7 +1939,7 @@ class TestAPI(ScrutinyUnitTest):
                 req: api_typing.C2S.ListDataloggingAcquisitions = {
                     'cmd': 'list_datalogging_acquisitions',
                     'firmware_id': None,
-                    'count' : 100
+                    'count': 100
                 }
 
                 self.send_request(req)
@@ -1957,7 +1951,7 @@ class TestAPI(ScrutinyUnitTest):
                 req: api_typing.C2S.ListDataloggingAcquisitions = {
                     'cmd': 'list_datalogging_acquisitions',
                     'firmware_id': 'inexistant_id',
-                    'count' : 100
+                    'count': 100
                 }
 
                 self.send_request(req)
@@ -1969,7 +1963,7 @@ class TestAPI(ScrutinyUnitTest):
                 # Missing count - bad
                 req: api_typing.C2S.ListDataloggingAcquisitions = {
                     'cmd': 'list_datalogging_acquisitions',
-                    'firmware_id': 'inexistant_id'             
+                    'firmware_id': 'inexistant_id'
                 }
                 self.send_request(req)
                 self.assert_is_error(self.wait_and_load_response())
@@ -1978,8 +1972,8 @@ class TestAPI(ScrutinyUnitTest):
                 req: api_typing.C2S.ListDataloggingAcquisitions = {
                     'cmd': 'list_datalogging_acquisitions',
                     'firmware_id': 'inexistant_id',
-                    'before_timestamp' : -1,
-                    'count' : 100
+                    'before_timestamp': -1,
+                    'count': 100
                 }
                 self.send_request(req)
                 self.assert_is_error(self.wait_and_load_response())
@@ -1988,47 +1982,44 @@ class TestAPI(ScrutinyUnitTest):
                 req: api_typing.C2S.ListDataloggingAcquisitions = {
                     'cmd': 'list_datalogging_acquisitions',
                     'firmware_id': 'inexistant_id',
-                    'count' : -1
+                    'count': -1
                 }
                 self.send_request(req)
-                self.assert_is_error(self.wait_and_load_response())  
+                self.assert_is_error(self.wait_and_load_response())
 
                 # timestamp None = no timestamp. OK
                 req: api_typing.C2S.ListDataloggingAcquisitions = {
                     'cmd': 'list_datalogging_acquisitions',
                     'firmware_id': 'inexistant_id',
-                    'before_timestamp' : None,
-                    'count' : 100
+                    'before_timestamp': None,
+                    'count': 100
                 }
                 self.send_request(req)
-                self.assert_no_error(self.wait_and_load_response())       
-
+                self.assert_no_error(self.wait_and_load_response())
 
                 req: api_typing.C2S.ListDataloggingAcquisitions = {
                     'cmd': 'list_datalogging_acquisitions',
                     'reference_id': 'inexistant_id'
-                }  
+                }
                 self.send_request(req)
                 response = self.wait_and_load_response()
                 self.assert_no_error(response)
                 self.assertEqual(len(response['acquisitions']), 0)
 
-                
                 req: api_typing.C2S.ListDataloggingAcquisitions = {
                     'cmd': 'list_datalogging_acquisitions',
                     'reference_id': 'refid2'
-                }  
+                }
                 self.send_request(req)
                 response = self.wait_and_load_response()
                 self.assert_no_error(response)
                 self.assertEqual(len(response['acquisitions']), 1)
-                
+
                 self.assertEqual(response['acquisitions'][0]['firmware_id'], sfd1.get_firmware_id_ascii())
                 self.assertEqual(response['acquisitions'][0]['reference_id'], 'refid2')
                 self.assertEqual(response['acquisitions'][0]['timestamp'], int(acq2.acq_time.timestamp()))
                 self.assertEqual(response['acquisitions'][0]['name'], 'bar')
                 self.assertEqual(response['acquisitions'][0]['firmware_metadata'], sfd1.get_metadata().to_dict())
-
 
     def test_update_datalogging_acquisition(self):
         # Rename an acquisition in datalogging storage through API
@@ -2252,27 +2243,27 @@ class TestAPI(ScrutinyUnitTest):
                                                               reference_id="refid1", name="foo", firmware_name="bar")
 
                 acq.set_xdata(core_datalogging.DataSeries(
-                    [0, 1, 2, 3, 4, 5, 6, 7, 8, 9], 
-                    name='the x-axis', 
+                    [0, 1, 2, 3, 4, 5, 6, 7, 8, 9],
+                    name='the x-axis',
                     logged_watchable=core_datalogging.LoggedWatchable(
-                        path = '/var/xaxis',
+                        path='/var/xaxis',
                         type=WatchableType.Variable)
-                    ))
+                ))
                 acq.add_data(core_datalogging.DataSeries(
-                    [10, 20, 30, 40, 50, 60, 70, 80, 90], 
-                    name='series 1', 
+                    [10, 20, 30, 40, 50, 60, 70, 80, 90],
+                    name='series 1',
                     logged_watchable=core_datalogging.LoggedWatchable(
-                        path = '/var/data1',
+                        path='/var/data1',
                         type=WatchableType.Alias)
-                    ),
+                ),
                     axis1)
                 acq.add_data(core_datalogging.DataSeries(
-                    [100, 200, 300, 400, 500, 600, 700, 800, 900], 
-                    name='series 2', 
+                    [100, 200, 300, 400, 500, 600, 700, 800, 900],
+                    name='series 2',
                     logged_watchable=core_datalogging.LoggedWatchable(
-                        path = '/var/data2',
+                        path='/var/data2',
                         type=WatchableType.RuntimePublishedValue)
-                    ), axis2)
+                ), axis2)
                 acq.set_trigger_index(3)
                 DataloggingStorage.save(acq)
 
@@ -2306,12 +2297,12 @@ class TestAPI(ScrutinyUnitTest):
 
                 self.assertEqual(response['signals'][idx_series1]['name'], 'series 1')
                 self.assertEqual(response['signals'][idx_series1]['data'], [10, 20, 30, 40, 50, 60, 70, 80, 90])
-                self.assertEqual(response['signals'][idx_series1]['watchable'],  dict(path='/var/data1', type='alias'))
+                self.assertEqual(response['signals'][idx_series1]['watchable'], dict(path='/var/data1', type='alias'))
                 self.assertEqual(response['signals'][idx_series1]['axis_id'], 0)
 
                 self.assertEqual(response['signals'][idx_series2]['name'], 'series 2')
                 self.assertEqual(response['signals'][idx_series2]['data'], [100, 200, 300, 400, 500, 600, 700, 800, 900])
-                self.assertEqual(response['signals'][idx_series2]['watchable'],  dict(path='/var/data2', type='rpv'))
+                self.assertEqual(response['signals'][idx_series2]['watchable'], dict(path='/var/data2', type='rpv'))
                 self.assertEqual(response['signals'][idx_series2]['axis_id'], 1)
 
                 req: api_typing.C2S.ReadDataloggingAcquisitionContent = {
@@ -2711,7 +2702,7 @@ class TestAPI(ScrutinyUnitTest):
         self.send_request(req)
         stats = self.api.server.get_stats()
         response = self.wait_and_load_response()
-        
+
         self.assertEqual(response['uptime'], stats.uptime)
         self.assertEqual(response['invalid_request_count'], stats.api.invalid_request_count)
         self.assertEqual(response['unexpected_error_count'], stats.api.unexpected_error_count)
@@ -2724,8 +2715,6 @@ class TestAPI(ScrutinyUnitTest):
         self.assertEqual(response['to_device_datarate_byte_per_sec'], stats.device.comm_handler.tx_datarate_byte_per_sec)
         self.assertEqual(response['from_device_datarate_byte_per_sec'], stats.device.comm_handler.rx_datarate_byte_per_sec)
         self.assertEqual(response['device_request_per_sec'], stats.device.comm_handler.request_per_sec)
-
-
 
 
 # endregion

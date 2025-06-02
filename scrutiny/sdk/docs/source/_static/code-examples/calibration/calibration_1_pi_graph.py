@@ -7,16 +7,16 @@ import time
 
 
 class PIController:
-    kp:WatchableHandle
-    ki:WatchableHandle
-    max:WatchableHandle
-    min:WatchableHandle
-    sat_margin:WatchableHandle
-    ref:WatchableHandle
-    feedback:WatchableHandle
-    output:WatchableHandle
+    kp: WatchableHandle
+    ki: WatchableHandle
+    max: WatchableHandle
+    min: WatchableHandle
+    sat_margin: WatchableHandle
+    ref: WatchableHandle
+    feedback: WatchableHandle
+    output: WatchableHandle
 
-    def __init__(self, client:ScrutinyClient, basepath:str):
+    def __init__(self, client: ScrutinyClient, basepath: str):
         basepath = basepath.rstrip('/')
         self.kp = client.watch(f'{basepath}/m_kp')
         self.ki = client.watch(f'{basepath}/m_ki')
@@ -26,6 +26,7 @@ class PIController:
         self.ref = client.watch(f'{basepath}/m_ref')
         self.feedback = client.watch(f'{basepath}/m_feedback')
         self.output = client.watch(f'{basepath}/m_out')
+
 
 def main() -> None:
     parser = argparse.ArgumentParser()
@@ -47,7 +48,7 @@ def main() -> None:
 
         controller.kp.value = args.kp
         controller.ki.value = args.ki
-        
+
         config = datalogging.DataloggingConfig(sampling_rate=0, decimation=1, timeout=0, name="MyGraph")
         config.configure_trigger(datalogging.TriggerCondition.GreaterThan, [set_point, 0], position=0.1, hold_time=0)
         config.configure_xaxis(datalogging.XAxisType.IdealTime)
@@ -57,8 +58,8 @@ def main() -> None:
         config.add_signal(controller.feedback, pv_axis, name="Feedback")
         config.add_signal(controller.output, cmd_axis, name="Command")
 
-        done=False
-        actual_set_point=0.1
+        done = False
+        actual_set_point = 0.1
         manual_control.value = True
         try:
             while not done:
@@ -69,21 +70,21 @@ def main() -> None:
                 set_point.value = actual_set_point
                 try:
                     # Build a filename based on the actual parameters
-                    filename=f"controller_test_kp={args.kp:0.4f}_ki={args.ki:0.4f}_sp_{actual_set_point:0.3f}.csv"
+                    filename = f"controller_test_kp={args.kp:0.4f}_ki={args.ki:0.4f}_sp_{actual_set_point:0.3f}.csv"
                     acquisition = request.wait_and_fetch(timeout=5)
                     print(f"Acquisition complete. Saving to {filename}")
                     acquisition.to_csv(filename)
-                    actual_set_point+=0.1
+                    actual_set_point += 0.1
                     if actual_set_point > 1:
                         done = True
                 except scrutiny.sdk.exceptions.TimeoutException as e:
-                    done=True
+                    done = True
                     print(f"The datalogger failed to catch the event. {e}")
         except Exception as e:
             print(f"Error: {e}")
         finally:
             print("Done")
-            try: 
+            try:
                 manual_control.value = False
             except: pass
 

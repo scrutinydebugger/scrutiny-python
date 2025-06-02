@@ -24,15 +24,17 @@ from scrutiny.server.api import typing as api_typing
 from scrutiny.tools.typing import *
 import typing
 
+
 @dataclass(frozen=True)
 class WelcomeData:
-    server_time_zero_timestamp:float
+    server_time_zero_timestamp: float
+
 
 @dataclass(frozen=True)
 class WatchableUpdate:
     server_id: str
     value: Union[bool, int, float]
-    server_time_us:float
+    server_time_us: float
 
 
 @dataclass(frozen=True)
@@ -40,7 +42,7 @@ class WriteCompletion:
     request_token: str
     watchable: str
     success: bool
-    server_time_us:float
+    server_time_us: float
     batch_index: int
 
 
@@ -76,15 +78,17 @@ class DataloggingCompletion:
     success: bool
     detail_msg: str
 
+
 @dataclass
 class GetWatchableListResponse:
-    done:bool
-    data:Dict[sdk.WatchableType, Dict[str, sdk.WatchableConfiguration]]
+    done: bool
+    data: Dict[sdk.WatchableType, Dict[str, sdk.WatchableConfiguration]]
+
 
 @dataclass
 class DataloggingListChangeResponse:
-    action:sdk.DataloggingListChangeType
-    reference_id:Optional[str]
+    action: sdk.DataloggingListChangeType
+    reference_id: Optional[str]
 
 
 T = TypeVar('T', str, int, float, bool)
@@ -118,7 +122,7 @@ def _check_response_dict(cmd: str, d: Any, name: str, types: Union[Type[Any], It
 
         _check_response_dict(cmd, d[key], '.'.join(next_parts), types, part_name)
     else:
-        isbool = d[key].__class__ == True.__class__ # bool are ints for Python. Avoid allowing bools as valid int.
+        isbool = d[key].__class__ == True.__class__  # bool are ints for Python. Avoid allowing bools as valid int.
         if not isinstance(d[key], types) or isbool and bool not in types:
             gotten_type = d[key].__class__.__name__
             typename = "(%s)" % ', '.join([t.__name__ for t in types])
@@ -126,7 +130,7 @@ def _check_response_dict(cmd: str, d: Any, name: str, types: Union[Type[Any], It
                 f'Field {part_name} is expected to be of type "{typename}" but found "{gotten_type}" in message "{cmd}"')
 
 
-def _fetch_dict_val(d: Any, path: str, default: Optional[T], allow_none:bool=True) -> Any:
+def _fetch_dict_val(d: Any, path: str, default: Optional[T], allow_none: bool = True) -> Any:
     if d is None:
         return default
     assert isinstance(d, dict)
@@ -149,7 +153,8 @@ def _fetch_dict_val(d: Any, path: str, default: Optional[T], allow_none:bool=Tru
     else:
         return _fetch_dict_val(d[key], '.'.join(next_parts), default=default)
 
-def _fetch_dict_val_of_type(d: Any, path: str, wanted_type: Type[T], default: Optional[T], allow_none:bool=True) -> Optional[T]:
+
+def _fetch_dict_val_of_type(d: Any, path: str, wanted_type: Type[T], default: Optional[T], allow_none: bool = True) -> Optional[T]:
     val = _fetch_dict_val(d, path, default, allow_none)
     if val is None:
         if allow_none:
@@ -157,8 +162,10 @@ def _fetch_dict_val_of_type(d: Any, path: str, wanted_type: Type[T], default: Op
         raise sdk.exceptions.BadResponseError(f'Field {path} cannot be None')
     return wanted_type(val)
 
+
 def _fetch_dict_val_of_type_no_none(d: Any, path: str, wanted_type: Type[T], default: T) -> T:
     return cast(T, _fetch_dict_val_of_type(d, path, wanted_type, default, allow_none=False))
+
 
 def _read_sfd_metadata_from_incomplete_dict(obj: Optional[MetadataTypedDict]) -> Optional[sdk.SFDMetadata]:
     if obj is None:
@@ -172,20 +179,21 @@ def _read_sfd_metadata_from_incomplete_dict(obj: Optional[MetadataTypedDict]) ->
         # This will raise a TypeError if the data is not of the right type.
         # Expect the server to give the right thing.
 
-        return  sdk.SFDMetadata(
+        return sdk.SFDMetadata(
             author=_fetch_dict_val(obj, 'author', default=None),
             project_name=_fetch_dict_val(obj, 'project_name', default=None),
             version=_fetch_dict_val(obj, 'version', default=None),
             generation_info=sdk.SFDGenerationInfo(
-                python_version=_fetch_dict_val(obj, 'generation_info.python_version',  default=None),
-                scrutiny_version=_fetch_dict_val(obj, 'generation_info.scrutiny_version',  default=None),
-                system_type=_fetch_dict_val(obj, 'generation_info.system_type',  default=None),
+                python_version=_fetch_dict_val(obj, 'generation_info.python_version', default=None),
+                scrutiny_version=_fetch_dict_val(obj, 'generation_info.scrutiny_version', default=None),
+                system_type=_fetch_dict_val(obj, 'generation_info.system_type', default=None),
                 timestamp=datetime.fromtimestamp(timestamp) if isinstance(timestamp, int) else None
             )
         )
     except (TypeError, ValueError) as e:
         raise sdk.exceptions.BadResponseError(f"Invalid SFD metadata: {e}")
-    
+
+
 def parse_get_watchable_list(response: api_typing.S2C.GetWatchableList) -> GetWatchableListResponse:
     """Parse a response to get_watchable_list and assume the request was for a single watchable"""
     assert isinstance(response, dict)
@@ -204,24 +212,25 @@ def parse_get_watchable_list(response: api_typing.S2C.GetWatchableList) -> GetWa
 
     outdata = GetWatchableListResponse(
         done=response['done'],
-        data = {
-            sdk.WatchableType.Variable : {},
-            sdk.WatchableType.RuntimePublishedValue : {},
-            sdk.WatchableType.Alias : {},
+        data={
+            sdk.WatchableType.Variable: {},
+            sdk.WatchableType.RuntimePublishedValue: {},
+            sdk.WatchableType.Alias: {},
         }
     )
-        
-    typekey_to_watchable_type:Dict[WATCHABLE_TYPE_KEY, sdk.WatchableType] = {
-        'rpv' : sdk.WatchableType.RuntimePublishedValue,
-        'alias' : sdk.WatchableType.Alias,
-        'var' : sdk.WatchableType.Variable,
+
+    typekey_to_watchable_type: Dict[WATCHABLE_TYPE_KEY, sdk.WatchableType] = {
+        'rpv': sdk.WatchableType.RuntimePublishedValue,
+        'alias': sdk.WatchableType.Alias,
+        'var': sdk.WatchableType.Variable,
     }
 
     typekey: Literal['rpv', 'alias', 'var']
     for typekey in typing.get_args(WATCHABLE_TYPE_KEY):
         watchable_type = typekey_to_watchable_type[typekey]
         if response['qty'][typekey] != len(response['content'][typekey]):
-            raise sdk.exceptions.BadResponseError(f"Mismatch between expected element count ({response['qty'][typekey]}) and actual element count ({len(response['content'][typekey])})")
+            raise sdk.exceptions.BadResponseError(
+                f"Mismatch between expected element count ({response['qty'][typekey]}) and actual element count ({len(response['content'][typekey])})")
 
         for i in range(len(response['content'][typekey])):
             keyprefix = f'content.{typekey}[{i}]'
@@ -234,32 +243,32 @@ def parse_get_watchable_list(response: api_typing.S2C.GetWatchableList) -> GetWa
             if element['datatype'] not in API.APISTR_2_DATATYPE:
                 raise sdk.exceptions.BadResponseError(f"Unknown datatype {element['datatype']}")
 
-            if len(element['id']) ==0:
+            if len(element['id']) == 0:
                 raise sdk.exceptions.BadResponseError(f"Empty server id")
-            
-            if len(element['display_path']) ==0:
+
+            if len(element['display_path']) == 0:
                 raise sdk.exceptions.BadResponseError(f"Empty display path")
 
             datatype = EmbeddedDataType(API.APISTR_2_DATATYPE[element['datatype']])
 
-            enum:Optional[EmbeddedEnum] = None
+            enum: Optional[EmbeddedEnum] = None
             if 'enum' in element and element['enum'] is not None:
                 _check_response_dict(cmd, element, 'enum', dict)
                 _check_response_dict(cmd, element, 'enum.name', str)
                 _check_response_dict(cmd, element, 'enum.values', dict)
                 if len(element['enum']['name']) == 0:
                     raise sdk.exceptions.BadResponseError(f"Empty enum name")
-                
+
                 enum = EmbeddedEnum(name=element['enum']['name'])
                 for key, val in element['enum']['values'].items():
-                    if not isinstance(key, str): 
+                    if not isinstance(key, str):
                         raise sdk.exceptions.BadResponseError('Invalid enum. Key is not a string')
-                    if len(key) == 0: 
+                    if len(key) == 0:
                         raise sdk.exceptions.BadResponseError('Invalid enum. Key is an empty string')
                     if not isinstance(val, int) or isinstance(val, bool):   # bools are int for python
                         raise sdk.exceptions.BadResponseError('Invalid enum. Value is not an integer')
                     enum.add_value(key, val)
-            
+
             outdata.data[watchable_type][element['display_path']] = sdk.WatchableConfiguration(
                 server_id=element['id'],
                 watchable_type=watchable_type,
@@ -287,16 +296,16 @@ def parse_subscribe_watchable_response(response: api_typing.S2C.SubscribeWatchab
         _check_response_dict(cmd, v, 'type', str)
         _check_response_dict(cmd, v, 'id', str)
 
-        enum:Optional[EmbeddedEnum] = None
+        enum: Optional[EmbeddedEnum] = None
         if 'enum' in v and v['enum'] is not None:
             _check_response_dict(cmd, v, 'enum', dict)
             _check_response_dict(cmd, v, 'enum.name', str)
             _check_response_dict(cmd, v, 'enum.values', dict)
             enum = EmbeddedEnum(name=v['enum']['name'])
             for key, val in v['enum']['values'].items():
-                if not isinstance(key, str): 
+                if not isinstance(key, str):
                     raise sdk.exceptions.BadResponseError('Invalid enum. Key is not a string')
-                if not isinstance(val, int): 
+                if not isinstance(val, int):
                     raise sdk.exceptions.BadResponseError('Invalid enum. Value is not an integer')
                 enum.add_value(key, val)
 
@@ -332,7 +341,6 @@ def parse_get_device_info(response: api_typing.S2C.GetDeviceInfo) -> Optional[sd
 
     _check_response_dict(cmd, response, 'available', bool)
     _check_response_dict(cmd, response, 'device_info', (dict, NoneType))
-    
 
     if response['available'] == False:
         _check_response_dict(cmd, response, 'device_info', type(None))
@@ -390,7 +398,7 @@ def parse_get_device_info(response: api_typing.S2C.GetDeviceInfo) -> Optional[sd
         if device_info['address_size_bits'] not in typing.get_args(sdk.AddressSize):
             raise sdk.exceptions.BadResponseError(f"Unexpected address size {device_info['address_size_bits']}")
 
-        datalogging_capabilities:Optional[sdk.DataloggingCapabilities] = None
+        datalogging_capabilities: Optional[sdk.DataloggingCapabilities] = None
         if device_info['datalogging_capabilities'] is not None:
             cap_dict = device_info['datalogging_capabilities']
 
@@ -490,7 +498,7 @@ def parse_inform_server_status(response: api_typing.S2C.InformServerStatus) -> s
         raise sdk.exceptions.BadResponseError('Unsupported device communication status "{api_val}"')
 
     _check_response_dict(cmd, response, 'loaded_sfd_firmware_id', (str, type(None)))
-   
+
     _check_response_dict(cmd, response, 'device_datalogging_status.datalogger_state', str)
     _check_response_dict(cmd, response, 'device_datalogging_status.completion_ratio', [NoneType, float])
 
@@ -553,24 +561,24 @@ def parse_inform_server_status(response: api_typing.S2C.InformServerStatus) -> s
         _check_response_dict(cmd, response, 'device_comm_link.link_config.start_delay', (int, float))
 
         STOPBIT_TO_SDK = {
-            '1' : sdk.SerialLinkConfig.StopBits.ONE,
-            '1.5' : sdk.SerialLinkConfig.StopBits.ONE_POINT_FIVE,
-            '2' : sdk.SerialLinkConfig.StopBits.TWO
+            '1': sdk.SerialLinkConfig.StopBits.ONE,
+            '1.5': sdk.SerialLinkConfig.StopBits.ONE_POINT_FIVE,
+            '2': sdk.SerialLinkConfig.StopBits.TWO
         }
 
         PARITY_TO_SDK = {
-            'none' : sdk.SerialLinkConfig.Parity.NONE,
-            'even' : sdk.SerialLinkConfig.Parity.EVEN,
-            'odd' : sdk.SerialLinkConfig.Parity.ODD,
-            'mark' : sdk.SerialLinkConfig.Parity.MARK,
-            'space' : sdk.SerialLinkConfig.Parity.SPACE
+            'none': sdk.SerialLinkConfig.Parity.NONE,
+            'even': sdk.SerialLinkConfig.Parity.EVEN,
+            'odd': sdk.SerialLinkConfig.Parity.ODD,
+            'mark': sdk.SerialLinkConfig.Parity.MARK,
+            'space': sdk.SerialLinkConfig.Parity.SPACE
         }
 
         DATABITS_TO_SDK = {
-            5 : sdk.SerialLinkConfig.DataBits.FIVE,
-            6 : sdk.SerialLinkConfig.DataBits.SIX,
-            7 : sdk.SerialLinkConfig.DataBits.SEVEN,
-            8 : sdk.SerialLinkConfig.DataBits.EIGHT,
+            5: sdk.SerialLinkConfig.DataBits.FIVE,
+            6: sdk.SerialLinkConfig.DataBits.SIX,
+            7: sdk.SerialLinkConfig.DataBits.SEVEN,
+            8: sdk.SerialLinkConfig.DataBits.EIGHT,
         }
 
         api_stopbits = serial_config['stopbits']
@@ -606,7 +614,7 @@ def parse_inform_server_status(response: api_typing.S2C.InformServerStatus) -> s
             jlink_interface = sdk.RTTLinkConfig.JLinkInterface(interface_name)
         except ValueError:
             raise sdk.exceptions.BadResponseError(f'Invalid JLink Interface "{interface_name}"')
-        
+
         link_config = sdk.RTTLinkConfig(
             target_device=rtt_config['target_device'],
             jlink_interface=jlink_interface
@@ -664,7 +672,7 @@ def parse_write_value_response(response: api_typing.S2C.WriteValue) -> WriteConf
 
     if response['count'] < 0:
         raise sdk.exceptions.BadResponseError("Got a negative count")
-    
+
     if len(response['request_token']) == 0:
         raise sdk.exceptions.BadResponseError("Empty request_token")
 
@@ -691,7 +699,7 @@ def parse_write_completion(response: api_typing.S2C.WriteCompletion) -> WriteCom
 
     if len(response['request_token']) == 0:
         raise sdk.exceptions.BadResponseError('Empty request_token')
-        
+
     return WriteCompletion(
         request_token=response['request_token'],
         watchable=response['watchable'],
@@ -738,8 +746,8 @@ def parse_memory_read_completion(response: api_typing.S2C.ReadMemoryComplete) ->
             data_bin = b64decode(data, validate=True)
         except binascii.Error as e:
             raise sdk.exceptions.BadResponseError(f"Server returned a invalid base64 data block. {e}")
-    
-    _check_response_dict(cmd, response, 'detail_msg', (str, type(None)) )
+
+    _check_response_dict(cmd, response, 'detail_msg', (str, type(None)))
     detail_msg = _fetch_dict_val_of_type(response, 'detail_msg', str, "")
 
     return MemoryReadCompletion(
@@ -748,7 +756,7 @@ def parse_memory_read_completion(response: api_typing.S2C.ReadMemoryComplete) ->
         data=data_bin,
         error=detail_msg if detail_msg is not None else "",
         server_time_us=float(response['completion_server_time_us']),
-        local_monotonic_timestamp= time.monotonic()
+        local_monotonic_timestamp=time.monotonic()
     )
 
 
@@ -813,19 +821,19 @@ def parse_read_datalogging_acquisition_content_response(response: api_typing.S2C
 
     assert xaxis_data is not None
 
-    def response2watchable_desc(d:Optional[api_typing.LoggedWatchable]) -> Optional[sdk.datalogging.LoggedWatchable]:
+    def response2watchable_desc(d: Optional[api_typing.LoggedWatchable]) -> Optional[sdk.datalogging.LoggedWatchable]:
         if d is None:
             return None
 
         _check_response_dict(cmd, d, 'path', str)
         _check_response_dict(cmd, d, 'type', str)
-        
+
         if d['type'] not in WatchableType.all():
             raise sdk.exceptions.BadResponseError(f"Invalid wachable type {d['type']}")
         return scrutiny.sdk.datalogging.LoggedWatchable(
-                path = d['path'],
-                type = WatchableType(d['type'])
-            )
+            path=d['path'],
+            type=WatchableType(d['type'])
+        )
 
     for sig in response['signals']:
         _check_response_dict(cmd, sig, 'axis_id', int)
@@ -850,14 +858,14 @@ def parse_read_datalogging_acquisition_content_response(response: api_typing.S2C
         acquisition.add_data(ds, axis=axis_map[sig['axis_id']])
 
     try:
-        xaxis_data = [ float(f) for f in response['xdata']['data'] ]    # Convert to float for inf or nan
+        xaxis_data = [float(f) for f in response['xdata']['data']]    # Convert to float for inf or nan
     except Exception:
         raise sdk.exceptions.BadResponseError(f'X-Axis Dataseries data is not all numerical')
 
     xdata = sdk.datalogging.DataSeries(
-        data = xaxis_data,
-        name = response['xdata']['name'],
-        logged_watchable = response2watchable_desc(response['xdata']['watchable'])
+        data=xaxis_data,
+        name=response['xdata']['name'],
+        logged_watchable=response2watchable_desc(response['xdata']['watchable'])
     )
 
     acquisition.set_xdata(xdata)
@@ -897,7 +905,7 @@ def parse_datalogging_acquisition_complete(response: api_typing.S2C.InformDatalo
 
     if response['request_token'] == "":
         raise sdk.exceptions.BadResponseError("Empty request token in response")
-    
+
     return DataloggingCompletion(
         request_token=response['request_token'],
         reference_id=response['reference_id'],
@@ -936,7 +944,7 @@ def parse_datalogging_list_changed(response: api_typing.S2C.InformDataloggingLis
     return DataloggingListChangeResponse(
         action=change_type,
         reference_id=response['reference_id']
-    )     
+    )
 
 
 def parse_list_datalogging_acquisitions_response(response: api_typing.S2C.ListDataloggingAcquisition) -> List[sdk.datalogging.DataloggingStorageEntry]:
@@ -946,7 +954,7 @@ def parse_list_datalogging_acquisitions_response(response: api_typing.S2C.ListDa
     assert cmd == API.Command.Api2Client.LIST_DATALOGGING_ACQUISITION_RESPONSE
 
     _check_response_dict(cmd, response, 'acquisitions', list)
-    dataout:List[sdk.datalogging.DataloggingStorageEntry] = []
+    dataout: List[sdk.datalogging.DataloggingStorageEntry] = []
 
     for acq in response['acquisitions']:
         _check_response_dict(cmd, acq, 'firmware_id', str)
@@ -989,7 +997,8 @@ def parse_user_command_response(response: api_typing.S2C.UserCommand) -> sdk.Use
         data=data
     )
 
-def parse_get_watchable_count(response:api_typing.S2C.GetWatchableCount) -> Dict[sdk.WatchableType, int]:
+
+def parse_get_watchable_count(response: api_typing.S2C.GetWatchableCount) -> Dict[sdk.WatchableType, int]:
     assert isinstance(response, dict)
     assert 'cmd' in response
     cmd = response['cmd']
@@ -998,39 +1007,39 @@ def parse_get_watchable_count(response:api_typing.S2C.GetWatchableCount) -> Dict
     _check_response_dict(cmd, response, 'qty.var', int)
     _check_response_dict(cmd, response, 'qty.alias', int)
     _check_response_dict(cmd, response, 'qty.rpv', int)
-    
+
     WatchableTypeKey = Literal['rpv', 'alias', 'var']
-    key:WatchableTypeKey
-    for key in  typing.get_args(WatchableTypeKey):
+    key: WatchableTypeKey
+    for key in typing.get_args(WatchableTypeKey):
         if response['qty'][key] < 0:
             raise sdk.exceptions.BadResponseError("Received a negative number of watchable")
-        
+
     return {
-        sdk.WatchableType.Variable : response['qty']['var'],
-        sdk.WatchableType.Alias : response['qty']['alias'],
-        sdk.WatchableType.RuntimePublishedValue : response['qty']['rpv']
+        sdk.WatchableType.Variable: response['qty']['var'],
+        sdk.WatchableType.Alias: response['qty']['alias'],
+        sdk.WatchableType.RuntimePublishedValue: response['qty']['rpv']
     }
 
 
-def parse_get_loaded_sfd(response:api_typing.S2C.GetLoadedSFD) -> Optional[sdk.SFDInfo]:
-        assert isinstance(response, dict)
-        assert 'cmd' in response
-        cmd = response['cmd']
-        assert cmd == API.Command.Api2Client.GET_LOADED_SFD_RESPONSE
+def parse_get_loaded_sfd(response: api_typing.S2C.GetLoadedSFD) -> Optional[sdk.SFDInfo]:
+    assert isinstance(response, dict)
+    assert 'cmd' in response
+    cmd = response['cmd']
+    assert cmd == API.Command.Api2Client.GET_LOADED_SFD_RESPONSE
 
-        _check_response_dict(cmd, response, 'firmware_id', (str, type(None)))
-        _check_response_dict(cmd, response, 'metadata', (dict, type(None)))
-        
-        if response['firmware_id'] is None:
-            return None
-        
-        return sdk.SFDInfo(
-            firmware_id=response['firmware_id'],
-            metadata=_read_sfd_metadata_from_incomplete_dict(response['metadata'])
-        )  
+    _check_response_dict(cmd, response, 'firmware_id', (str, type(None)))
+    _check_response_dict(cmd, response, 'metadata', (dict, type(None)))
+
+    if response['firmware_id'] is None:
+        return None
+
+    return sdk.SFDInfo(
+        firmware_id=response['firmware_id'],
+        metadata=_read_sfd_metadata_from_incomplete_dict(response['metadata'])
+    )
 
 
-def parser_server_stats(response:api_typing.S2C.GetServerStats) -> sdk.ServerStatistics:
+def parser_server_stats(response: api_typing.S2C.GetServerStats) -> sdk.ServerStatistics:
     assert isinstance(response, dict)
     assert 'cmd' in response
     cmd = response['cmd']
@@ -1049,21 +1058,20 @@ def parser_server_stats(response:api_typing.S2C.GetServerStats) -> sdk.ServerSta
     _check_response_dict(cmd, response, 'from_device_datarate_byte_per_sec', (float, int))
     _check_response_dict(cmd, response, 'device_request_per_sec', (float, int))
 
-
     return sdk.ServerStatistics(
-        uptime = float(response['uptime']),
-        invalid_request_count = response['invalid_request_count'],
-        unexpected_error_count = response['unexpected_error_count'],
-        client_count = response['client_count'],
-        to_all_clients_datarate_byte_per_sec = float(response['to_all_clients_datarate_byte_per_sec']),
-        from_any_client_datarate_byte_per_sec = float(response['from_any_client_datarate_byte_per_sec']),
-        msg_received = response['msg_received'],
-        msg_sent = response['msg_sent'],
-        device_session_count = response['device_session_count'],
-        to_device_datarate_byte_per_sec = float(response['to_device_datarate_byte_per_sec']),
-        from_device_datarate_byte_per_sec = float(response['from_device_datarate_byte_per_sec']),
-        device_request_per_sec = float(response['device_request_per_sec'])
-        )
+        uptime=float(response['uptime']),
+        invalid_request_count=response['invalid_request_count'],
+        unexpected_error_count=response['unexpected_error_count'],
+        client_count=response['client_count'],
+        to_all_clients_datarate_byte_per_sec=float(response['to_all_clients_datarate_byte_per_sec']),
+        from_any_client_datarate_byte_per_sec=float(response['from_any_client_datarate_byte_per_sec']),
+        msg_received=response['msg_received'],
+        msg_sent=response['msg_sent'],
+        device_session_count=response['device_session_count'],
+        to_device_datarate_byte_per_sec=float(response['to_device_datarate_byte_per_sec']),
+        from_device_datarate_byte_per_sec=float(response['from_device_datarate_byte_per_sec']),
+        device_request_per_sec=float(response['device_request_per_sec'])
+    )
 
 
 def parse_welcome(msg: api_typing.S2C.Welcome) -> WelcomeData:

@@ -18,6 +18,7 @@ from scrutiny import tools
 
 from scrutiny.tools.typing import *
 
+
 class AddAlias(BaseCommand):
     _cmd_name_ = 'add-alias'
     _brief_ = 'Append an alias to a SFD file or in making SFD work folder. Definition can be passed with a file or command line arguments.'

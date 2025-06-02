@@ -6,15 +6,16 @@
 #
 #   Copyright (c) 2025 Scrutiny Debugger
 
-if __name__ != '__main__' : 
+if __name__ != '__main__':
     raise RuntimeError("This script is expected to run from the command line")
 
-import sys, os
+import sys
+import os
 sys.path.insert(0, os.path.dirname(__file__))
 from manual_test_base import make_manual_test_app
 app = make_manual_test_app()
 
-from PySide6.QtWidgets import QMainWindow, QWidget,  QHBoxLayout
+from PySide6.QtWidgets import QMainWindow, QWidget, QHBoxLayout
 from scrutiny.gui import assets
 
 from scrutiny.gui.components.globals.varlist.varlist_component import VarListComponent

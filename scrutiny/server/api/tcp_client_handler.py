@@ -30,23 +30,27 @@ from scrutiny import tools
 
 from scrutiny.tools.typing import *
 
+
 class TCPClientHandlerConfig(TypedDict):
-    host:str
-    port:int
+    host: str
+    port: int
+
 
 @dataclass
 class _ThreadBasics:
-    thread:threading.Thread
-    started_event:threading.Event
-    stop_event:threading.Event
+    thread: threading.Thread
+    started_event: threading.Event
+    stop_event: threading.Event
+
 
 @dataclass
 class ClientInfo:
-    sock:socket.socket
-    conn_id:str
+    sock: socket.socket
+    conn_id: str
+
 
 class TCPClientHandler(AbstractClientHandler):
-    STREAM_MTU = 1024*1024
+    STREAM_MTU = 1024 * 1024
     STREAM_INTERCHUNK_TIMEOUT = 1.0
     STREAM_USE_HASH = True
     STREAM_USE_COMPRESSION = True
@@ -54,37 +58,37 @@ class TCPClientHandler(AbstractClientHandler):
 
     config: TCPClientHandlerConfig
     logger: logging.Logger
-    rx_event:Optional[threading.Event]
-    server_thread_info:Optional[_ThreadBasics]
-    server_sock:Optional[socket.socket]
-    selector:Optional[selectors.DefaultSelector]
+    rx_event: Optional[threading.Event]
+    server_thread_info: Optional[_ThreadBasics]
+    server_sock: Optional[socket.socket]
+    selector: Optional[selectors.DefaultSelector]
 
-    id2sock_map:Dict[str, socket.socket]
-    sock2id_map:Dict[socket.socket, str]
-    rx_queue:"queue.Queue[ClientHandlerMessage]"
-    stream_maker:StreamMaker
+    id2sock_map: Dict[str, socket.socket]
+    sock2id_map: Dict[socket.socket, str]
+    rx_queue: "queue.Queue[ClientHandlerMessage]"
+    stream_maker: StreamMaker
 
-    index_lock:threading.Lock
+    index_lock: threading.Lock
     force_silent: bool  # For unit testing of timeouts
-    rx_datarate_measurement:VariableRateExponentialAverager
-    tx_datarate_measurement:VariableRateExponentialAverager
+    rx_datarate_measurement: VariableRateExponentialAverager
+    tx_datarate_measurement: VariableRateExponentialAverager
 
-    rx_msg_count:int
-    tx_msg_count:int
+    rx_msg_count: int
+    tx_msg_count: int
 
-    def __init__(self, config: ClientHandlerConfig, rx_event:Optional[threading.Event]=None):
+    def __init__(self, config: ClientHandlerConfig, rx_event: Optional[threading.Event] = None):
         super().__init__(config, rx_event)
         if 'host' not in config:
             raise ValueError('Missing host in config')
         if 'port' not in config:
             raise ValueError('Missing port in config')
-        
+
         self.config = {
-            'host' : str(config['host']),
-            'port' : int(config['port'])
+            'host': str(config['host']),
+            'port': int(config['port'])
         }
         self.logger = logging.getLogger(self.__class__.__name__)
-        self.rx_event=rx_event
+        self.rx_event = rx_event
         self.server_thread_info = None
         self.id2sock_map = {}
         self.sock2id_map = {}
@@ -93,7 +97,7 @@ class TCPClientHandler(AbstractClientHandler):
         self.stream_maker = StreamMaker(
             mtu=self.STREAM_MTU,
             use_hash=self.STREAM_USE_HASH
-            )
+        )
         self.rx_queue = queue.Queue()
         self.index_lock = threading.Lock()
         self.force_silent = False
@@ -101,16 +105,16 @@ class TCPClientHandler(AbstractClientHandler):
         self.tx_datarate_measurement = VariableRateExponentialAverager(time_estimation_window=0.1, tau=0.5, near_zero=1)
         self.rx_msg_count = 0
         self.tx_msg_count = 0
-        
+
     def send(self, msg: ClientHandlerMessage) -> None:
         assert isinstance(msg, ClientHandlerMessage)
         try:
             # Using try/except to avoid race condition if the server thread deletes the client while sending
-            sock = self.id2sock_map[msg.conn_id]    
+            sock = self.id2sock_map[msg.conn_id]
         except KeyError:
             self.logger.error(f"Trying to send to inexistent client with ID {msg.conn_id}")
             return
-        
+
         data = json.dumps(msg.obj, indent=None, separators=(',', ':')).encode('utf8')
         payload = self.stream_maker.encode(data)
         self.logger.log(DUMPDATA_LOGLEVEL, f"Sending {len(payload)} bytes to client ID: {msg.conn_id}")
@@ -123,12 +127,11 @@ class TCPClientHandler(AbstractClientHandler):
         except OSError:
             # Client is gone. Did not get cleaned by the server thread. Should not happen.
             self.unregister_client(msg.conn_id)
-            
-    
+
     def get_port(self) -> Optional[int]:
         if self.server_sock is None:
             return None
-        
+
         _, port = self.server_sock.getsockname()
         return cast(int, port)
 
@@ -140,7 +143,6 @@ class TCPClientHandler(AbstractClientHandler):
         self.server_sock.listen()
         self.selector = selectors.DefaultSelector()
         self.selector.register(self.server_sock, selectors.EVENT_READ)
-        
 
         self.server_thread_info = _ThreadBasics(
             thread=threading.Thread(target=self.st_server_thread_fn),
@@ -163,20 +165,19 @@ class TCPClientHandler(AbstractClientHandler):
             server_thread_obj.join(2)
             if server_thread_obj.is_alive():
                 self.logger.error("Failed to stop the server. Join timed out")
-        
+
         while not self.rx_queue.empty():
             self.rx_queue.get()
-        
+
         for client_id in self.get_client_list():
             self.unregister_client(client_id)
 
         if self.selector is not None:
             self.selector.close()
-        
+
         self.server_thread_info = None
         self.server_sock = None
         self.selector = None
-
 
     def process(self) -> None:
         self.rx_datarate_measurement.update()
@@ -198,12 +199,12 @@ class TCPClientHandler(AbstractClientHandler):
                 sock = self.id2sock_map[conn_id]
             except KeyError:
                 return False
-        
+
         if sock.fileno() == -1:
             return False
-        
+
         return True
-    
+
     def get_number_client(self) -> int:
         with self.index_lock:
             return len(self.id2sock_map)
@@ -230,8 +231,8 @@ class TCPClientHandler(AbstractClientHandler):
         assert self.server_sock is not None
         assert self.selector is not None
         stream_parser = StreamParser(
-            mtu=self.STREAM_MTU, 
-            interchunk_timeout=self.STREAM_INTERCHUNK_TIMEOUT, 
+            mtu=self.STREAM_MTU,
+            interchunk_timeout=self.STREAM_INTERCHUNK_TIMEOUT,
         )
 
         try:
@@ -248,7 +249,7 @@ class TCPClientHandler(AbstractClientHandler):
                             self.logger.debug("Server socket is closed. Exiting server thread")
                             self.server_thread_info.stop_event.set()
                             break
-                        
+
                         self.st_register_client(sock, addr)
                         self.selector.register(sock, selectors.EVENT_READ)
                     else:
@@ -268,7 +269,7 @@ class TCPClientHandler(AbstractClientHandler):
                             # Socket got closed
                             self.unregister_client(client_id)
                             continue
-                                                            
+
                         if not data:
                             # Client is gone
                             self.unregister_client(client_id)
@@ -283,13 +284,12 @@ class TCPClientHandler(AbstractClientHandler):
                                 except json.JSONDecodeError as e:
                                     tools.log_exception(self.logger, e, f"Received malformed JSON from client {client_id}.")
                                     continue
-                                
+
                                 self.rx_queue.put(ClientHandlerMessage(conn_id=client_id, obj=obj))
-                                self.rx_msg_count+=1
+                                self.rx_msg_count += 1
                                 new_data = True
                 if new_data and self.rx_event is not None:
                     self.rx_event.set()
-                            
 
         except Exception as e:
             tools.log_exception(self.logger, e, "Unexpected error in server thread")
@@ -300,34 +300,32 @@ class TCPClientHandler(AbstractClientHandler):
     def get_client_list(self) -> List[str]:
         with self.index_lock:
             return list(self.id2sock_map.keys())
-            
-    def st_register_client(self, sock:socket.socket, sockaddr:str) -> str:
+
+    def st_register_client(self, sock: socket.socket, sockaddr: str) -> str:
         """Register a client. Called by the server thread (st)."""
         conn_id = uuid.uuid4().hex
         with self.index_lock:
             self.id2sock_map[conn_id] = sock
             self.sock2id_map[sock] = conn_id
-        
+
         self.logger.info(f"New client connected {sockaddr} (ID={conn_id}). {len(self.id2sock_map)} clients total")
-        
+
         try:
             self.new_conn_queue.put(conn_id)
         except queue.Full:
             self.logger.error(f"Failed to inform the API of the new connection {conn_id}. Queue full")
 
         return conn_id
-    
 
-    
-    def unregister_client(self, conn_id:str) -> None:
+    def unregister_client(self, conn_id: str) -> None:
         """Close the communication with a client and clear internal entry"""
         with self.index_lock:
             try:
                 sock = self.id2sock_map[conn_id]
             except KeyError:
                 return
-            
-            sockaddr : Optional[Tuple[str, int]] = None
+
+            sockaddr: Optional[Tuple[str, int]] = None
             with tools.SuppressException(OSError):
                 sockaddr = sock.getsockname()
                 sock.close()
@@ -335,7 +333,7 @@ class TCPClientHandler(AbstractClientHandler):
             with tools.SuppressException(KeyError):
                 if self.selector is not None:
                     self.selector.unregister(sock)
-        
+
             with tools.SuppressException(KeyError):
                 del self.id2sock_map[conn_id]
 

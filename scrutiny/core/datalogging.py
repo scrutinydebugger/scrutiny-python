@@ -30,6 +30,7 @@ from scrutiny.tools.typing import *
 if TYPE_CHECKING:
     import _csv
 
+
 @dataclass(frozen=True)
 class AxisDefinition:
     """(Immutable struct) Represent an axis"""
@@ -43,12 +44,13 @@ class AxisDefinition:
         validation.assert_type(self.name, 'name', str)
         validation.assert_type(self.axis_id, 'axis_id', int)
 
+
 @dataclass(frozen=True)
 class LoggedWatchable:
     """(Immutable struct) A structure that identifies a watchable element"""
-    path:str
+    path: str
     """The server path of the watchable monitored"""
-    type:WatchableType
+    type: WatchableType
     """The type of watchable"""
 
     def __post_init__(self) -> None:
@@ -66,7 +68,7 @@ class DataSeries:
     data: List[float]
     """The data stored as a list of 64 bits float"""
 
-    def __init__(self, data: List[float] = [], name:str = "unnamed", logged_watchable:Optional[LoggedWatchable]=None):
+    def __init__(self, data: List[float] = [], name: str = "unnamed", logged_watchable: Optional[LoggedWatchable] = None):
         self.name = name
         self.logged_watchable = logged_watchable
         self.data = data
@@ -94,7 +96,7 @@ class DataSeries:
     def get_data_binary(self) -> bytes:
         data = struct.pack('>' + 'd' * len(self.data), *self.data)
         return zlib.compress(data)
-    
+
     def __len__(self) -> int:
         return len(self.data)
 
@@ -117,7 +119,7 @@ class DataSeriesWithAxis:
 class DataloggingAcquisition:
     """Represent an acquisition of multiple signals"""
 
-    name: Optional[str] 
+    name: Optional[str]
     """A display name associated with the acquisition for easier management"""
 
     reference_id: str
@@ -170,7 +172,7 @@ class DataloggingAcquisition:
             raise TypeError('dataseries must be a Dataseries instance')
         if not isinstance(axis, AxisDefinition):
             raise TypeError('axis must be a AxisDefinition instance')
-        
+
         if dataseries.logged_watchable is None:
             raise ValueError("Y data must be tied to a watchable")
 

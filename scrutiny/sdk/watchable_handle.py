@@ -27,13 +27,14 @@ if TYPE_CHECKING:
 
 ValType = Union[int, float, bool]
 
+
 class WatchableHandle:
     """A handle to a server watchable element (Variable / Alias / RuntimePublishedValue) that gets updated by the client thread."""
 
     _client: "ScrutinyClient"   # The client that created this handle
     _display_path: str      # The display path
     _shortname: str         # Name of the last element in the display path
-    _configuration:Optional[WatchableConfiguration]
+    _configuration: Optional[WatchableConfiguration]
 
     _lock: threading.Lock   # A lock to access the value
     _status: ValueStatus            # Status of the value. Tells if the value is valid or not and why it is invalid if not
@@ -56,7 +57,7 @@ class WatchableHandle:
         addr = "0x%0.8x" % id(self)
         if self._configuration is None:
             return f'<{self.__class__.__name__} "{self._shortname}" [Unconfigured] at {addr}>'
-        
+
         return f'<{self.__class__.__name__} "{self._shortname}" [{self._configuration.datatype.name}] at {addr}>'
 
     def _configure(self, config: WatchableConfiguration) -> None:
@@ -74,7 +75,7 @@ class WatchableHandle:
         with self._lock:
             self._last_write_dt = dt
 
-    def _update_value(self, val: ValType, timestamp:Optional[datetime]=None) -> None:
+    def _update_value(self, val: ValType, timestamp: Optional[datetime] = None) -> None:
         with self._lock:
             if self._status != ValueStatus.ServerGone:
                 self._status = ValueStatus.Valid
@@ -101,7 +102,7 @@ class WatchableHandle:
 
         return val
 
-    def _write(self, val: Union[ValType, str], parse_enum:bool) -> WriteRequest:
+    def _write(self, val: Union[ValType, str], parse_enum: bool) -> WriteRequest:
         if parse_enum:
             if not isinstance(val, str):
                 raise ValueError(f"Value is not an enum string")
@@ -115,8 +116,8 @@ class WatchableHandle:
     def _assert_has_enum(self) -> None:
         if not self.has_enum():
             raise sdk_exceptions.BadEnumError(f"Watchable {self._shortname} has no enum defined")
-    
-    def _assert_configured(self)-> None:
+
+    def _assert_configured(self) -> None:
         if self._configuration is None:
             raise sdk_exceptions.InvalidValueError("This watchable handle is not ready to be used")
 
@@ -198,13 +199,13 @@ class WatchableHandle:
                     break
 
             time.sleep(sleep_interval)
-    
+
     def has_enum(self) -> bool:
         """Tells if the watchable has an enum associated with it"""
         self._assert_configured()
         assert self._configuration is not None
         return self._configuration.enum is not None
-    
+
     def get_enum(self) -> EmbeddedEnum:
         """ Returns the enum associated with this watchable
 
@@ -216,8 +217,8 @@ class WatchableHandle:
         self._assert_has_enum()
         assert self._configuration.enum is not None
         return self._configuration.enum.copy()
-    
-    def parse_enum_val(self, val:str) -> int:
+
+    def parse_enum_val(self, val: str) -> int:
         """Converts an enum value name (string) to the underlying integer value
 
         :param val: The enumerator name to convert
@@ -233,15 +234,15 @@ class WatchableHandle:
         assert self._configuration.enum is not None
         if not self._configuration.enum.has_value(val):
             raise sdk_exceptions.BadEnumError(f"Value {val} is not a valid value for enum {self._configuration.enum.name}")
-        
+
         return self._configuration.enum.get_value(val)
 
-    def write_value_str(self, val:str) -> None:
+    def write_value_str(self, val: str) -> None:
         """Write a value as a string and let the server parse it to a numerical value.
         Supports true/false, hexadecimal (with 0x prefix), float, int and possibly more. 
-        
+
         :param val: The string value
-        
+
         :raise TypeError: Given parameter not of the expected type
         :raise TimeoutException: If the request times out
         :raise OperationFailure: If the request fails for any reason, including an unparsable value.
@@ -302,7 +303,7 @@ class WatchableHandle:
     def value_float(self) -> float:
         """The value casted as float"""
         return float(self.value)
-    
+
     @property
     def value_enum(self) -> str:
         """The value converted to its first enum name (alphabetical order). Returns a string. Can be written with a string"""
@@ -314,7 +315,8 @@ class WatchableHandle:
         for k in sorted(self._configuration.enum.vals.keys()):
             if self._configuration.enum.vals[k] == val_int:
                 return k
-        raise sdk_exceptions.InvalidValueError(f"Watchable {self._shortname} has value {val_int} which is not a valid enum value for enum {self._configuration.enum.name}")
+        raise sdk_exceptions.InvalidValueError(
+            f"Watchable {self._shortname} has value {val_int} which is not a valid enum value for enum {self._configuration.enum.name}")
 
     @value_enum.setter
     def value_enum(self, val: str) -> None:

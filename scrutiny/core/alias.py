@@ -39,7 +39,7 @@ class Alias:
     """Optional max to apply on the value. +inf if ``None``"""
     max: Optional[float]
     """Optional min to apply on the value. -inf if ``None``"""
-    enum:Optional[EmbeddedEnum]
+    enum: Optional[EmbeddedEnum]
     """Optional enum to add on top of the value being watched"""
 
     @classmethod
@@ -64,16 +64,16 @@ class Alias:
         obj_out.validate()
         return obj_out
 
-    def __init__(self, 
-            fullpath: str, 
-            target: str, 
-            target_type: Optional[WatchableType] = None, 
-            gain: Optional[float] = None, 
-            offset: Optional[float] = None, 
-            min: Optional[float] = None, 
-            max: Optional[float] = None,
-            enum:Optional[EmbeddedEnum] = None
-        ):
+    def __init__(self,
+                 fullpath: str,
+                 target: str,
+                 target_type: Optional[WatchableType] = None,
+                 gain: Optional[float] = None,
+                 offset: Optional[float] = None,
+                 min: Optional[float] = None,
+                 max: Optional[float] = None,
+                 enum: Optional[EmbeddedEnum] = None
+                 ):
         self.fullpath = fullpath
         # Target type can be set later on.
         if target_type is not None:
@@ -140,7 +140,7 @@ class Alias:
 
         if self.max is not None and self.max != float('inf'):
             d['max'] = self.max
-        
+
         if self.enum is not None:
             d['enum'] = self.enum.get_def()
 
@@ -177,7 +177,7 @@ class Alias:
     def get_offset(self) -> float:
         return self.offset if self.offset is not None else 0.0
 
-    def compute_user_to_device(self, value: Union[int, float, bool], apply_saturation:bool=True) -> Union[int, float, bool]:
+    def compute_user_to_device(self, value: Union[int, float, bool], apply_saturation: bool = True) -> Union[int, float, bool]:
         """Transform the value received from the user before writing it to the device. Applies min, max, gain, offset"""
         if isinstance(value, int) or isinstance(value, float):
             if apply_saturation:

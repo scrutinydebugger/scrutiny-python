@@ -6,10 +6,11 @@
 #
 #   Copyright (c) 2025 Scrutiny Debugger
 
-if __name__ != '__main__' : 
+if __name__ != '__main__':
     raise RuntimeError("This script is expected to run from the command line")
 
-import sys, os
+import sys
+import os
 
 
 sys.path.insert(0, os.path.dirname(__file__))
@@ -24,7 +25,6 @@ from PySide6.QtWidgets import QMainWindow, QPushButton, QWidget, QVBoxLayout, QC
 from PySide6.QtCore import Qt
 
 
-
 window = QMainWindow()
 central_widget = QWidget()
 btn_show = QPushButton("show")
@@ -34,12 +34,17 @@ window.setCentralWidget(central_widget)
 layout = QVBoxLayout(central_widget)
 layout.addWidget(btn_show)
 layout.addWidget(chk_force_no_executable)
-def callback(dialog:ServerConfigDialog) -> None:
+
+
+def callback(dialog: ServerConfigDialog) -> None:
     print("callback. Config = %s" % dialog.get_config())
+
+
 runner = LocalServerRunner()
 dialog = ServerConfigDialog(parent=None, apply_callback=callback, local_server_runner=runner)
 
-def chk_force_no_executable_state_changed_slot(state:Qt.CheckState):
+
+def chk_force_no_executable_state_changed_slot(state: Qt.CheckState):
     if state == Qt.CheckState.Checked:
         runner.emulate_no_cli(True)
     else:

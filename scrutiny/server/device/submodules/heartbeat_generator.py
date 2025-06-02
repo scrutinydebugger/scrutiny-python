@@ -84,7 +84,7 @@ class HeartbeatGenerator:
         # If no request is being waited and we have a session ID assigned
         if self.pending == False and self.session_id is not None:
             if self.last_heartbeat_request is None or (time.monotonic() - self.last_heartbeat_request > self.interval):
-                if self.logger.isEnabledFor(logging.DEBUG): #pragma: no cover
+                if self.logger.isEnabledFor(logging.DEBUG):  # pragma: no cover
                     self.logger.debug('Registering a Heartbeat request')
                 self.dispatcher.register_request(
                     request=self.protocol.comm_heartbeat(session_id=self.session_id, challenge=self.challenge),
@@ -97,7 +97,7 @@ class HeartbeatGenerator:
 
     def success_callback(self, request: Request, response: Response, params: Any = None) -> None:
         """ Called by the dispatcher when a request is completed and succeeded"""
-        if self.logger.isEnabledFor(logging.DEBUG): #pragma: no cover
+        if self.logger.isEnabledFor(logging.DEBUG):  # pragma: no cover
             self.logger.debug("Success callback. Request=%s. Response Code=%s, Params=%s" % (request, response.code, params))
 
         expected_challenge_response = self.protocol.heartbeat_expected_challenge_response(self.challenge)
@@ -123,7 +123,7 @@ class HeartbeatGenerator:
 
     def failure_callback(self, request: Request, params: Any = None) -> None:
         """ Called by the dispatcher when a request is completed and failed to succeed"""
-        if self.logger.isEnabledFor(logging.DEBUG): #pragma: no cover
+        if self.logger.isEnabledFor(logging.DEBUG):  # pragma: no cover
             self.logger.debug("Failure callback. Request=%s. Params=%s" % (request, params))
         self.completed()
 

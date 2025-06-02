@@ -8,22 +8,24 @@
 
 __all__ = ['TextStreamListener']
 
-import sys 
+import sys
 import time
 
-from scrutiny.sdk.listeners import ValueUpdate,BaseListener
+from scrutiny.sdk.listeners import ValueUpdate, BaseListener
 from scrutiny.tools.typing import *
 from typing import TextIO
 
+
 class TextStreamListener(BaseListener):
-    _stream:TextIO
-    _start_time:float
-    def __init__(self, stream:TextIO=sys.stdout, *args:Any, **kwargs:Any):
+    _stream: TextIO
+    _start_time: float
+
+    def __init__(self, stream: TextIO = sys.stdout, *args: Any, **kwargs: Any):
         """
         Create a listener that writes every value update it receive into a text stream,
         by formatting the update into a single-line string representation of the form:
         ``<time>ms\\t(<type>/<datatype>) <path>: <value>``.
-         
+
         Where
 
         - <time> is the relative time in millisecond since the listener has been started
@@ -46,10 +48,11 @@ class TextStreamListener(BaseListener):
         self._start_time = time.perf_counter()
 
     def receive(self, updates: List[ValueUpdate]) -> None:
-        update_time = (time.perf_counter() - self._start_time)*1e3
+        update_time = (time.perf_counter() - self._start_time) * 1e3
         for update in updates:
-            self._stream.write(f'{update_time:0.2f}ms\t ({update.watchable.type.name}/{update.watchable.datatype.name}) {update.watchable.display_path}: {update.value}\n')
-    
+            self._stream.write(
+                f'{update_time:0.2f}ms\t ({update.watchable.type.name}/{update.watchable.datatype.name}) {update.watchable.display_path}: {update.value}\n')
+
     def teardown(self) -> None:
         self._stream.flush()
 

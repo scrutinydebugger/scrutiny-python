@@ -80,7 +80,6 @@ class TestDataloggingIntegration(ScrutinyIntegrationTestWithTestSFD1):
             if isinstance(entry, DatastoreVariableEntry):
                 self.emulated_device.write_memory(entry.get_address(), b'\x00' * entry.get_size())
 
- 
     def test_make_acquisition_normal_multiple_connect_disconnect(self):
         # We will create  a task that the emulated device will run in its thread. This task update some memory region with known pattern.
         class ValueUpdateTask:
@@ -128,7 +127,7 @@ class TestDataloggingIntegration(ScrutinyIntegrationTestWithTestSFD1):
                     self.send_request({
                         'cmd': API.Command.Client2Api.LIST_DATALOGGING_ACQUISITION,
                         'firmware_id': self.emulated_device.get_firmware_id_ascii(),
-                        'count' : 100
+                        'count': 100
                     })
                     response = self.wait_and_load_response(API.Command.Api2Client.LIST_DATALOGGING_ACQUISITION_RESPONSE)
                     self.assert_no_error(response)
@@ -249,7 +248,7 @@ class TestDataloggingIntegration(ScrutinyIntegrationTestWithTestSFD1):
                     self.send_request({
                         'cmd': API.Command.Client2Api.LIST_DATALOGGING_ACQUISITION,
                         'firmware_id': self.emulated_device.get_firmware_id_ascii(),
-                        'count' : 100
+                        'count': 100
                     })
 
                     response = self.wait_and_load_response(cmd=API.Command.Api2Client.LIST_DATALOGGING_ACQUISITION_RESPONSE)
