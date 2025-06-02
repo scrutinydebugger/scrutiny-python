@@ -11,7 +11,7 @@ import argparse
 import os
 
 from .base_command import BaseCommand
-from typing import Optional, List
+from scrutiny.tools.typing import *
 
 
 class TagFirmwareID(BaseCommand):

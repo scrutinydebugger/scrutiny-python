@@ -44,7 +44,7 @@ from scrutiny.gui.widgets.feedback_label import FeedbackLabel
 from scrutiny import tools
 from scrutiny.tools import validation
 from scrutiny.tools.typing import *
-from scrutiny.gui.tools.invoker import InvokeInQtThread
+from scrutiny.gui.tools.invoker import invoke_in_qt_thread
 from scrutiny.gui.core.export_chart_csv import export_chart_csv_threaded
 
 
@@ -919,7 +919,7 @@ class EmbeddedGraph(ScrutinyGUIBaseLocalComponent):
             # This runs in a different thread
             if exception is not None:
                 tools.log_exception(self.logger, exception, f"Error while saving graph into {filepath}" )
-                InvokeInQtThread(lambda: prompt.exception_msgbox(self, exception, "Failed to save", f"Failed to save the graph to {filepath}"))
+                invoke_in_qt_thread(lambda: prompt.exception_msgbox(self, exception, "Failed to save", f"Failed to save the graph to {filepath}"))
         
         loaded_sfd = self.server_manager.get_loaded_sfd()
         connected_device_info = self.server_manager.get_device_info()

@@ -6,11 +6,9 @@
 #
 #   Copyright (c) 2021 Scrutiny Debugger
 
-from struct import *
 import logging
-import traceback
 from enum import Enum
-import struct
+from struct import pack, unpack
 
 from .exceptions import *
 from . import commands as cmd
@@ -22,7 +20,7 @@ import scrutiny.server.datalogging.definitions.device as device_datalogging
 from scrutiny.server.device.device_info import ExecLoop, ExecLoopType, FixedFreqLoop, VariableFreqLoop
 from scrutiny import tools
 
-from typing import Union, List, Tuple, Optional, Dict, Any, cast
+from scrutiny.tools.typing import *
 
 
 class Protocol:
@@ -534,12 +532,12 @@ class Protocol:
                         if operand_type == device_datalogging.OperandType.Literal:
                             if len(req.payload) < cursor + 4:
                                 raise ValueError('Not enough data for operand #%d (Literal). Cursor = %d' % (i, cursor))
-                            operand = device_datalogging.LiteralOperand(value=struct.unpack('>f', req.payload[cursor:cursor + 4])[0])
+                            operand = device_datalogging.LiteralOperand(value=unpack('>f', req.payload[cursor:cursor + 4])[0])
                             cursor += 4
                         elif operand_type == device_datalogging.OperandType.RPV:
                             if len(req.payload) < cursor + 2:
                                 raise ValueError('Not enough data for operand #%d (RPV). Cursor = %d' % (i, cursor))
-                            operand = device_datalogging.RPVOperand(rpv_id=struct.unpack('>H', req.payload[cursor:cursor + 2])[0])
+                            operand = device_datalogging.RPVOperand(rpv_id=unpack('>H', req.payload[cursor:cursor + 2])[0])
                             cursor += 2
 
                         elif operand_type == device_datalogging.OperandType.Var:
@@ -695,7 +693,7 @@ class Protocol:
         return Response(cmd.GetInfo, cmd.GetInfo.Subfunction.GetRuntimePublishedValuesDefinition, Response.ResponseCode.OK, payload)
 
     def respond_get_loop_count(self, loop_count: int) -> Response:
-        return Response(cmd.GetInfo, cmd.GetInfo.Subfunction.GetLoopCount, Response.ResponseCode.OK, struct.pack('B', loop_count))
+        return Response(cmd.GetInfo, cmd.GetInfo.Subfunction.GetLoopCount, Response.ResponseCode.OK, pack('B', loop_count))
 
     def respond_get_loop_definition(self, loop_id: int, loop: ExecLoop) -> Response:
         data = bytearray()
@@ -704,10 +702,10 @@ class Protocol:
         if loop.support_datalogging:
             attribute_byte |= 0x80
 
-        data += struct.pack("BBB", loop_id, loop.get_loop_type().value, attribute_byte)
+        data += pack("BBB", loop_id, loop.get_loop_type().value, attribute_byte)
 
         if isinstance(loop, FixedFreqLoop):
-            data += struct.pack('>L', loop.get_timestep_100ns())
+            data += pack('>L', loop.get_timestep_100ns())
         elif isinstance(loop, VariableFreqLoop):
             pass
         else:
@@ -717,7 +715,7 @@ class Protocol:
         if len(encoded_name) > 32:
             raise ValueError("Name too long")
 
-        data += struct.pack('B', len(encoded_name))
+        data += pack('B', len(encoded_name))
         data += encoded_name
 
         return Response(cmd.GetInfo, cmd.GetInfo.Subfunction.GetLoopDefinition, Response.ResponseCode.OK, bytes(data))
@@ -1038,7 +1036,7 @@ class Protocol:
                         if len(response.payload) != 6:
                             raise ValueError('Not the right amount of data for a GetSetup response. Got %d expected %d' % (len(response.payload), 5))
 
-                        data['buffer_size'] = struct.unpack('>L', response.payload[0:4])[0]
+                        data['buffer_size'] = unpack('>L', response.payload[0:4])[0]
                         encoding_code = response.payload[4]
                         if encoding_code not in [v.value for v in device_datalogging.Encoding]:
                             raise ValueError('Unknown encoding %d' % encoding_code)
@@ -1065,11 +1063,11 @@ class Protocol:
                             raise ValueError('Not the right amount of data for a GetAcquisitionMetadata response. Got %d expected %d' %
                                              (len(response.payload), 16))
 
-                        data['acquisition_id'] = struct.unpack('>H', response.payload[0:2])[0]
-                        data['config_id'] = struct.unpack('>H', response.payload[2:4])[0]
-                        data['nb_points'] = struct.unpack('>L', response.payload[4:8])[0]
-                        data['datasize'] = struct.unpack('>L', response.payload[8:12])[0]
-                        data['points_after_trigger'] = struct.unpack('>L', response.payload[12:16])[0]
+                        data['acquisition_id'] = unpack('>H', response.payload[0:2])[0]
+                        data['config_id'] = unpack('>H', response.payload[2:4])[0]
+                        data['nb_points'] = unpack('>L', response.payload[4:8])[0]
+                        data['datasize'] = unpack('>L', response.payload[8:12])[0]
+                        data['points_after_trigger'] = unpack('>L', response.payload[12:16])[0]
                     elif subfn == cmd.DatalogControl.Subfunction.ReadAcquisition:
                         data = cast(protocol_typing.Response.DatalogControl.ReadAcquisition, data)
                         if len(response.payload) < 8:
@@ -1078,13 +1076,13 @@ class Protocol:
 
                         data['finished'] = response.payload[0] != 0
                         data['rolling_counter'] = response.payload[1]
-                        data['acquisition_id'] = struct.unpack('>H', response.payload[2:4])[0]
+                        data['acquisition_id'] = unpack('>H', response.payload[2:4])[0]
                         if not data['finished']:
                             data['data'] = response.payload[4:]
                             data['crc'] = None
                         else:
                             data['data'] = response.payload[4:-4]
-                            data['crc'] = struct.unpack('>L', response.payload[-4:])[0]
+                            data['crc'] = unpack('>L', response.payload[-4:])[0]
 
                 elif response.command == cmd.CommControl:
                     subfn = cmd.CommControl.Subfunction(response.subfn)

@@ -11,7 +11,7 @@ __all__ = ['IpPortValidator', 'NotEmptyValidator']
 from PySide6.QtGui import  QValidator
 from PySide6.QtWidgets import  QWidget
 
-from typing import Optional, Tuple
+from scrutiny.tools.typing import *
 
 class IpPortValidator(QValidator):
     def validate(self, val:Optional[str], pos:int) -> Tuple[QValidator.State, str, int]:

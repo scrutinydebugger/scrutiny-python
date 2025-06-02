@@ -16,7 +16,7 @@ from scrutiny.server.protocol import *
 import scrutiny.server.protocol.typing as protocol_typing
 from scrutiny.server.device.request_dispatcher import RequestDispatcher
 
-from typing import Optional, Tuple, Any, cast
+from scrutiny.tools.typing import *
 
 
 class DeviceSearcher:

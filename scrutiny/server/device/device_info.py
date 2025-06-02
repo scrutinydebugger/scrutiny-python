@@ -6,14 +6,13 @@
 #
 #   Copyright (c) 2021 Scrutiny Debugger
 
-from typing import TypedDict, List, Optional
-from scrutiny.core.basic_types import *
 from enum import Enum
 from abc import abstractmethod
+
+from scrutiny.core.basic_types import *
 import scrutiny.server.datalogging.definitions.device as device_datalogging
 
-from typing import Tuple
-
+from scrutiny.tools.typing import *
 
 class ExecLoopType(Enum):
     FIXED_FREQ = 0

@@ -9,8 +9,8 @@
 import argparse
 
 from .base_command import BaseCommand
-from typing import Optional, List
 from dataclasses import dataclass
+from scrutiny.tools.typing import *
 
 
 @dataclass

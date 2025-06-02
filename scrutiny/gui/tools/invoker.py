@@ -7,17 +7,18 @@
 #   Copyright (c) 2021 Scrutiny Debugger
 
 __all__ = [
-    'InvokeQueued',
-    'InvokeInQtThread',
-    'InvokeInQtThreadSynchronized'
+    'invoke_later',
+    'invoke_in_qt_thread',
+    'invoke_in_qt_thread_synchronized'
 ]
 
 from scrutiny import tools
 from scrutiny.gui.core.threads import QT_THREAD_NAME
 from scrutiny.tools.thread_enforcer import enforce_thread
-from typing import Callable, Optional, TypeVar, cast
 from PySide6.QtCore import QObject, Signal, Qt, QTimer
 from PySide6.QtWidgets import QApplication
+
+from scrutiny.tools.typing import *
 
 class CrossThreadInvoker(QObject):
     called_signal = Signal()
@@ -82,22 +83,22 @@ class QueuedInvoker(QObject):
 
 
 @enforce_thread(QT_THREAD_NAME)
-def InvokeQueued(method: Callable[[], None]) -> None:
+def invoke_later(method: Callable[[], None]) -> None:
     """Enqueue a function to be executed at the back of the event queue"""
     QueuedInvoker.instance().exec(method)
 
-def InvokeInQtThread(method: Callable[[], None]) -> None:
+def invoke_in_qt_thread(method: Callable[[], None]) -> None:
     """Runs a function in the QT thread"""
     CrossThreadInvoker.instance().exec(method)
 
 T = TypeVar('T')
-def InvokeInQtThreadSynchronized(method: Callable[[], T], timeout:Optional[int]=None) -> T:
+def invoke_in_qt_thread_synchronized(method: Callable[[], T], timeout:Optional[int]=None) -> T:
     """Runs a function in the QT thread and wait for its completion. Returns its return value. 
     If an exception is raised in the function, it will be raised in the caller thread"""
 
     syncer:tools.ThreadSyncer[T] = tools.ThreadSyncer()
 
-    InvokeInQtThread(syncer.executor_func(method))
+    invoke_in_qt_thread(syncer.executor_func(method))
     syncer.finished.wait(timeout)
 
     if not syncer.finished.is_set():

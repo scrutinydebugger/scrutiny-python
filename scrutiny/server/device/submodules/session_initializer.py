@@ -13,7 +13,7 @@ from scrutiny.server.protocol import *
 import scrutiny.server.protocol.typing as protocol_typing
 from scrutiny.server.device.request_dispatcher import RequestDispatcher
 from scrutiny import tools
-from typing import Optional, Any, cast
+from scrutiny.tools.typing import *
 
 
 class SessionInitializer:

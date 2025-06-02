@@ -16,8 +16,8 @@ import struct
 from scrutiny.core.basic_types import Endianness, EmbeddedDataType
 from scrutiny.core.embedded_enum import EmbeddedEnum
 from scrutiny.core.codecs import Codecs, Encodable, UIntCodec
-from typing import Dict, Union, List, Literal, Optional,  Tuple
 from copy import deepcopy
+from scrutiny.tools.typing import *
 
 MASK_MAP: Dict[int, int] = {}
 for i in range(64):

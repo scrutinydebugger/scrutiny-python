@@ -7,7 +7,7 @@
 #   Copyright (c) 2021 Scrutiny Debugger
 
 import math 
-from typing import Optional, Sequence
+from scrutiny.tools.typing import *
 
 class MinMax:
     low:float

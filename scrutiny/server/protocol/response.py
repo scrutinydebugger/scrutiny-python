@@ -10,10 +10,10 @@ import struct
 import inspect
 from enum import Enum
 
-from .crc32 import crc32
-from .commands.base_command import BaseCommand
+from scrutiny.server.protocol.crc32 import crc32
+from scrutiny.server.protocol.commands.base_command import BaseCommand
 
-from typing import Union, Type
+from scrutiny.tools.typing import *
 
 
 class Response:

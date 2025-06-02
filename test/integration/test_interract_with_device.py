@@ -6,12 +6,12 @@
 #
 #   Copyright (c) 2021 Scrutiny Debugger
 
+import functools
+import time
 from scrutiny.server.api import API
 from scrutiny.server.api import typing as api_typing
 from scrutiny.core.basic_types import *
-import functools
-from typing import *
-import time
+from scrutiny.tools.typing import *
 
 from test.integration.integration_test import ScrutinyIntegrationTestWithTestSFD1
 

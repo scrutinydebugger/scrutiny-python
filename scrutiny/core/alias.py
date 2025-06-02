@@ -12,7 +12,7 @@ import math
 from scrutiny.core.basic_types import WatchableType
 from scrutiny.core.embedded_enum import EmbeddedEnum
 
-from typing import Dict, Optional, Any, Union
+from scrutiny.tools.typing import *
 
 
 class Alias:

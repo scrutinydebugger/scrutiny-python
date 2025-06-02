@@ -6,7 +6,7 @@
 #
 #   Copyright (c) 2021 Scrutiny Debugger
 
-from typing import Any
+from scrutiny.tools.typing import *
 
 class InvalidRequestException(Exception):
     """Raised when a bad request is received through the API"""

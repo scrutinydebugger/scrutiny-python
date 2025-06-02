@@ -6,9 +6,8 @@
 #
 #   Copyright (c) 2021 Scrutiny Debugger
 
-import threading
 from .abstract_link import AbstractLink, LinkConfig
-from typing import Dict, Any, Optional
+from scrutiny.tools.typing import *
 import queue
 
 class DummyLink(AbstractLink):

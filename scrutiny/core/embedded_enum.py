@@ -6,7 +6,7 @@
 #
 #   Copyright (c) 2021 Scrutiny Debugger
 
-from typing import TypedDict, Dict, Optional
+from scrutiny.tools.typing import *
 
 __all__ = ['EmbeddedEnum', 'EmbeddedEnumDef']
 

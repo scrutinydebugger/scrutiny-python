@@ -30,7 +30,7 @@ from scrutiny.core.codecs import *
 from scrutiny.server.device.device_info import ExecLoop, VariableFreqLoop, FixedFreqLoop
 from scrutiny.server.protocol.crc32 import crc32
 
-from typing import List, Dict, Optional, Union, Any, Tuple, TypedDict, cast, Deque, Callable
+from scrutiny.tools.typing import *
 
 
 class NotAllowedException(Exception):

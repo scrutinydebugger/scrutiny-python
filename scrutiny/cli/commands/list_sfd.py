@@ -8,12 +8,12 @@
 #   Copyright (c) 2021 Scrutiny Debugger
 
 import argparse
-from .base_command import BaseCommand
-from typing import Optional, List
 import logging
-import time
 from scrutiny import tools
 from datetime import datetime
+from .base_command import BaseCommand
+
+from scrutiny.tools.typing import *
 
 
 class PrintableSFDEntry:

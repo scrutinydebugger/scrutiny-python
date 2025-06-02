@@ -7,7 +7,7 @@
 #   Copyright (c) 2021 Scrutiny Debugger
 
 from abc import ABC, abstractmethod
-from typing import Optional, Dict, Any
+from scrutiny.tools.typing import *
 
 LinkConfig = Dict[str, Any]
 

@@ -27,7 +27,7 @@ import functools
 import struct
 
 
-from typing import List, Dict, Generator, cast, Tuple, Optional
+from scrutiny.tools.typing import *
 
 
 class BlockToRead:

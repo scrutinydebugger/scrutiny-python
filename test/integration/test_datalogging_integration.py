@@ -8,21 +8,19 @@
 #   Copyright (c) 2021 Scrutiny Debugger
 
 import struct
+from binascii import hexlify, unhexlify
+import time
+import math
 
-from scrutiny.server.timebase import server_timebase
 from scrutiny.server.api import API
 import scrutiny.server.api.typing as api_typing
-from scrutiny.server.sfd_storage import SFDStorage
 from scrutiny.server.datastore.datastore_entry import *
 from scrutiny.server.device.device_handler import DeviceHandler
 from scrutiny.core.basic_types import *
 from scrutiny.core.codecs import *
 from scrutiny.server.device.device_info import *
-from typing import List, cast
+from scrutiny.tools.typing import *
 from scrutiny.server.datalogging.datalogging_storage import DataloggingStorage
-from binascii import hexlify, unhexlify
-import time
-import math
 
 
 from test.integration.integration_test import ScrutinyIntegrationTestWithTestSFD1

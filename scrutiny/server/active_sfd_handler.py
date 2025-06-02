@@ -7,7 +7,6 @@
 #   Copyright (c) 2021 Scrutiny Debugger
 
 import logging
-import traceback
 
 from scrutiny.core.firmware_description import FirmwareDescription
 from scrutiny.server.sfd_storage import SFDStorage
@@ -17,7 +16,7 @@ from scrutiny.server.datastore.datastore import Datastore
 from scrutiny.server.datastore.datastore_entry import DatastoreAliasEntry, DatastoreVariableEntry
 from scrutiny import tools
 
-from typing import Optional, List, Callable
+from scrutiny.tools.typing import *
 
 
 SFDLoadedCallback = Callable[[FirmwareDescription], None]

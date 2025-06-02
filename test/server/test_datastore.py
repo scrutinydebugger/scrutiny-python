@@ -13,7 +13,7 @@ from scrutiny.core.variable import *
 from scrutiny.core.embedded_enum import EmbeddedEnum
 from scrutiny.core.basic_types import *
 from test import ScrutinyUnitTest
-from typing import Dict, Optional
+from scrutiny.tools.typing import *
 
 dummy_callback = lambda *args, **kwargs: None
 

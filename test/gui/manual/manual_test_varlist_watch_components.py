@@ -19,7 +19,7 @@ from scrutiny.gui.components.globals.varlist.varlist_component import VarListCom
 from scrutiny.gui.components.locals.watch.watch_component import WatchComponent
 from scrutiny.gui.core.watchable_registry import WatchableRegistry
 from test.gui.fake_server_manager import FakeServerManager, ServerConfig
-from typing import List
+from scrutiny.tools.typing import *
 
 window = QMainWindow()
 central_widget = QWidget()

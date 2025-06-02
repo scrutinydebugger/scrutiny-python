@@ -17,11 +17,11 @@ __all__ = [
 ]
 
 from abc import ABC, abstractmethod
-from scrutiny.core.basic_types import Endianness, EmbeddedDataType
 import struct
-
-from typing import Union, Optional
 import math
+
+from scrutiny.core.basic_types import Endianness, EmbeddedDataType
+from scrutiny.tools.typing import *
 
 Encodable = Union[int, float, bool]
 

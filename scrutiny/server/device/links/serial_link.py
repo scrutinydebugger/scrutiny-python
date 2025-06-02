@@ -7,13 +7,11 @@
 #   Copyright (c) 2021 Scrutiny Debugger
 
 import logging
-
-from .abstract_link import AbstractLink, LinkConfig
-
-from typing import Optional, Dict, TypedDict, cast, Union
 import serial   # type: ignore
 import time
-from scrutiny.core.logging import DUMPDATA_LOGLEVEL
+
+from scrutiny.server.device.links.abstract_link import AbstractLink, LinkConfig
+from scrutiny.tools.typing import *
 
 class SerialConfig(TypedDict):
     """

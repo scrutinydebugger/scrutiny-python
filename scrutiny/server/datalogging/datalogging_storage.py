@@ -20,7 +20,7 @@ from scrutiny.server.globals import get_server_storage
 from scrutiny.core.datalogging import DataloggingAcquisition, DataSeries, AxisDefinition, LoggedWatchable
 from scrutiny.core.basic_types import WatchableType
 from scrutiny import tools
-from typing import List, Dict, Optional, Tuple, Type, Literal, Any
+from scrutiny.tools.typing import *
 
 from scrutiny import tools
 

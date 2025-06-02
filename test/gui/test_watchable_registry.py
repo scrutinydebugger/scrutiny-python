@@ -17,8 +17,7 @@ from scrutiny.gui.core.threads import QT_THREAD_NAME
 
 from test import ScrutinyUnitTest
 from datetime import datetime
-from typing import Optional
-from typing import List, Tuple
+from scrutiny.tools.typing import *
 
 DUMMY_DATASET_RPV = {
     '/rpv/rpv1000' : sdk.WatchableConfiguration(server_id='rpv_111', watchable_type=sdk.WatchableType.RuntimePublishedValue, datatype=sdk.EmbeddedDataType.float32, enum=None),

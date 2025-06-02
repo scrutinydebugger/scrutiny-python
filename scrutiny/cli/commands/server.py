@@ -10,7 +10,7 @@ import argparse
 import logging
 
 from .base_command import BaseCommand
-from typing import Optional, List, Any, Dict, cast
+from scrutiny.tools.typing import *
 
 class Server(BaseCommand):
     _cmd_name_ = 'server'

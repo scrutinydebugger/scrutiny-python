@@ -1,4 +1,4 @@
-from typing import Iterable, Dict, Any, Optional
+from scrutiny.tools.typing import *
 
 
 class DwarfInfo:

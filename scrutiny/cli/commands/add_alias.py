@@ -8,12 +8,13 @@
 #   Copyright (c) 2021 Scrutiny Debugger
 
 import argparse
-from .base_command import BaseCommand
-from typing import Optional, List
 import logging
 import os
+
+from .base_command import BaseCommand
 from scrutiny import tools
 
+from scrutiny.tools.typing import *
 
 class AddAlias(BaseCommand):
     _cmd_name_ = 'add-alias'

@@ -8,6 +8,12 @@
 
 import unittest
 
+from copy import copy
+from datetime import datetime, timedelta
+import logging
+import time
+from base64 import b64encode
+
 import scrutiny.sdk._api_parser as parser
 from scrutiny.core.basic_types import *
 from scrutiny.sdk.definitions import *
@@ -15,14 +21,9 @@ import scrutiny.server.api.typing as api_typing
 import scrutiny.sdk
 import scrutiny.sdk.datalogging
 sdk = scrutiny.sdk  # Workaround for vscode linter an submodule on alias
-from copy import copy
-from datetime import datetime, timedelta
-import logging
-from test import ScrutinyUnitTest
-from typing import *
-import time
-from base64 import b64encode, b64decode
 
+from test import ScrutinyUnitTest
+from scrutiny.tools.typing import *
 
 class TestApiParser(ScrutinyUnitTest):
         

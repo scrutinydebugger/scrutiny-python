@@ -19,7 +19,7 @@ from scrutiny.gui.dialogs.device_info_dialog import DeviceInfoDialog
 from scrutiny.sdk import *
 from dataclasses import dataclass
 
-from typing import Optional, List
+from scrutiny.tools.typing import *
 
 @dataclass
 class Config:

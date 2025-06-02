@@ -62,7 +62,7 @@ import traceback
 import struct
 from datetime import datetime, timedelta
 
-from typing import *
+from scrutiny.tools.typing import *
 
 localhost = "127.0.0.1"
 

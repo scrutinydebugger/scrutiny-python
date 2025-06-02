@@ -19,7 +19,7 @@ from scrutiny.gui.themes import scrutiny_get_theme
 
 from scrutiny.tools.typing import *
 from scrutiny.tools import get_default_val
-from scrutiny.gui.tools.invoker import InvokeQueued
+from scrutiny.gui.tools.invoker import invoke_later
 
 class AcquisitionStorageEntryTreeModel(BaseTreeModel):
     """The model used for the acquisition list treeview"""
@@ -184,7 +184,7 @@ class AcquisitionStorageEntryTreeView(BaseTreeView):
             line_edits = cast(List[QLineEdit], self.findChildren(QLineEdit))
             if line_edits is not None and len(line_edits) == 1:
                 line_edits[0].selectAll()
-        InvokeQueued(select_text)
+        invoke_later(select_text)
     
     def closeEditor(self, editor:QWidget, hint:QAbstractItemDelegate.EndEditHint) -> None:
         """Called when the user finishes editing an item"""

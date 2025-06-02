@@ -7,9 +7,7 @@
 #   Copyright (c) 2021 Scrutiny Debugger
 
 import time
-
-from typing import Union, Optional
-
+from scrutiny.tools.typing import *
 
 class Timer:
     """

@@ -17,7 +17,7 @@ from scrutiny.core.embedded_enum import EmbeddedEnum
 import scrutiny.sdk.exceptions as sdk_exceptions
 from scrutiny.sdk.write_request import WriteRequest
 from scrutiny.tools import validation
-from typing import Optional, Union, TYPE_CHECKING
+from scrutiny.tools.typing import *
 
 if TYPE_CHECKING:
     from scrutiny.sdk.client import ScrutinyClient

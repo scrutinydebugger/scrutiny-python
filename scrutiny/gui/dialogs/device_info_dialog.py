@@ -10,16 +10,16 @@ __all__ = ['DeviceInfoDialog']
 
 from PySide6.QtWidgets import QDialog, QFormLayout, QLabel, QWidget, QVBoxLayout, QGroupBox, QGridLayout
 from PySide6.QtCore import Qt
-from typing import Optional, List, Union, Tuple
 
+from scrutiny.tools.typing import *
 from scrutiny.sdk import DeviceInfo, SupportedFeatureMap, MemoryRegion, SamplingRate, FixedFreqSamplingRate, VariableFreqSamplingRate
 
-def configure_property_label(label:QLabel, has_tooltip:bool) -> None:
+def _configure_property_label(label:QLabel, has_tooltip:bool) -> None:
     if has_tooltip:
         label.setCursor(Qt.CursorShape.WhatsThisCursor)
     label.setTextInteractionFlags(Qt.TextInteractionFlag.TextSelectableByMouse)
 
-def configure_value_label(label:QLabel) -> None:
+def _configure_value_label(label:QLabel) -> None:
     label.setCursor(Qt.CursorShape.IBeamCursor)
     label.setTextInteractionFlags(Qt.TextInteractionFlag.TextSelectableByMouse)    
 
@@ -45,8 +45,8 @@ class SupportedFeatureList(QWidget):
             value_label.setProperty("feature_enable", enable)
             feature_label = QLabel(f"- {title} :")
             feature_label.setToolTip(tooltip)
-            configure_property_label(feature_label, has_tooltip=True)
-            configure_value_label(value_label)
+            _configure_property_label(feature_label, has_tooltip=True)
+            _configure_value_label(value_label)
             layout.addRow(feature_label, value_label)
         
         layout.setSpacing(1)
@@ -64,13 +64,13 @@ class MemoryRegionList(QWidget):
             s1 =  format_string % region.start
             s2 =  format_string % region.end
             label =  QLabel(f"- {s1}-{s2}")
-            configure_value_label(label)
+            _configure_value_label(label)
             return label
 
         layout = QVBoxLayout(self)
         if len(regions) == 0:
             label = QLabel("None")
-            configure_value_label(label)
+            _configure_value_label(label)
             layout.addWidget( label )
         else:
             for region in regions:
@@ -99,14 +99,14 @@ class SamplingRateList(QWidget):
                 NotImplementedError("Unsupported sampling rate type")
             all_labels = (id_label, name_label, freq_label)
             for label in all_labels:
-                configure_value_label(label)
+                _configure_value_label(label)
             return all_labels
 
         layout:Union[QVBoxLayout, QGridLayout]
         if len(sampling_rates) == 0:
             layout = QVBoxLayout(self)
             label = QLabel("None")
-            configure_value_label(label)
+            _configure_value_label(label)
             layout.addWidget( label )
         else:
             layout = QGridLayout()
@@ -136,14 +136,14 @@ class DeviceInfoDisplayTable(QWidget):
     def add_row(self, label_txt:str, item:Union[str, QWidget], tooltip:Optional[str]=None) -> None:
         label = QLabel(label_txt)
         has_tooltip=True if tooltip is not None else False
-        configure_property_label(label, has_tooltip=has_tooltip)
+        _configure_property_label(label, has_tooltip=has_tooltip)
         if tooltip is not None:
             label.setToolTip(tooltip)
         if isinstance(item, str):
             item=QLabel(item)
         
         if isinstance(item, QLabel):
-            configure_value_label(item)
+            _configure_value_label(item)
 
         is_odd = self.form_layout.rowCount() % 2 == 0    # Check for 0 because we evaluate for next node
         odd_even = "odd" if is_odd else "even"
@@ -180,7 +180,7 @@ class DeviceInfoDialog(QDialog):
         def add_section_text(title:str, text:str) -> QLabel:
             text_layout = add_section(title)
             label = QLabel(text)
-            configure_value_label(label)
+            _configure_value_label(label)
             text_layout.addWidget(label)
             return label
 

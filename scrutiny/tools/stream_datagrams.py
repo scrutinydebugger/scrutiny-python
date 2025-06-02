@@ -9,24 +9,25 @@
 
 __all__ = ['StreamMaker', 'StreamParser']
 
-from typing import Optional, Any, Union, cast
+from dataclasses import dataclass
 from hashlib import md5
 import queue
 import re
 import logging
 import time
 import zlib
-from dataclasses import dataclass
-from scrutiny.tools.profiling import VariableRateExponentialAverager
+
+from scrutiny.tools.typing import *
 
 HASH_SIZE = 16
 HASH_FUNC = md5 # Fastest 128bits+
 MAX_MTU=2**32-1
 DEFAULT_COMPRESS=True
 COMPRESSION_LEVEL=1
-MAX_HEADER_LENGTH = len("<SCRUTINY size=00000000 flags=c>")
+MAX_HEADER_LENGTH = len("<SCRUTINY size=00000000 flags=ch>")
 
 class StreamMaker:
+    """Tool that encapsulate a chunk of data in a sized datagram with a header that can be sent onto a stream for reconstruction"""
     _use_hash:bool
     _mtu:int
     _compress:bool
@@ -67,6 +68,7 @@ class PayloadProperties:
     use_hash:bool
 
 class StreamParser:
+    """A parser that reads a stream and extracts datagrams """
     _payload_properties:Optional[PayloadProperties]
     _bytes_read:int
     _buffer:bytearray

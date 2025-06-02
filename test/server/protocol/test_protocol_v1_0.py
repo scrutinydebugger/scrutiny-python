@@ -17,7 +17,7 @@ from test import ScrutinyUnitTest
 from scrutiny.server.device.device_info import *
 
 from scrutiny.server.protocol.crc32 import crc32
-from typing import List, cast
+from scrutiny.tools.typing import *
 
 
 def d2f(d):

@@ -10,7 +10,7 @@
 from scrutiny.server.datastore.datastore_entry import DatastoreEntry
 from scrutiny import tools
 
-from typing import List, Set, Dict
+from scrutiny.tools.typing import *
 
 
 class ValueStreamer:

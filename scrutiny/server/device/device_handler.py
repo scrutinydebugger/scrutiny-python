@@ -34,7 +34,6 @@ from dataclasses import dataclass
 from scrutiny.server.datastore.datastore_entry import DatastoreRPVEntry
 import scrutiny.server.datalogging.definitions.device as device_datalogging
 from scrutiny.server.protocol import *
-import scrutiny.server.protocol.typing as protocol_typing
 from scrutiny.server.protocol.comm_handler import CommHandler
 from scrutiny.server.protocol.commands import DummyCommand
 from scrutiny.server.device.request_dispatcher import RequestDispatcher, RequestRecord
@@ -53,7 +52,7 @@ from scrutiny.core.firmware_id import PLACEHOLDER as DEFAULT_FIRMWARE_ID
 from scrutiny.core.basic_types import WatchableType
 from scrutiny import tools
 
-from typing import TypedDict, Optional, Callable, Any, Dict, cast, List
+from scrutiny.tools.typing import *
 
 DEFAULT_FIRMWARE_ID_ASCII = binascii.hexlify(DEFAULT_FIRMWARE_ID).decode('ascii')
 """Default firmware ID assigned to a binary that uses libscrutiny-embedded without tagging the binary after compilation"""

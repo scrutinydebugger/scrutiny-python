@@ -10,24 +10,23 @@
 #
 #   Copyright (c) 2021 Scrutiny Debugger
 
+import logging
+import struct
+import time
+import queue
+import threading
+
+from copy import copy
+from binascii import hexlify
+from dataclasses import dataclass
+
+from scrutiny import tools
+from scrutiny.server.device.links import AbstractLink, LinkConfig
+from scrutiny.tools.profiling import VariableRateExponentialAverager
 from scrutiny.server.protocol import Request, Response
 from scrutiny.tools import Timer, Throttler
 from scrutiny.core.logging import DUMPDATA_LOGLEVEL
-from copy import copy
-import logging
-import struct
-from binascii import hexlify
-import time
-from scrutiny.server.device.links import AbstractLink, LinkConfig
-import traceback
-import queue
-from dataclasses import dataclass
-from scrutiny.tools.profiling import VariableRateExponentialAverager
-from scrutiny import tools
-
-from typing import TypedDict, Optional, Any, Dict, Type, cast
-import threading
-
+from scrutiny.tools.typing import *
 
 class CommHandler:
     """

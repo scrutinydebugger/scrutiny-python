@@ -14,7 +14,7 @@ import os
 from binascii import hexlify
 import shutil
 
-from typing import Optional
+from scrutiny.tools.typing import *
 
 
 class FirmwareParser:

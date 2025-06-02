@@ -8,8 +8,7 @@
 
 import argparse
 from .base_command import BaseCommand
-from typing import Optional, List
-import logging
+from scrutiny.tools.typing import *
 
 
 class MakeSFD(BaseCommand):

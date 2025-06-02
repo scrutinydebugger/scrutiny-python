@@ -21,7 +21,7 @@ from test import SkipOnException
 import elftools
 
 
-from typing import Optional
+from scrutiny.tools.typing import *
 
 
 class BaseCTestAppMakeVarmapTest:

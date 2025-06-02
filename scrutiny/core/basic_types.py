@@ -19,7 +19,7 @@ __all__ = [
 from enum import Enum
 from dataclasses import dataclass
 from scrutiny.tools import validation
-from typing import Union, List
+from scrutiny.tools.typing import *
 
 @dataclass(frozen=True)
 class MemoryRegion:

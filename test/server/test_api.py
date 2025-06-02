@@ -12,6 +12,7 @@ import random
 import string
 import json
 import math
+import logging
 from uuid import uuid4
 from scrutiny.core.basic_types import RuntimePublishedValue, MemoryRegion
 from base64 import b64encode, b64decode
@@ -42,10 +43,8 @@ from test import ScrutinyUnitTest
 from scrutiny.server.datalogging.datalogging_storage import DataloggingStorage
 from datetime import datetime
 import scrutiny.server.api.typing as api_typing
-from typing import cast
-import logging
+from scrutiny.tools.typing import *
 
-from typing import Optional, Dict, Any, List, Tuple, TypedDict
 
 # todo
 # - Test rate limiter/data streamer

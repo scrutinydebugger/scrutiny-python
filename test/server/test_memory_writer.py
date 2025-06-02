@@ -26,7 +26,7 @@ from dataclasses import dataclass
 import random
 import functools
 import math
-from typing import List, Generator, cast, Optional
+from scrutiny.tools.typing import *
 
 
 def make_dummy_var_entries(address, n, vartype=EmbeddedDataType.float32) -> Generator[DatastoreVariableEntry, None, None]:

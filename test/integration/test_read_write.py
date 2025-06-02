@@ -14,12 +14,11 @@ from scrutiny.server.datastore.datastore_entry import *
 from scrutiny.core.basic_types import *
 from scrutiny.core.codecs import *
 from scrutiny.server.protocol import commands as protocol_commands
-from typing import List
 from dataclasses import dataclass
 from binascii import unhexlify
-from typing import *
 import functools
 import math
+from scrutiny.tools.typing import *
 
 from test.integration.integration_test import ScrutinyIntegrationTestWithTestSFD1
 

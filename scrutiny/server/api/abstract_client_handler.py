@@ -7,12 +7,12 @@
 #   Copyright (c) 2021 Scrutiny Debugger
 
 from abc import abstractmethod
-from typing import Dict, Optional, Union, Generator, Set
 from dataclasses import dataclass
 import threading
 import queue
 
 import scrutiny.server.api.typing as api_typing
+from scrutiny.tools.typing import *
 
 ClientHandlerConfig = Dict[str, str]
 

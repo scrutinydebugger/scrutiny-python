@@ -12,7 +12,7 @@ from scrutiny.gui.core.watchable_registry import WatchableRegistry
 from scrutiny.gui.core.server_manager import ServerConfig
 from scrutiny import sdk
 
-from typing import Optional, Union, Callable
+from scrutiny.tools.typing import *
 
 enum_rpv_a_c = sdk.EmbeddedEnum("EnumAC", {'aaa' : 0, 'bbb': 1, 'ccc': 2})
 

@@ -17,7 +17,7 @@ import tempfile
 import types
 from scrutiny import tools
 
-from typing import List, Optional, Type, Literal
+from scrutiny.tools.typing import *
 
 
 class TempStorageWithAutoRestore:

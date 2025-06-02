@@ -13,7 +13,7 @@ from scrutiny.sdk.listeners import ValueUpdate
 from . import BaseListener
 
 import queue
-from typing import List,  Any
+from scrutiny.tools.typing import *
 
 class BufferedReaderListener(BaseListener):
     _queue:"queue.Queue[ValueUpdate]"

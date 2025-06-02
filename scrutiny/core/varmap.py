@@ -14,8 +14,8 @@ import logging
 
 from scrutiny.core.variable import Variable, VariableLocation
 from scrutiny.core.basic_types import EmbeddedDataType, Endianness
-from typing import Dict, TypedDict, List, Tuple, Optional, Any, Union, Generator
 from scrutiny.core.embedded_enum import EmbeddedEnum, EmbeddedEnumDef
+from scrutiny.tools.typing import *
 
 
 class TypeEntry(TypedDict):

@@ -11,16 +11,16 @@ __all__ = ['ApplicationStatsDisplay']
 from PySide6.QtWidgets import QWidget, QFormLayout, QLabel, QGroupBox, QVBoxLayout
 from PySide6.QtCore import Qt
 from scrutiny import sdk
-from typing import Union, Optional
 from scrutiny.gui.core.server_manager import ServerManager
 from scrutiny.tools import format_eng_unit, format_sec_to_dhms
+from scrutiny.tools.typing import *
 
-def configure_property_label(label:QLabel, has_tooltip:bool) -> None:
+def _configure_property_label(label:QLabel, has_tooltip:bool) -> None:
     if has_tooltip:
         label.setCursor(Qt.CursorShape.WhatsThisCursor)
     label.setTextInteractionFlags(Qt.TextInteractionFlag.TextSelectableByMouse)
 
-def configure_value_label(label:QLabel) -> None:
+def _configure_value_label(label:QLabel) -> None:
     label.setCursor(Qt.CursorShape.IBeamCursor)
     label.setTextInteractionFlags(Qt.TextInteractionFlag.TextSelectableByMouse) 
 
@@ -36,14 +36,14 @@ class DisplayTable(QWidget):
     def add_row(self, label_txt:str, item:Union[str, QWidget], tooltip:Optional[str]=None) -> QLabel:
         label = QLabel(label_txt)
         has_tooltip=True if tooltip is not None else False
-        configure_property_label(label, has_tooltip=has_tooltip)
+        _configure_property_label(label, has_tooltip=has_tooltip)
         if tooltip is not None:
             label.setToolTip(tooltip)
         if isinstance(item, str):
             item=QLabel(item)
         
         if isinstance(item, QLabel):
-            configure_value_label(item)
+            _configure_value_label(item)
 
         is_odd = self.form_layout.rowCount() % 2 == 0    # Check for 0 because we evaluate for next node
         odd_even = "odd" if is_odd else "even"
@@ -193,6 +193,6 @@ class ApplicationStatsDisplay(QWidget):
     def add_section_text(self, title:str, text:str) -> QLabel:
         text_layout = self.add_section(title)
         label = QLabel(text)
-        configure_value_label(label)
+        _configure_value_label(label)
         text_layout.addWidget(label)
         return label

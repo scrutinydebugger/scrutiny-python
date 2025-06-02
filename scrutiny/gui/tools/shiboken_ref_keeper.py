@@ -9,9 +9,9 @@
 #
 #   Copyright (c) 2021 Scrutiny Debugger
 
-from typing import Dict
 from PySide6.QtCore import QObject
 import shiboken6
+from scrutiny.tools.typing import *
 
 class ShibokenRefKeeper:
     """Tool to keep a python object alive by keeping a reference to it. 

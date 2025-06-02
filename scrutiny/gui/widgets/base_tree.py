@@ -12,13 +12,14 @@ __all__ = [
     'BaseTreeModel',
     'BaseTreeView',
 ]
+import functools
+import logging
 
 from PySide6.QtGui import  QFocusEvent, QStandardItem, QKeyEvent, QStandardItemModel, QColor, QMouseEvent
 from PySide6.QtCore import Qt, QModelIndex, QPersistentModelIndex, QAbstractItemModel
 from PySide6.QtWidgets import QTreeView,QWidget
-from typing import Any, List, Optional, cast, Sequence, Set, Union, TypedDict
-import functools
-import logging
+
+from scrutiny.tools.typing import *
 
 class SerializableItemIndexDescriptor(TypedDict):
     """A serializable path to a QStandardItem in a QStandardItemModel. It's a series of row index separated by a /

@@ -28,7 +28,7 @@ from scrutiny.core.codecs import Codecs
 from scrutiny.core.datalogging import DataloggingAcquisition, DataSeries, LoggedWatchable
 from scrutiny import tools
 
-from typing import Optional, List, Dict, Tuple, cast
+from scrutiny.tools.typing import *
 
 
 class FsmState(enum.Enum):

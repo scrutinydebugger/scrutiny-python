@@ -9,7 +9,8 @@
 import appdirs  # type: ignore
 from pathlib import Path
 
-from typing import Union
+from scrutiny.tools.typing import *
+
 SERVER_STORAGE = Path(appdirs.user_data_dir(appname='server', appauthor='scrutiny'))
 
 def set_server_storage(val:Union[Path]) -> None:

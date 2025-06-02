@@ -9,7 +9,7 @@
 import scrutiny.server.datalogging.definitions.device as device_datalogging
 from scrutiny.core.basic_types import RuntimePublishedValue
 
-from typing import List, Dict, Union
+from scrutiny.tools.typing import *
 
 
 def extract_signal_from_data(

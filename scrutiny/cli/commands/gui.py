@@ -10,7 +10,7 @@ import argparse
 import os
 
 from .base_command import BaseCommand
-from typing import Optional, List
+from scrutiny.tools.typing import *
 
 from scrutiny.gui import DEFAULT_SERVER_PORT
 

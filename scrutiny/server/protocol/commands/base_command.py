@@ -19,7 +19,7 @@ from abc import ABC
 import inspect
 import sys
 
-from typing import Type, cast
+from scrutiny.tools.typing import *
 
 
 class BaseCommand(ABC):

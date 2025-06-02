@@ -12,7 +12,7 @@ import os
 import logging
 
 from .base_command import BaseCommand
-from typing import Optional, List
+from scrutiny.tools.typing import *
 
 
 class Elf2VarMap(BaseCommand):

@@ -9,14 +9,16 @@
 __all__ = ['ComponentSidebar']
 
 
+import functools
+
 from PySide6.QtWidgets import QToolBar,  QToolButton, QSizePolicy
 from PySide6.QtCore import Qt, QSize,  Signal
 from PySide6.QtGui import QAction
+
 from scrutiny.gui.components.locals.base_local_component import ScrutinyGUIBaseLocalComponent
 from scrutiny.gui.components.globals.base_global_component import ScrutinyGUIBaseGlobalComponent
-import functools
 
-from typing import List, Type, Dict
+from scrutiny.tools.typing import *
 
 class ComponentSidebar(QToolBar):
     insert_local_component=Signal(type)

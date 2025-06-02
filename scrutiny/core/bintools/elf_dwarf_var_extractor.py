@@ -28,7 +28,7 @@ from scrutiny.core.bintools import elftools_stubs
 from scrutiny import tools
 from scrutiny.core.logging import DUMPDATA_LOGLEVEL
 
-from typing import Optional, List, Dict, Union, cast, Set, Tuple
+from scrutiny.tools.typing import *
 
 def get_linenumber() -> int:
     cf = currentframe()

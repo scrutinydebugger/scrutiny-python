@@ -8,11 +8,11 @@
 #   Copyright (c) 2021 Scrutiny Debugger
 
 import bisect
-from scrutiny.server.protocol import Request, Response
 import time
 import logging
 
-from typing import List, Optional, Callable, Any
+from scrutiny.server.protocol import Request, Response
+from scrutiny.tools.typing import *
 
 # Type for mypy validation only
 SuccessCallback = Callable[[Request, Response, Any], None]

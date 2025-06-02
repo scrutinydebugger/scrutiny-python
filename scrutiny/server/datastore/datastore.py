@@ -14,7 +14,7 @@ from scrutiny.core.basic_types import WatchableType
 from scrutiny.server.datastore.datastore_entry import *
 from scrutiny import tools
 
-from typing import Callable, List, Dict, Generator, Set, List, Optional, Union, Any
+from scrutiny.tools.typing import *
 
 WatchCallback = Callable[[str], None]
 

@@ -16,7 +16,7 @@ import traceback
 from scrutiny.cli.commands import *
 from scrutiny.core.logging import DUMPDATA_LOGLEVEL
 
-from typing import Optional, List, Type
+from scrutiny.tools.typing import *
 
 class ScrutinyArgumentParser(argparse.ArgumentParser):
     def error(self, message:str) -> None:   # type: ignore

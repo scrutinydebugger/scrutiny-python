@@ -8,8 +8,8 @@
 #   Copyright (c) 2021 Scrutiny Debugger
 
 from abc import ABC, abstractmethod
-from typing import List, Optional
 import logging
+from scrutiny.tools.typing import *
 
 class BaseCommand(ABC):
     _cmd_name_: str

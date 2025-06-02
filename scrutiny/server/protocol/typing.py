@@ -6,13 +6,14 @@
 #
 #   Copyright (c) 2021 Scrutiny Debugger
 
-from typing import TypedDict, Optional, List, Union
+
 import scrutiny.server.protocol.commands as cmd
 from scrutiny.core.codecs import Encodable
 from scrutiny.core.basic_types import RuntimePublishedValue
 import scrutiny.server.datalogging.definitions.device as device_datalogging
 from scrutiny.server.device.device_info import ExecLoop
 
+from scrutiny.tools.typing import *
 
 class BlockAddressLength(TypedDict):
     address: int

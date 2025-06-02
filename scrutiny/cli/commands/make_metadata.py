@@ -8,13 +8,13 @@
 #   Copyright (c) 2021 Scrutiny Debugger
 
 import argparse
-from .base_command import BaseCommand
 import json
 import os
 import datetime
 import platform
-from typing import Optional, List
-import logging
+
+from .base_command import BaseCommand
+from scrutiny.tools.typing import *
 
 
 class MakeMetadata(BaseCommand):

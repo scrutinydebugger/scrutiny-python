@@ -21,14 +21,15 @@ __all__ = [
     ]
 
 
-from scrutiny import sdk
-from scrutiny.sdk.listeners import ValueUpdate
-from typing import Dict, List, Union, Optional, Callable, Set, Any, Iterable
 from dataclasses import dataclass
 import logging
-from scrutiny.tools.thread_enforcer import enforce_thread
+
+from scrutiny import sdk
+from scrutiny.sdk.listeners import ValueUpdate
 from scrutiny.gui.core.threads import QT_THREAD_NAME
 from scrutiny import tools
+from scrutiny.tools.thread_enforcer import enforce_thread
+from scrutiny.tools.typing import *
 
 WatcherIdType = Union[str, int]
 

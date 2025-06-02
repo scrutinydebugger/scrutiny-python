@@ -17,7 +17,7 @@ from PySide6.QtWidgets import QMainWindow
 from scrutiny.gui.core.persistent_data import gui_persistent_data
 from scrutiny.gui.core.local_server_runner import LocalServerRunner
 from scrutiny.gui.app_settings import app_settings
-from scrutiny.gui.tools.invoker import InvokeQueued
+from scrutiny.gui.tools.invoker import invoke_later
 from scrutiny.gui.tools import prompt
 
 from scrutiny.gui.dialogs.about_dialog import AboutDialog
@@ -107,10 +107,10 @@ class MainWindow(QMainWindow):
             server_config_dialog.set_server_type(ServerConfigDialog.ServerType.LOCAL)
             def start_local_server() -> None:
                 self._local_server_runner.start(port)
-            InvokeQueued(start_local_server)
+            invoke_later(start_local_server)
 
         if app_settings().auto_connect:
-            InvokeQueued(self.start_server_manager)
+            invoke_later(self.start_server_manager)
 
     def centered(self, w:int, h:int) -> QRect:
         """Returns a rectangle centered in the screen of given width/height"""

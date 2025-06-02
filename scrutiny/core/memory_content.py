@@ -8,10 +8,10 @@
 #   Copyright (c) 2021 Scrutiny Debugger
 
 import re
-from bisect import bisect, bisect_left
-from typing import Dict, List, Union, Optional
+from bisect import bisect
 import copy
 
+from scrutiny.tools.typing import *
 
 class Cluster:
     """

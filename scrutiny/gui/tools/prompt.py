@@ -13,7 +13,7 @@ from PySide6.QtWidgets import QMessageBox, QWidget, QFileDialog
 from scrutiny.gui.core.persistent_data import gui_persistent_data
 from scrutiny.gui import assets
 from scrutiny.gui.themes import scrutiny_get_theme
-from typing import Optional
+from scrutiny.tools.typing import *
 
 
 def error_msgbox(parent:QWidget, title:str, message:str) -> None:

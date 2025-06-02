@@ -7,11 +7,13 @@
 #   Copyright (c) 2021 Scrutiny Debugger
 
 __all__ = ['TextStreamListener']
-from scrutiny.sdk.listeners import ValueUpdate
-from . import BaseListener
+
 import sys 
 import time
-from typing import List, TextIO, Any
+
+from scrutiny.sdk.listeners import ValueUpdate,BaseListener
+from scrutiny.tools.typing import *
+from typing import TextIO
 
 class TextStreamListener(BaseListener):
     _stream:TextIO

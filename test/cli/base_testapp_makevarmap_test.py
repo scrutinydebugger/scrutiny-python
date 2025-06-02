@@ -20,9 +20,7 @@ from scrutiny.exceptions import EnvionmentNotSetUpException
 from test import SkipOnException
 import elftools
 
-
-from typing import Optional
-
+from scrutiny.tools.typing import *
 
 class BaseTestAppMakeVarmapTest:
     init_exception: Optional[Exception]

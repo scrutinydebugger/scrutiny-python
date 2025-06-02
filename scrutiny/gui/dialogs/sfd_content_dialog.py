@@ -9,9 +9,8 @@
 
 from PySide6.QtWidgets import QDialog, QFormLayout, QLabel, QWidget, QVBoxLayout, QGroupBox
 from PySide6.QtCore import Qt
-from typing import Optional, List, Tuple
 from scrutiny import sdk
-
+from scrutiny.tools.typing import *
 
 class SFDContentDialog(QDialog):
     def __init__(self, parent:Optional[QWidget], sfd:sdk.SFDInfo) -> None:

@@ -8,13 +8,11 @@
 #   Copyright (c) 2021 Scrutiny Debugger
 
 __all__ = ['CSVFileListener', 'CSVConfig']
+
 from scrutiny.core.basic_types import *
-from scrutiny.sdk.listeners import ValueUpdate
+from scrutiny.sdk.listeners import ValueUpdate, BaseListener
 from scrutiny.sdk.listeners.csv_logger import CSVLogger, CSVConfig
-from scrutiny.sdk import exceptions as sdk_exceptions
-from . import BaseListener
-from dataclasses import dataclass
-from typing import List, Dict, Any, Optional, TextIO, Union
+from scrutiny.tools.typing import *
 
 class CSVFileListener(BaseListener):
     csv_logger:CSVLogger

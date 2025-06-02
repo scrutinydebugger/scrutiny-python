@@ -16,7 +16,7 @@ from binascii import unhexlify
 from test import ScrutinyUnitTest
 from scrutiny.core.basic_types import EmbeddedDataType
 
-from typing import Dict
+from scrutiny.tools.typing import *
 
 
 class TestSFD(ScrutinyUnitTest):

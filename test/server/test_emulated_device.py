@@ -17,7 +17,7 @@ from dataclasses import dataclass
 import time
 import struct
 
-from typing import List
+from scrutiny.tools.typing import *
 
 
 class TestEmulatedDevice(ScrutinyUnitTest):

@@ -18,7 +18,7 @@ from test import SkipOnException
 from test.artifacts import get_artifact
 from test import ScrutinyUnitTest
 
-from typing import Optional
+from scrutiny.tools.typing import *
 
 
 known_enums = {

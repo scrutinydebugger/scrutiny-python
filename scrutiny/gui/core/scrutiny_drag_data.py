@@ -19,7 +19,7 @@ from dataclasses import dataclass
 
 from PySide6.QtCore import QMimeData, QByteArray
 from scrutiny.tools import validation
-from typing import Any, Optional, TypedDict, cast, List
+from scrutiny.tools.typing import *
 
 
 @dataclass(frozen=True)

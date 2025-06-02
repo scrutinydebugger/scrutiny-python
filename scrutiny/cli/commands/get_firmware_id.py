@@ -11,11 +11,9 @@
 import argparse
 
 import os
-import logging
 
 from .base_command import BaseCommand
-from typing import Optional, List
-
+from scrutiny.tools.typing import *
 
 class GetFirmwareId(BaseCommand):
     _cmd_name_ = 'get-firmware-id'

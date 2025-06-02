@@ -11,7 +11,6 @@
 import logging
 import enum
 import copy
-import traceback
 
 from scrutiny.server.protocol import ResponseCode
 from scrutiny.server.device.device_info import *
@@ -22,7 +21,7 @@ from scrutiny.server.protocol import *
 import scrutiny.server.protocol.typing as protocol_typing
 from scrutiny import tools
 
-from typing import Optional, Callable, Any, cast
+from scrutiny.tools.typing import *
 
 
 ProtocolVersionCallback = Callable[[int, int], Any]

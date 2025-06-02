@@ -7,10 +7,9 @@
 #   Copyright (c) 2021 Scrutiny Debugger
 
 import argparse
-import logging
 
 from .base_command import BaseCommand
-from typing import Optional, List
+from scrutiny.tools.typing import *
 
 
 class ExportDatalog(BaseCommand):

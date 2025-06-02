@@ -9,9 +9,10 @@
 
 from PySide6.QtWidgets import QLineEdit, QWidget
 from PySide6.QtGui import QValidator
-from typing import Optional,cast,Tuple
+
 from scrutiny.gui.themes import scrutiny_get_theme
 
+from scrutiny.tools.typing import *
 class ValidableLineEdit(QLineEdit):
     _hard_validator:Optional[QValidator]
     _soft_validator:Optional[QValidator]
