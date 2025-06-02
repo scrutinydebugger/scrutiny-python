@@ -16,7 +16,7 @@
     "project": "Scrutiny Debugger",
     "repo": "github.com/scrutinydebugger/scrutiny-main",
     "copyright_owner": "Scrutiny Debugger",
-    "copyright_start_date": "2021",
+    "copyright_start_date": null,
     "copyright_end_date": null,
     "files": {
         "scrutiny/__main__.py": {
@@ -60,7 +60,7 @@
             "docstring": "Contains the class that represent a Scrutiny Firmware Description file. \nA .sfd is a file that holds all the data related to a firmware and is identified by a unique ID."
         },
         "scrutiny/core/sfd_storage_manager.py": {
-            "docstring": "A class that manipulates the Scrutiny storage for .sfd files. Does not instantiate"
+            "docstring": "A class that manipulates the Scrutiny storage for .sfd files."
         },
         "scrutiny/core/variable.py": {
             "docstring": "Variable class represent a variable, will be included in VarMap"
@@ -388,9 +388,6 @@
         },
         "scrutiny/sdk/datalogging.py": {
             "docstring": "Defines all the types used for datalogging in the SDK"
-        },
-        "scrutiny/core/bintools/elftools_stubs.py": {
-            "docstring": "Stubfile for pyelftools"
         },
         "test/sdk/test_listeners.py": {
             "docstring": "Test suite for the SDK listener feature"

@@ -4,7 +4,7 @@
 #   - License : MIT - See LICENSE file.
 #   - Project :  Scrutiny Debugger (github.com/scrutinydebugger/scrutiny-main)
 #
-#   Copyright (c) 2021 Scrutiny Debugger
+#   Copyright (c) 2022 Scrutiny Debugger
 
 from scrutiny.tools import Throttler, SuppressException
 from scrutiny.tools.thread_enforcer import enforce_thread, register_thread, thread_func
