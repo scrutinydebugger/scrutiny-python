@@ -4,7 +4,7 @@
 #   - License : MIT - See LICENSE file.
 #   - Project :  Scrutiny Debugger (github.com/scrutinydebugger/scrutiny-main)
 #
-#   Copyright (c) 2021 Scrutiny Debugger
+#   Copyright (c) 2024 Scrutiny Debugger
 
 from PySide6.QtGui import QStandardItem
 from PySide6.QtCore import QModelIndex, Qt
@@ -18,7 +18,7 @@ from scrutiny.gui.core.watchable_registry import WatchableRegistry
 from scrutiny.gui.core.scrutiny_drag_data import ScrutinyDragData
 from test.gui.base_gui_test import ScrutinyBaseGuiTest
 
-from typing import cast,List,Union,Type, Optional
+from scrutiny.tools.typing import *
 
 DUMMY_DATASET_RPV = {
     '/rpv/rpv1000' : sdk.WatchableConfiguration(server_id='rpv_111', watchable_type=sdk.WatchableType.RuntimePublishedValue, datatype=sdk.EmbeddedDataType.float32, enum=None),

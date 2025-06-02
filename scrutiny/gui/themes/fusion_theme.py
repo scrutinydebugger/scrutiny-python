@@ -4,17 +4,18 @@
 #   - License : MIT - See LICENSE file.
 #   - Project :  Scrutiny Debugger (github.com/scrutinydebugger/scrutiny-main)
 #
-#   Copyright (c) 2021 Scrutiny Debugger
+#   Copyright (c) 2025 Scrutiny Debugger
+
+__all__ = ['FusionTheme']
 
 from scrutiny.gui.themes import ScrutinyTheme, ScrutinyThemeProperties
 from scrutiny.gui.themes.default_theme import DefaultTheme
 from PySide6.QtGui import QColor, QGuiApplication
 from PySide6.QtWidgets import QStyleFactory
 from PySide6.QtCore import Qt
-from scrutiny.tools.typing import *
 from scrutiny.gui import assets
 
-from typing import Any
+from scrutiny.tools.typing import *
 
 LIGHT_HOVERED_COLOR = QColor(229, 243, 255)
 LIGHT_SELECTED_COLOR = QColor(205, 232, 255)

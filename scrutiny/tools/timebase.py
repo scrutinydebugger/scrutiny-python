@@ -5,11 +5,13 @@
 #   - License : MIT - See LICENSE file.
 #   - Project :  Scrutiny Debugger (github.com/scrutinydebugger/scrutiny-main)
 #
-#   Copyright (c) 2021 Scrutiny Debugger
+#   Copyright (c) 2025 Scrutiny Debugger
+
+__all__ = ['RelativeTimebase']
 
 import time
 from datetime import datetime, timedelta
-from typing import Union
+from scrutiny.tools.typing import *
 
 class RelativeTimebase:
     _launch_ref_ns:int

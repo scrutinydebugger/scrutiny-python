@@ -4,7 +4,7 @@
 #   - License : MIT - See LICENSE file.
 #   - Project :  Scrutiny Debugger (github.com/scrutinydebugger/scrutiny-main)
 #
-#   Copyright (c) 2021 Scrutiny Debugger
+#   Copyright (c) 2023 Scrutiny Debugger
 
 import scrutiny.sdk
 import scrutiny.sdk.datalogging

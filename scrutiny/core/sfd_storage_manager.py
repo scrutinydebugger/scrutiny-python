@@ -1,23 +1,23 @@
 #    sfd_storage_manager.py
-#        A class that manipulates the Scrutiny storage for .sfd files. Does not instantiate
+#        A class that manipulates the Scrutiny storage for .sfd files.
 #
 #   - License : MIT - See LICENSE file.
 #   - Project :  Scrutiny Debugger (github.com/scrutinydebugger/scrutiny-main)
 #
-#   Copyright (c) 2021 Scrutiny Debugger
+#   Copyright (c) 2022 Scrutiny Debugger
 
 __all__ = ['SFDStorageManager']
 
 import os
-from scrutiny.core.firmware_description import FirmwareDescription, SFDMetadata
-import logging
-import os
 import re
+import logging
 import tempfile
 import types
+
+from scrutiny.core.firmware_description import FirmwareDescription, SFDMetadata
 from scrutiny import tools
 
-from typing import List, Optional, Type, Literal
+from scrutiny.tools.typing import *
 
 
 class TempStorageWithAutoRestore:

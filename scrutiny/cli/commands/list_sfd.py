@@ -5,18 +5,20 @@
 #   - License : MIT - See LICENSE file.
 #   - Project :  Scrutiny Debugger (github.com/scrutinydebugger/scrutiny-main)
 #
-#   Copyright (c) 2021 Scrutiny Debugger
+#   Copyright (c) 2022 Scrutiny Debugger
+
+__all__ = ['ListSFD']
 
 import argparse
-from .base_command import BaseCommand
-from typing import Optional, List
 import logging
-import time
 from scrutiny import tools
 from datetime import datetime
+from .base_command import BaseCommand
+
+from scrutiny.tools.typing import *
 
 
-class PrintableSFDEntry:
+class _PrintableSFDEntry:
     firmware_id: Optional[str]
     create_time: Optional[datetime]
     scrutiny_version: Optional[str]
@@ -65,14 +67,14 @@ class ListSFD(BaseCommand):
         from scrutiny.core.firmware_description import FirmwareDescription
         from scrutiny.server.sfd_storage import SFDStorage
 
-        sfd_list: List[PrintableSFDEntry] = []
+        sfd_list: List[_PrintableSFDEntry] = []
         args = self.parser.parse_args(self.args)
         firmware_id_list = SFDStorage.list()
         padding = 0
         for firmware_id in firmware_id_list:
             try:
                 metadata = SFDStorage.get_metadata(firmware_id)
-                entry = PrintableSFDEntry()
+                entry = _PrintableSFDEntry()
                 entry.firmware_id = firmware_id
                 entry.create_time = metadata.generation_info.timestamp
                 entry.scrutiny_version =  metadata.generation_info.scrutiny_version

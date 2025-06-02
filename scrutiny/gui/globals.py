@@ -4,9 +4,11 @@
 #   - License : MIT - See LICENSE file.
 #   - Project :  Scrutiny Debugger (github.com/scrutinydebugger/scrutiny-main)
 #
-#   Copyright (c) 2021 Scrutiny Debugger
+#   Copyright (c) 2025 Scrutiny Debugger
 
-import appdirs  # type: ignore
+__all__ = ['get_gui_storage']
+
+import appdirs
 from pathlib import Path
 
 GUI_STORAGE = Path(appdirs.user_data_dir(appname='gui', appauthor='scrutiny'))

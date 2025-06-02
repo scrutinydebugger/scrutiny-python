@@ -4,16 +4,18 @@
 #   - License : MIT - See LICENSE file.
 #   - Project :  Scrutiny Debugger (github.com/scrutinydebugger/scrutiny-main)
 #
-#   Copyright (c) 2021 Scrutiny Debugger
+#   Copyright (c) 2022 Scrutiny Debugger
+
+__all__ = ['RunTest']
 
 import argparse
 from .base_command import BaseCommand
 import unittest
 import logging
-from typing import Optional, List, Union
 import traceback
-from scrutiny.core.logging import DUMPDATA_LOGLEVEL
 import importlib
+from scrutiny.core.logging import DUMPDATA_LOGLEVEL
+from scrutiny.tools.typing import *
 
 
 class RunTest(BaseCommand):

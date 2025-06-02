@@ -5,7 +5,7 @@
 #   - License : MIT - See LICENSE file.
 #   - Project :  Scrutiny Debugger (github.com/scrutinydebugger/scrutiny-main)
 #
-#   Copyright (c) 2021 Scrutiny Debugger
+#   Copyright (c) 2024 Scrutiny Debugger
 
 __all__ = ['BufferedReaderListener']
 
@@ -13,7 +13,7 @@ from scrutiny.sdk.listeners import ValueUpdate
 from . import BaseListener
 
 import queue
-from typing import List,  Any
+from scrutiny.tools.typing import *
 
 class BufferedReaderListener(BaseListener):
     _queue:"queue.Queue[ValueUpdate]"

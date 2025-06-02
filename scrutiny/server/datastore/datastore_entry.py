@@ -4,7 +4,7 @@
 #   - License : MIT - See LICENSE file.
 #   - Project :  Scrutiny Debugger (github.com/scrutinydebugger/scrutiny-main)
 #
-#   Copyright (c) 2021 Scrutiny Debugger
+#   Copyright (c) 2022 Scrutiny Debugger
 
 __all__ = [
     'DatastoreEntry',
@@ -18,18 +18,18 @@ __all__ = [
 
 import abc
 import re
-from scrutiny.core.basic_types import RuntimePublishedValue
 import queue
 
 from scrutiny.server.timebase import server_timebase
+from scrutiny.core.basic_types import RuntimePublishedValue
 from scrutiny.core.basic_types import EmbeddedDataType, Endianness, WatchableType
 from scrutiny.core.variable import Variable
 from scrutiny.core.embedded_enum import EmbeddedEnum
 from scrutiny.core.codecs import *
+from scrutiny.core.alias import Alias
 from scrutiny.tools.global_counters import global_i64_counter
 
-from scrutiny.core.alias import Alias
-from typing import Any, Optional, Dict, Callable, Tuple, Union
+from scrutiny.tools.typing import *
 
 
 

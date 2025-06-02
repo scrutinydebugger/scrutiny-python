@@ -4,7 +4,7 @@
 #   - License : MIT - See LICENSE file.
 #   - Project :  Scrutiny Debugger (github.com/scrutinydebugger/scrutiny-main)
 #
-#   Copyright (c) 2021 Scrutiny Debugger
+#   Copyright (c) 2025 Scrutiny Debugger
 
 from PySide6.QtGui import QStandardItemModel
 from test.gui.base_gui_test import ScrutinyBaseGuiTest

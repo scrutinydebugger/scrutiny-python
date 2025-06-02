@@ -5,7 +5,9 @@
 #   - License : MIT - See LICENSE file.
 #   - Project :  Scrutiny Debugger (github.com/scrutinydebugger/scrutiny-main)
 #
-#   Copyright (c) 2021 Scrutiny Debugger
+#   Copyright (c) 2023 Scrutiny Debugger
+
+__all__ = ['WatchableHandle']
 
 import threading
 from datetime import datetime
@@ -17,15 +19,13 @@ from scrutiny.core.embedded_enum import EmbeddedEnum
 import scrutiny.sdk.exceptions as sdk_exceptions
 from scrutiny.sdk.write_request import WriteRequest
 from scrutiny.tools import validation
-from typing import Optional, Union, TYPE_CHECKING
+from scrutiny.tools.typing import *
 
 if TYPE_CHECKING:
     from scrutiny.sdk.client import ScrutinyClient
 
 
 ValType = Union[int, float, bool]
-
-__all__ = ['WatchableHandle']
 
 class WatchableHandle:
     """A handle to a server watchable element (Variable / Alias / RuntimePublishedValue) that gets updated by the client thread."""

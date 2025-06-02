@@ -5,19 +5,23 @@
 #   - License : MIT - See LICENSE file.
 #   - Project :  Scrutiny Debugger (github.com/scrutinydebugger/scrutiny-main)
 #
-#   Copyright (c) 2021 Scrutiny Debugger
+#   Copyright (c) 2024 Scrutiny Debugger
+
+__all__ = ['DeviceConfigDialog']
+
+import logging
+import traceback
 
 from PySide6.QtWidgets import QDialog, QWidget, QComboBox, QVBoxLayout, QDialogButtonBox,QFormLayout, QLabel, QPushButton
 from PySide6.QtGui import QIntValidator, QDoubleValidator
 from PySide6.QtCore import Qt
+
 from scrutiny import sdk
 from scrutiny.gui.widgets.validable_line_edit import ValidableLineEdit
 from scrutiny.gui.widgets.feedback_label import FeedbackLabel
 from scrutiny.gui.tools.validators import IpPortValidator, NotEmptyValidator
 from scrutiny.gui.core.persistent_data import gui_persistent_data, AppPersistentData
-from typing import Optional, Dict, Type, cast, Callable, Tuple, List
-import logging
-import traceback
+from scrutiny.tools.typing import *
 
 class BaseConfigPane(QWidget):
     def get_config(self) -> Optional[sdk.BaseLinkConfig]:

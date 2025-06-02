@@ -4,13 +4,14 @@
 #   - License : MIT - See LICENSE file.
 #   - Project :  Scrutiny Debugger (github.com/scrutinydebugger/scrutiny-main)
 #
-#   Copyright (c) 2021 Scrutiny Debugger
+#   Copyright (c) 2023 Scrutiny Debugger
+
+__all__ = ['ExportDatalog']
 
 import argparse
-import logging
 
 from .base_command import BaseCommand
-from typing import Optional, List
+from scrutiny.tools.typing import *
 
 
 class ExportDatalog(BaseCommand):

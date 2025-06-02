@@ -4,25 +4,7 @@
 #   - License : MIT - See LICENSE file.
 #   - Project :  Scrutiny Debugger (github.com/scrutinydebugger/scrutiny-main)
 #
-#   Copyright (c) 2021 Scrutiny Debugger
-
-from scrutiny import sdk
-from scrutiny.sdk.definitions import *
-from scrutiny.core.datalogging import *
-from scrutiny.tools import validation
-from dataclasses import dataclass
-from scrutiny.sdk.watchable_handle import WatchableHandle
-from scrutiny.sdk.pending_request import PendingRequest
-import enum
-from typing import List, Dict, Union, Optional, TYPE_CHECKING
-import scrutiny.server.api.typing as api_typing
-from datetime import datetime
-
-from scrutiny.server.api import API
-
-if TYPE_CHECKING:
-    from scrutiny.sdk.client import ScrutinyClient
-
+#   Copyright (c) 2023 Scrutiny Debugger
 
 __all__ = [
     'XAxisType',
@@ -38,6 +20,24 @@ __all__ = [
     'DataloggingAcquisition',
     'LoggedWatchable'
 ]
+
+import enum
+from datetime import datetime
+from dataclasses import dataclass
+
+from scrutiny import sdk
+from scrutiny.sdk.definitions import *
+from scrutiny.core.datalogging import *
+from scrutiny.tools import validation
+from scrutiny.sdk.watchable_handle import WatchableHandle
+from scrutiny.sdk.pending_request import PendingRequest
+from scrutiny.server.api import API
+import scrutiny.server.api.typing as api_typing
+
+from scrutiny.tools.typing import *
+
+if TYPE_CHECKING:
+    from scrutiny.sdk.client import ScrutinyClient
 
 
 class XAxisType(enum.Enum):

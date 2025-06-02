@@ -4,9 +4,13 @@
 #   - License : MIT - See LICENSE file.
 #   - Project :  Scrutiny Debugger (github.com/scrutinydebugger/scrutiny-main)
 #
-#   Copyright (c) 2021 Scrutiny Debugger
+#   Copyright (c) 2024 Scrutiny Debugger
 
-from typing import List
+import time
+from io import StringIO
+from tempfile import TemporaryDirectory
+import os
+import csv
 import unittest
 
 from scrutiny.core.basic_types import *
@@ -20,14 +24,9 @@ from scrutiny.sdk.listeners.buffered_reader_listener import BufferedReaderListen
 from scrutiny.sdk.listeners.text_stream_listener import TextStreamListener
 from scrutiny.sdk.listeners.csv_file_listener import CSVConfig, CSVFileListener
 from test import ScrutinyUnitTest
-from typing import *
-import time
+from scrutiny.tools.typing import *
 from scrutiny.sdk.watchable_handle import WatchableHandle, WatchableType
 from scrutiny.sdk.client import ScrutinyClient
-from io import StringIO
-from tempfile import TemporaryDirectory
-import os
-import csv
 
 from test import logger
 

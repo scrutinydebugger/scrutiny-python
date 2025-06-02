@@ -5,7 +5,15 @@
 #   - License : MIT - See LICENSE file.
 #   - Project :  Scrutiny Debugger (github.com/scrutinydebugger/scrutiny-main)
 #
-#   Copyright (c) 2021 Scrutiny Debugger
+#   Copyright (c) 2023 Scrutiny Debugger
+
+__all__ = [
+    'AxisDefinition',
+    'DataSeries',
+    'DataSeriesWithAxis',
+    'DataloggingAcquisition',
+    'LoggedWatchable'
+]
 
 import zlib
 import struct
@@ -17,19 +25,10 @@ import logging
 from scrutiny.core.basic_types import WatchableType
 
 from scrutiny.tools import validation
+from scrutiny.tools.typing import *
 
-from typing import List, Optional, TYPE_CHECKING
 if TYPE_CHECKING:
     import _csv
-
-__all__ = [
-    'AxisDefinition',
-    'DataSeries',
-    'DataSeriesWithAxis',
-    'DataloggingAcquisition',
-    'LoggedWatchable'
-]
-
 
 @dataclass(frozen=True)
 class AxisDefinition:

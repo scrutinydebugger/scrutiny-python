@@ -4,18 +4,27 @@
 #   - License : MIT - See LICENSE file.
 #   - Project :  Scrutiny Debugger (github.com/scrutinydebugger/scrutiny-main)
 #
-#   Copyright (c) 2021 Scrutiny Debugger
+#   Copyright (c) 2025 Scrutiny Debugger
+
+__all__ = ['GraphMonotonicNonUniformMinMaxDecimator']
 
 from PySide6.QtCore import QPointF
 from scrutiny.tools import validation
 
-from typing import List, Sequence
+from scrutiny.tools.typing import *
 
 class GraphMonotonicNonUniformMinMaxDecimator:
+    """A decimator that reduces the number of points for a x-y data series where X is non-uniform but monotonic (time).
+    Makes a min/max of cluster of points so it can be shown on a graph without missing peaks
+    """
     _x_window_size:float
+    """The size of the window for x clustering. Size in X-Value"""
     _actual_window_start_index:int
+    """The index of the start of the window on the x-axis"""
     _input_dataset:List[QPointF]
+    """Non decimated data"""
     _output_dataset:List[QPointF]
+    """Decimated data"""
 
     def __init__(self) -> None:
         self._x_window_size = float(0)

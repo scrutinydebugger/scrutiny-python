@@ -5,7 +5,9 @@
 #   - License : MIT - See LICENSE file.
 #   - Project :  Scrutiny Debugger (github.com/scrutinydebugger/scrutiny-main)
 #
-#   Copyright (c) 2021 Scrutiny Debugger
+#   Copyright (c) 2022 Scrutiny Debugger
+
+__all__ = ['DeviceSearcher']
 
 import time
 import logging
@@ -16,7 +18,7 @@ from scrutiny.server.protocol import *
 import scrutiny.server.protocol.typing as protocol_typing
 from scrutiny.server.device.request_dispatcher import RequestDispatcher
 
-from typing import Optional, Tuple, Any, cast
+from scrutiny.tools.typing import *
 
 
 class DeviceSearcher:

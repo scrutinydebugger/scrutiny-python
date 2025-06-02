@@ -6,7 +6,7 @@
 #   - License : MIT - See LICENSE file.
 #   - Project :  Scrutiny Debugger (github.com/scrutinydebugger/scrutiny-main)
 #
-#   Copyright (c) 2021 Scrutiny Debugger
+#   Copyright (c) 2024 Scrutiny Debugger
 
 set -eEuo pipefail
 source $(dirname ${BASH_SOURCE[0]})/common.sh

@@ -1,4 +1,6 @@
 
+__all__ = ['watchabletype_2_icon']
+
 from scrutiny.sdk import WatchableType
 from scrutiny.gui import assets
 

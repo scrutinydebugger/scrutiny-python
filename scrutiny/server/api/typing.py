@@ -4,16 +4,15 @@
 #   - License : MIT - See LICENSE file.
 #   - Project :  Scrutiny Debugger (github.com/scrutinydebugger/scrutiny-main)
 #
-#   Copyright (c) 2021 Scrutiny Debugger
+#   Copyright (c) 2022 Scrutiny Debugger
 
-from typing import TypedDict, Optional, List, Dict, Union, Literal, Any
 from scrutiny.core.typehints import EmptyDict
 
 import scrutiny.core.firmware_description
-from scrutiny.core.embedded_enum import EmbeddedEnumDef
 import scrutiny.server.device.links.rtt_link
 import scrutiny.server.device.links.serial_link
 import scrutiny.server.device.links.udp_link
+from scrutiny.tools.typing import *
 
 WatchableType = Literal['alias', 'var', 'rpv']
 # Mapping between app type and API type.

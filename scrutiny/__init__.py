@@ -23,7 +23,7 @@ compiled = "__compiled__" in globals()
 import sys
 import os
 import shutil
-from typing import List, Optional, Dict
+from scrutiny.tools.typing import *
 
 if sys.platform == 'win32':
     CLI_EXECUTABLE_POSSIBLE_NAMES = [f"{__name__}.exe"]

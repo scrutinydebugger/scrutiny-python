@@ -4,7 +4,9 @@
 #   - License : MIT - See LICENSE file.
 #   - Project :  Scrutiny Debugger (github.com/scrutinydebugger/scrutiny-main)
 #
-#   Copyright (c) 2021 Scrutiny Debugger
+#   Copyright (c) 2022 Scrutiny Debugger
+
+__all__ = ['FirmwareParser']
 
 import hashlib
 import mmap
@@ -14,8 +16,7 @@ import os
 from binascii import hexlify
 import shutil
 
-from typing import Optional
-
+from scrutiny.tools.typing import *
 
 class FirmwareParser:
     """

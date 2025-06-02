@@ -5,7 +5,22 @@
 #   - License : MIT - See LICENSE file.
 #   - Project :  Scrutiny Debugger (github.com/scrutinydebugger/scrutiny-main)
 #
-#   Copyright (c) 2021 Scrutiny Debugger
+#   Copyright (c) 2025 Scrutiny Debugger
+
+__all__ = [
+    'SerializableComponent',
+    'SerializableDockWidget',
+    'SerializableDockArea',
+    'SidebarLocation',
+    'SerializableSideBarComponent',
+    'SplitterOrientation',
+    'SerializableSplitter',
+    'SerializableContainer',
+    'SerializableWindow',
+    'SerializableDashboard',
+    'serialize_container',
+    'serialize_floating_container'
+]
 
 from dataclasses import dataclass
 import enum
@@ -15,8 +30,8 @@ from PySide6.QtCore import Qt
 from PySide6.QtWidgets import QSplitter
 
 from scrutiny.gui.components.base_component import ScrutinyGUIBaseComponent
-from scrutiny.tools.typing import *
 from scrutiny.tools import validation
+from scrutiny.tools.typing import *
 
 @dataclass
 class SerializableComponent:

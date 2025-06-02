@@ -5,11 +5,13 @@
 #   - License : MIT - See LICENSE file.
 #   - Project :  Scrutiny Debugger (github.com/scrutinydebugger/scrutiny-main)
 #
-#   Copyright (c) 2021 Scrutiny Debugger
+#   Copyright (c) 2022 Scrutiny Debugger
+
+__all__ = ['BaseCommand']
 
 from abc import ABC, abstractmethod
-from typing import List, Optional
 import logging
+from scrutiny.tools.typing import *
 
 class BaseCommand(ABC):
     _cmd_name_: str

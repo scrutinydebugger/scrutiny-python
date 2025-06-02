@@ -4,7 +4,7 @@
 #   - License : MIT - See LICENSE file.
 #   - Project :  Scrutiny Debugger (github.com/scrutinydebugger/scrutiny-main)
 #
-#   Copyright (c) 2021 Scrutiny Debugger
+#   Copyright (c) 2022 Scrutiny Debugger
 
 __all__ = [
     'DatalogControl',
@@ -19,7 +19,7 @@ from abc import ABC
 import inspect
 import sys
 
-from typing import Type, cast
+from scrutiny.tools.typing import *
 
 
 class BaseCommand(ABC):

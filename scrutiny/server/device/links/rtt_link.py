@@ -4,18 +4,22 @@
 #   - License : MIT - See LICENSE file.
 #   - Project :  Scrutiny Debugger (github.com/scrutinydebugger/scrutiny-main)
 #
-#   Copyright (c) 2021 Scrutiny Debugger
+#   Copyright (c) 2024 Scrutiny Debugger
+
+__all__ = [
+    'RttConfig',
+    'RttLink'
+]
 
 import logging
+import threading
+import queue
 
-from .abstract_link import AbstractLink, LinkConfig
-
-from typing import Optional, Dict, TypedDict, cast, Type, Any
 import pylink   # type: ignore
 logging.getLogger("pylink").setLevel(logging.WARNING)
 
-import threading
-import queue
+from scrutiny.server.device.links.abstract_link import AbstractLink, LinkConfig
+from scrutiny.tools.typing import *
 
 # Hook for unit tests.
 # Allow to change the Jlink class with a stub

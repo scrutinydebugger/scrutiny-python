@@ -4,7 +4,7 @@
 #   - License : MIT - See LICENSE file.
 #   - Project :  Scrutiny Debugger (github.com/scrutinydebugger/scrutiny-main)
 #
-#   Copyright (c) 2021 Scrutiny Debugger
+#   Copyright (c) 2023 Scrutiny Debugger
 
 import unittest
 
@@ -62,7 +62,7 @@ import traceback
 import struct
 from datetime import datetime, timedelta
 
-from typing import *
+from scrutiny.tools.typing import *
 
 localhost = "127.0.0.1"
 

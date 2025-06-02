@@ -4,7 +4,7 @@
 #   - License : MIT - See LICENSE file.
 #   - Project :  Scrutiny Debugger (github.com/scrutinydebugger/scrutiny-main)
 #
-#   Copyright (c) 2021 Scrutiny Debugger
+#   Copyright (c) 2024 Scrutiny Debugger
 
 from test import ScrutinyUnitTest
 from PySide6.QtWidgets import QApplication
@@ -15,7 +15,7 @@ from scrutiny.gui.core.qt import make_qt_app
 from scrutiny.gui.themes import scrutiny_set_theme
 from scrutiny.gui.themes.default_theme import DefaultTheme
 
-from typing import List, Optional
+from scrutiny.tools.typing import *
 
 
 class EventType(enum.Enum):

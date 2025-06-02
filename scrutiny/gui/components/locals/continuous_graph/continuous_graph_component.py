@@ -4,7 +4,9 @@
 #   - License : MIT - See LICENSE file.
 #   - Project :  Scrutiny Debugger (github.com/scrutinydebugger/scrutiny-main)
 #
-#   Copyright (c) 2021 Scrutiny Debugger
+#   Copyright (c) 2025 Scrutiny Debugger
+
+__all__ = ['ContinuousGraphComponent']
 
 from datetime import datetime
 import functools
@@ -24,7 +26,7 @@ from scrutiny.tools import validation
 from scrutiny.gui import assets
 from scrutiny.gui.app_settings import app_settings
 from scrutiny.gui.tools import prompt
-from scrutiny.gui.tools.invoker import InvokeQueued, InvokeInQtThread
+from scrutiny.gui.tools.invoker import invoke_later, invoke_in_qt_thread
 from scrutiny.gui.core.watchable_registry import WatchableRegistryNodeNotFoundError, ValueUpdate
 from scrutiny.gui.widgets.feedback_label import FeedbackLabel
 from scrutiny.gui.components.locals.base_local_component import ScrutinyGUIBaseLocalComponent
@@ -1002,7 +1004,7 @@ class ContinuousGraphComponent(ScrutinyGUIBaseLocalComponent):
             if not self._state.paused:
                 self._flush_decimated_to_dirty_series()
 
-        InvokeQueued(set_paint_not_in_progress)
+        invoke_later(set_paint_not_in_progress)
 
     def _btn_clear_slot(self) -> None:
         """Slot when "clear" is clicked"""
@@ -1081,7 +1083,7 @@ class ContinuousGraphComponent(ScrutinyGUIBaseLocalComponent):
             if child is not None:
                 child.deselect()
                 child.clearFocus()
-        InvokeQueued(deselect_spinbox)
+        invoke_later(deselect_spinbox)
 
     def _chart_context_menu_slot(self, chartview_event:QContextMenuEvent) -> None:
         """Slot called when the user right click the chartview. Create a context menu and display it.
@@ -1182,7 +1184,7 @@ class ContinuousGraphComponent(ScrutinyGUIBaseLocalComponent):
             # This runs in a different thread
             if exception is not None:
                 tools.log_exception(self.logger, exception, f"Error while saving graph into {filepath}" )
-                InvokeInQtThread(lambda: prompt.exception_msgbox(self, exception, "Failed to save", f"Failed to save the graph to {filepath}"))
+                invoke_in_qt_thread(lambda: prompt.exception_msgbox(self, exception, "Failed to save", f"Failed to save the graph to {filepath}"))
         
         # Todo : Add visual "saving..." feedback ?
         export_chart_csv_threaded(

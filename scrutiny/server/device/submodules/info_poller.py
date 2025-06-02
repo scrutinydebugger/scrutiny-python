@@ -6,13 +6,19 @@
 #   - License : MIT - See LICENSE file.
 #   - Project :  Scrutiny Debugger (github.com/scrutinydebugger/scrutiny-main)
 #
-#   Copyright (c) 2021 Scrutiny Debugger
+#   Copyright (c) 2022 Scrutiny Debugger
+
+__all__ = [
+    'ProtocolVersionCallback',
+    'CommParamCallback',
+    'InfoPoller'
+    ]
 
 import logging
 import enum
 import copy
-import traceback
 
+from scrutiny.core.basic_types import MemoryRegion
 from scrutiny.server.protocol import ResponseCode
 from scrutiny.server.device.device_info import *
 from scrutiny.server.datalogging.definitions import device as device_datalogging
@@ -22,7 +28,7 @@ from scrutiny.server.protocol import *
 import scrutiny.server.protocol.typing as protocol_typing
 from scrutiny import tools
 
-from typing import Optional, Callable, Any, cast
+from scrutiny.tools.typing import *
 
 
 ProtocolVersionCallback = Callable[[int, int], Any]

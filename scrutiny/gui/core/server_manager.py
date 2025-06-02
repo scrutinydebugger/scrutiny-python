@@ -5,12 +5,11 @@
 #   - License : MIT - See LICENSE file.
 #   - Project :  Scrutiny Debugger (github.com/scrutinydebugger/scrutiny-main)
 #
-#   Copyright (c) 2021 Scrutiny Debugger
+#   Copyright (c) 2024 Scrutiny Debugger
 
 __all__ = ['ServerManager', 'ServerConfig', 'ValueUpdate', 'Statistics']
 
 from scrutiny import sdk
-from scrutiny.sdk.client import ScrutinyClient, WatchableListDownloadRequest
 import threading
 import time
 import logging
@@ -18,20 +17,21 @@ import queue
 import enum
 from copy import copy
 from dataclasses import dataclass
-from scrutiny.tools.thread_enforcer import thread_func, enforce_thread
-from scrutiny import tools
 
 from PySide6.QtCore import Signal, QObject
-from typing import Optional, Dict, Any, Callable, List, Union, cast, Tuple
 
 from scrutiny.core.logging import DUMPDATA_LOGLEVEL
-from scrutiny.gui.core.watchable_registry import WatchableRegistry
-from scrutiny.gui.core.user_messages_manager import UserMessagesManager
 from scrutiny.sdk.listeners import BaseListener, ValueUpdate 
 from scrutiny.sdk.watchable_handle import WatchableHandle
-from scrutiny.tools.profiling import VariableRateExponentialAverager
+from scrutiny.sdk.client import ScrutinyClient, WatchableListDownloadRequest
+from scrutiny.gui.core.watchable_registry import WatchableRegistry
+from scrutiny.gui.core.user_messages_manager import UserMessagesManager
 from scrutiny.gui.core.threads import QT_THREAD_NAME, SERVER_MANAGER_THREAD_NAME
-from scrutiny.gui.tools.invoker import InvokeInQtThreadSynchronized, InvokeQueued
+from scrutiny.gui.tools.invoker import invoke_in_qt_thread_synchronized, invoke_later
+from scrutiny import tools
+from scrutiny.tools.thread_enforcer import thread_func, enforce_thread
+from scrutiny.tools.profiling import VariableRateExponentialAverager
+from scrutiny.tools.typing import *
 
 USER_MSG_ID_CONNECT_FAILED = "connect_failed"
 USER_MSG_UPDATE_OVERRUN = "listener_update_dropped"
@@ -42,6 +42,9 @@ class ServerConfig:
     port:int
 
 class QtBufferedListener(BaseListener):
+    """A listener that can plug into the SDK. This listener receives the updates from the server and buffers them in a queue.
+    A signal is emitted when new data is received to tell the UI to come read the queue. The signal is only emitted when the 
+    UI is ready to receive it for natural derating on update speed if the CPU is overloaded"""
     MAX_SIGNALS_PER_SEC = 15
     TARGET_PROCESS_INTERVAL = 0.2
 
@@ -411,7 +414,7 @@ class ServerManager:
 
                 server_state = self._client.server_state
                 if server_state == sdk.ServerState.Error:
-                    InvokeInQtThreadSynchronized(self.stop)
+                    invoke_in_qt_thread_synchronized(self.stop)
                     break
                 self._thread_process_client_events()
                 self._thread_handle_download_watchable_logic()
@@ -478,13 +481,13 @@ class ServerManager:
             
             self._logger.log(DUMPDATA_LOGLEVEL, f"+Event: {event}")
             if isinstance(event, ScrutinyClient.Events.ConnectedEvent):
-                changed = InvokeInQtThreadSynchronized(self._registry.clear, timeout=2)
+                changed = invoke_in_qt_thread_synchronized(self._registry.clear, timeout=2)
                 self._signals.server_connected.emit()
                 if changed:
                     self.signals.registry_changed.emit()
                 self._allow_auto_reconnect = False    # Ensure we do not try to reconnect until the disconnect event is processed
             elif isinstance(event, ScrutinyClient.Events.DisconnectedEvent):
-                changed = InvokeInQtThreadSynchronized(self._registry.clear, timeout=2)
+                changed = invoke_in_qt_thread_synchronized(self._registry.clear, timeout=2)
                 if changed:
                     self.signals.registry_changed.emit()
                 self._signals.server_disconnected.emit()
@@ -515,10 +518,10 @@ class ServerManager:
                 self._logger.debug("Download of watchable list is complete. Group : runtime")
                 if self._thread_state.runtime_watchables_download_request.is_success:
                     data = self._thread_state.runtime_watchables_download_request.get()
-                    InvokeInQtThreadSynchronized(lambda: self._registry.write_content(data), timeout=2)
+                    invoke_in_qt_thread_synchronized(lambda: self._registry.write_content(data), timeout=2)
                     self._signals.registry_changed.emit()
                 else:
-                    InvokeInQtThreadSynchronized(lambda:self._registry.clear_content_by_type([sdk.WatchableType.RuntimePublishedValue]), timeout=2)
+                    invoke_in_qt_thread_synchronized(lambda:self._registry.clear_content_by_type([sdk.WatchableType.RuntimePublishedValue]), timeout=2)
                 self._thread_state.runtime_watchables_download_request = None   # Clear the request.
             else:
                 pass # Downloading
@@ -531,10 +534,10 @@ class ServerManager:
                 self._logger.debug("Download of watchable list is complete. Group : SFD")
                 if self._thread_state.sfd_watchables_download_request.is_success:
                     data = self._thread_state.sfd_watchables_download_request.get()
-                    InvokeInQtThreadSynchronized(lambda: self._registry.write_content(data), timeout=2)
+                    invoke_in_qt_thread_synchronized(lambda: self._registry.write_content(data), timeout=2)
                     self._signals.registry_changed.emit()
                 else:
-                    InvokeInQtThreadSynchronized(lambda:self._registry.clear_content_by_type([sdk.WatchableType.Alias, sdk.WatchableType.Variable]), timeout=2)
+                    invoke_in_qt_thread_synchronized(lambda:self._registry.clear_content_by_type([sdk.WatchableType.Alias, sdk.WatchableType.Variable]), timeout=2)
                 self._thread_state.sfd_watchables_download_request = None   # Clear the request.
             else:
                 pass    # Downloading
@@ -590,7 +593,7 @@ class ServerManager:
                 ctx.had_data = ctx.had_data or had_data
         if self._logger.isEnabledFor(logging.DEBUG):    # pragma: no cover
             self._logger.debug("Clearing registry for types: %s" % ([x.name for x in type_list]))
-        InvokeInQtThreadSynchronized(clear_func, timeout=2)
+        invoke_in_qt_thread_synchronized(clear_func, timeout=2)
         if self._logger.isEnabledFor(logging.DEBUG):    # pragma: no cover
             self._logger.debug("Cleared registry for types: %s" % ([x.name for x in type_list]))
         if ctx.had_data:
@@ -806,14 +809,14 @@ class ServerManager:
         need_event = (sfd != self._loaded_sfd)
         self._loaded_sfd = sfd
         if need_event:
-            InvokeQueued(lambda: self._signals.loaded_sfd_availability_changed.emit())
+            invoke_later(lambda: self._signals.loaded_sfd_availability_changed.emit())
 
     @enforce_thread(QT_THREAD_NAME)
     def _set_device_info(self, device_info:Optional[sdk.DeviceInfo]) -> None:
         need_event = (device_info != self._device_info)
         self._device_info = device_info
         if need_event:
-            InvokeQueued(lambda: self._signals.device_info_availability_changed.emit())
+            invoke_later(lambda: self._signals.device_info_availability_changed.emit())
 
     @enforce_thread(QT_THREAD_NAME)
     def _sfd_loaded_callback(self) -> None:

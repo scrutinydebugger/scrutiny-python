@@ -5,13 +5,16 @@
 #   - License : MIT - See LICENSE file.
 #   - Project :  Scrutiny Debugger (github.com/scrutinydebugger/scrutiny-main)
 #
-#   Copyright (c) 2021 Scrutiny Debugger
+#   Copyright (c) 2024 Scrutiny Debugger
+
+__all__ = ['ValidableLineEdit']
 
 from PySide6.QtWidgets import QLineEdit, QWidget
 from PySide6.QtGui import QValidator
-from typing import Optional,cast,Tuple
+
 from scrutiny.gui.themes import scrutiny_get_theme
 
+from scrutiny.tools.typing import *
 class ValidableLineEdit(QLineEdit):
     _hard_validator:Optional[QValidator]
     _soft_validator:Optional[QValidator]

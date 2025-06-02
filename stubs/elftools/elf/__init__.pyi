@@ -1,8 +1,8 @@
-#    elftools_stubs.py
-#        Stubfile for pyelftools
+#    __init__.pyi
+#        A stub file for the pyelftools package
 #
 #   - License : MIT - See LICENSE file.
 #   - Project :  Scrutiny Debugger (github.com/scrutinydebugger/scrutiny-main)
 #
-#   Copyright (c) 2021 Scrutiny Debugger
+#   Copyright (c) 2022 Scrutiny Debugger
 

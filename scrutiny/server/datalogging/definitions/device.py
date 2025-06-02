@@ -5,15 +5,14 @@
 #   - License : MIT - See LICENSE file.
 #   - Project :  Scrutiny Debugger (github.com/scrutinydebugger/scrutiny-main)
 #
-#   Copyright (c) 2021 Scrutiny Debugger
+#   Copyright (c) 2023 Scrutiny Debugger
 
 from enum import Enum
-from typing import Union, List
 from abc import ABC, abstractmethod
 from dataclasses import dataclass
 
 from scrutiny.core.basic_types import EmbeddedDataType
-
+from scrutiny.tools.typing import *
 
 class Encoding(Enum):
     """Represent a type of data encoding used by the device. Matches the device definition"""

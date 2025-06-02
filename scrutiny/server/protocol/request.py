@@ -4,16 +4,18 @@
 #   - License : MIT - See LICENSE file.
 #   - Project :  Scrutiny Debugger (github.com/scrutinydebugger/scrutiny-main)
 #
-#   Copyright (c) 2021 Scrutiny Debugger
+#   Copyright (c) 2022 Scrutiny Debugger
+
+__all__ = ['Request']
 
 import struct
 import inspect
 from enum import Enum
 
-from .crc32 import crc32
-from .commands.base_command import BaseCommand
-from .response import Response
-from typing import Union, Type
+from scrutiny.server.protocol.crc32 import crc32
+from scrutiny.server.protocol.commands.base_command import BaseCommand
+from scrutiny.server.protocol.response import Response
+from scrutiny.tools.typing import *
 
 
 class Request:

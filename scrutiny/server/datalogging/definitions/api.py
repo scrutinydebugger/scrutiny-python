@@ -5,7 +5,7 @@
 #   - License : MIT - See LICENSE file.
 #   - Project :  Scrutiny Debugger (github.com/scrutinydebugger/scrutiny-main)
 #
-#   Copyright (c) 2021 Scrutiny Debugger
+#   Copyright (c) 2023 Scrutiny Debugger
 
 __all__ = [
     'XAxisType',
@@ -29,7 +29,7 @@ from scrutiny.core.datalogging import DataloggingAcquisition, AxisDefinition
 from scrutiny.server.device.device_info import ExecLoopType
 from scrutiny.server.datastore.datastore_entry import DatastoreEntry
 import scrutiny.server.datalogging.definitions.device as device_datalogging
-from typing import List, Optional, Callable, Union, Set
+from scrutiny.tools.typing import *
 
 class XAxisType(Enum):
     """Represent a type of X-Axis that a user can select"""

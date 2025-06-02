@@ -4,13 +4,13 @@
 #   - License : MIT - See LICENSE file.
 #   - Project :  Scrutiny Debugger (github.com/scrutinydebugger/scrutiny-main)
 #
-#   Copyright (c) 2021 Scrutiny Debugger
+#   Copyright (c) 2022 Scrutiny Debugger
+
+__all__ = ['MakeSFD']
 
 import argparse
 from .base_command import BaseCommand
-from typing import Optional, List
-import logging
-
+from scrutiny.tools.typing import *
 
 class MakeSFD(BaseCommand):
     _cmd_name_ = 'make-sfd'

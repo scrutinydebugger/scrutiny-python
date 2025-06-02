@@ -4,7 +4,13 @@
 #   - License : MIT - See LICENSE file.
 #   - Project :  Scrutiny Debugger (github.com/scrutinydebugger/scrutiny-main)
 #
-#   Copyright (c) 2021 Scrutiny Debugger
+#   Copyright (c) 2023 Scrutiny Debugger
+
+import binascii
+import time
+from base64 import b64decode
+from datetime import datetime
+from dataclasses import dataclass
 
 import scrutiny.sdk
 import scrutiny.sdk.datalogging
@@ -14,14 +20,9 @@ from scrutiny.core.embedded_enum import EmbeddedEnum
 from scrutiny.core.firmware_description import MetadataTypedDict
 from scrutiny.server.api.API import API
 from scrutiny.server.api import typing as api_typing
-from dataclasses import dataclass
-from datetime import datetime
-from base64 import b64decode
-import binascii
-import time
 
-from typing import List, Dict, Optional, Any, cast, Literal, Type, Union, TypeVar, Iterable, get_args
-
+from scrutiny.tools.typing import *
+import typing
 
 @dataclass(frozen=True)
 class WelcomeData:
@@ -217,7 +218,7 @@ def parse_get_watchable_list(response: api_typing.S2C.GetWatchableList) -> GetWa
     }
 
     typekey: Literal['rpv', 'alias', 'var']
-    for typekey in get_args(WATCHABLE_TYPE_KEY):
+    for typekey in typing.get_args(WATCHABLE_TYPE_KEY):
         watchable_type = typekey_to_watchable_type[typekey]
         if response['qty'][typekey] != len(response['content'][typekey]):
             raise sdk.exceptions.BadResponseError(f"Mismatch between expected element count ({response['qty'][typekey]}) and actual element count ({len(response['content'][typekey])})")
@@ -386,7 +387,7 @@ def parse_get_device_info(response: api_typing.S2C.GetDeviceInfo) -> Optional[sd
                 size=size
             ))
 
-        if device_info['address_size_bits'] not in get_args(sdk.AddressSize):
+        if device_info['address_size_bits'] not in typing.get_args(sdk.AddressSize):
             raise sdk.exceptions.BadResponseError(f"Unexpected address size {device_info['address_size_bits']}")
 
         datalogging_capabilities:Optional[sdk.DataloggingCapabilities] = None
@@ -1000,7 +1001,7 @@ def parse_get_watchable_count(response:api_typing.S2C.GetWatchableCount) -> Dict
     
     WatchableTypeKey = Literal['rpv', 'alias', 'var']
     key:WatchableTypeKey
-    for key in  get_args(WatchableTypeKey):
+    for key in  typing.get_args(WatchableTypeKey):
         if response['qty'][key] < 0:
             raise sdk.exceptions.BadResponseError("Received a negative number of watchable")
         

@@ -4,14 +4,14 @@
 #   - License : MIT - See LICENSE file.
 #   - Project :  Scrutiny Debugger (github.com/scrutinydebugger/scrutiny-main)
 #
-#   Copyright (c) 2021 Scrutiny Debugger
+#   Copyright (c) 2024 Scrutiny Debugger
 
 __all__ = ['IpPortValidator', 'NotEmptyValidator']
 
 from PySide6.QtGui import  QValidator
 from PySide6.QtWidgets import  QWidget
 
-from typing import Optional, Tuple
+from scrutiny.tools.typing import *
 
 class IpPortValidator(QValidator):
     def validate(self, val:Optional[str], pos:int) -> Tuple[QValidator.State, str, int]:

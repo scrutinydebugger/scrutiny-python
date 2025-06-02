@@ -5,10 +5,19 @@
 #   - License : MIT - See LICENSE file.
 #   - Project :  Scrutiny Debugger (github.com/scrutinydebugger/scrutiny-main)
 #
-#   Copyright (c) 2021 Scrutiny Debugger
+#   Copyright (c) 2024 Scrutiny Debugger
+
+__all__ = [
+    'ThreadValidationError',
+    'ThreadEnforcer',
+    'enforce_thread',
+    'thread_func',
+    'register_thread',
+    'unregister_thread'
+]
 
 import threading
-from typing import Optional, Dict, Set, Callable, TypeVar, ParamSpec
+from scrutiny.tools.typing import *
 
 class ThreadValidationError(Exception):
     pass
@@ -58,6 +67,7 @@ T = TypeVar('T')
 P = ParamSpec('P')
 
 def enforce_thread(name:str) -> Callable[[Callable[P, T]], Callable[P, T]]:
+    """Decorator that ensure the function is called in the given thread (referenced by name)"""
     def decorator(function:Callable[P, T]) -> Callable[P, T]:
         def wrapper(*args:P.args, **kwargs:P.kwargs) ->  T:
             ThreadEnforcer.assert_thread(name)
@@ -67,6 +77,8 @@ def enforce_thread(name:str) -> Callable[[Callable[P, T]], Callable[P, T]]:
     return decorator
 
 def thread_func(name:str) -> Callable[[Callable[P, T]], Callable[P, T]]:
+    """Decorator that register a function as a thread (referenced by name). Used to enforce other function calls"""
+
     def decorator(function:Callable[P, T]) -> Callable[P, T]:
         def wrapper(*args:P.args, **kwargs:P.kwargs) ->  T:
             ThreadEnforcer.register_thread(name, unique=True)
@@ -79,7 +91,9 @@ def thread_func(name:str) -> Callable[[Callable[P, T]], Callable[P, T]]:
     return decorator
 
 def register_thread(name:str, thread_id:Optional[int]=None, unique:bool=False) -> None:
+    """Register the given thread to a name for later enforcing"""
     ThreadEnforcer.register_thread(name, thread_id, unique)
 
 def unregister_thread(name:str, thread_id:Optional[int]=None) -> None:
+    """Unregister the given thread"""
     ThreadEnforcer.unregister_thread(name, thread_id)

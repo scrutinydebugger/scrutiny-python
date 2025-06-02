@@ -4,12 +4,14 @@
 #   - License : MIT - See LICENSE file.
 #   - Project :  Scrutiny Debugger (github.com/scrutinydebugger/scrutiny-main)
 #
-#   Copyright (c) 2021 Scrutiny Debugger
+#   Copyright (c) 2023 Scrutiny Debugger
+
+__all__ = ['extract_signal_from_data']
 
 import scrutiny.server.datalogging.definitions.device as device_datalogging
 from scrutiny.core.basic_types import RuntimePublishedValue
 
-from typing import List, Dict, Union
+from scrutiny.tools.typing import *
 
 
 def extract_signal_from_data(

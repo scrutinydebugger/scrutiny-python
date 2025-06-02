@@ -4,7 +4,7 @@
 #   - License : MIT - See LICENSE file.
 #   - Project :  Scrutiny Debugger (github.com/scrutinydebugger/scrutiny-main)
 #
-#   Copyright (c) 2021 Scrutiny Debugger
+#   Copyright (c) 2022 Scrutiny Debugger
 
 from scrutiny.server.datastore.datastore import Datastore
 from scrutiny.server.datastore.datastore_entry import *
@@ -13,7 +13,7 @@ from scrutiny.core.variable import *
 from scrutiny.core.embedded_enum import EmbeddedEnum
 from scrutiny.core.basic_types import *
 from test import ScrutinyUnitTest
-from typing import Dict, Optional
+from scrutiny.tools.typing import *
 
 dummy_callback = lambda *args, **kwargs: None
 

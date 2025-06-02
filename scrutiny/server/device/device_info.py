@@ -4,16 +4,24 @@
 #   - License : MIT - See LICENSE file.
 #   - Project :  Scrutiny Debugger (github.com/scrutinydebugger/scrutiny-main)
 #
-#   Copyright (c) 2021 Scrutiny Debugger
+#   Copyright (c) 2022 Scrutiny Debugger
 
-from typing import TypedDict, List, Optional
-from scrutiny.core.basic_types import *
+__all__ = [
+    'ExecLoopType',
+    'ExecLoop',
+    'FixedFreqLoop',
+    'VariableFreqLoop',
+    'SupportedFeatureMap',
+    'DeviceInfo'
+]
+
 from enum import Enum
 from abc import abstractmethod
+
+from scrutiny.core.basic_types import *
 import scrutiny.server.datalogging.definitions.device as device_datalogging
 
-from typing import Tuple
-
+from scrutiny.tools.typing import *
 
 class ExecLoopType(Enum):
     FIXED_FREQ = 0

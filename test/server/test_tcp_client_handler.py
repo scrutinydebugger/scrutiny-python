@@ -4,17 +4,17 @@
 #   - License : MIT - See LICENSE file.
 #   - Project :  Scrutiny Debugger (github.com/scrutinydebugger/scrutiny-main)
 #
-#   Copyright (c) 2021 Scrutiny Debugger
+#   Copyright (c) 2024 Scrutiny Debugger
 
 from scrutiny.server.api.abstract_client_handler import ClientHandlerMessage
 from scrutiny.server.api.tcp_client_handler import TCPClientHandler, TCPClientHandlerConfig
-from scrutiny.tools.stream_datagrams import StreamMaker, StreamParser
+from scrutiny.tools.stream_datagrams import StreamMaker
 from test import ScrutinyUnitTest
 import socket
 import time
 import json
 import queue
-from typing import Dict
+from scrutiny.tools.typing import *
 import threading
 
 class TestBadParams(ScrutinyUnitTest):

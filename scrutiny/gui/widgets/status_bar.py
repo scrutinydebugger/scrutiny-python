@@ -5,11 +5,18 @@
 #   - License : MIT - See LICENSE file.
 #   - Project :  Scrutiny Debugger (github.com/scrutinydebugger/scrutiny-main)
 #
-#   Copyright (c) 2021 Scrutiny Debugger
+#   Copyright (c) 2024 Scrutiny Debugger
+
+__all__ = ['StatusBar']
+
+import functools
+import enum
+import logging 
 
 from PySide6.QtWidgets import QStatusBar, QWidget, QLabel, QHBoxLayout, QSizePolicy, QPushButton, QToolBar, QMenu
-from PySide6.QtCore import Qt, QPoint, QSize
+from PySide6.QtCore import Qt, QPoint
 from PySide6.QtGui import QPixmap, QAction
+
 from scrutiny.gui.core.server_manager import ServerManager
 from scrutiny.gui.core.local_server_runner import LocalServerRunner
 from scrutiny.gui.core.user_messages_manager import UserMessagesManager, UserMessage
@@ -22,10 +29,8 @@ from scrutiny.gui import assets
 from scrutiny.sdk import ServerState, DeviceCommState, SFDInfo, DataloggingInfo, DataloggerState, DeviceLinkType, BaseLinkConfig
 from scrutiny import sdk
 from scrutiny.sdk.client import ScrutinyClient
-import functools
-import enum
-from typing import Optional, Dict, cast, Union, Any, Tuple, Callable
-import logging 
+
+from scrutiny.tools.typing import *
 
 class ServerLabelValue(enum.Enum):
     Disconnected = enum.auto()

@@ -4,9 +4,14 @@
 #   - License : MIT - See LICENSE file.
 #   - Project :  Scrutiny Debugger (github.com/scrutinydebugger/scrutiny-main)
 #
-#   Copyright (c) 2021 Scrutiny Debugger
+#   Copyright (c) 2022 Scrutiny Debugger
 
-from typing import Any
+__all__ = [
+    'InvalidRequestException',
+    'InvalidResponseException'
+    ]
+
+from scrutiny.tools.typing import *
 
 class InvalidRequestException(Exception):
     """Raised when a bad request is received through the API"""

@@ -5,7 +5,7 @@
 #   - License : MIT - See LICENSE file.
 #   - Project :  Scrutiny Debugger (github.com/scrutinydebugger/scrutiny-main)
 #
-#   Copyright (c) 2021 Scrutiny Debugger
+#   Copyright (c) 2022 Scrutiny Debugger
 
 import random
 from dataclasses import dataclass
@@ -27,7 +27,7 @@ import functools
 import struct
 
 
-from typing import List, Dict, Generator, cast, Tuple, Optional
+from scrutiny.tools.typing import *
 
 
 class BlockToRead:

@@ -4,7 +4,7 @@
 #   - License : MIT - See LICENSE file.
 #   - Project :  Scrutiny Debugger (github.com/scrutinydebugger/scrutiny-main)
 #
-#   Copyright (c) 2021 Scrutiny Debugger
+#   Copyright (c) 2025 Scrutiny Debugger
 
 __all__ = [
     'make_csv_headers',
@@ -23,7 +23,7 @@ from scrutiny import tools
 from scrutiny.gui.widgets.graph_signal_tree import AxisContent
 from scrutiny.gui.core.persistent_data import gui_persistent_data
 
-from typing import Optional, List, Callable, Union
+from scrutiny.tools.typing import *
 
 def make_csv_headers(
         device:Optional[sdk.DeviceInfo] = None, 

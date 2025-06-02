@@ -5,12 +5,14 @@
 #   - License : MIT - See LICENSE file.
 #   - Project :  Scrutiny Debugger (github.com/scrutinydebugger/scrutiny-main)
 #
-#   Copyright (c) 2021 Scrutiny Debugger
+#   Copyright (c) 2022 Scrutiny Debugger
+
+__all__ = ['ValueStreamer']
 
 from scrutiny.server.datastore.datastore_entry import DatastoreEntry
 from scrutiny import tools
 
-from typing import List, Set, Dict
+from scrutiny.tools.typing import *
 
 
 class ValueStreamer:

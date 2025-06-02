@@ -4,7 +4,7 @@
 #   - License : MIT - See LICENSE file.
 #   - Project :  Scrutiny Debugger (github.com/scrutinydebugger/scrutiny-main)
 #
-#   Copyright (c) 2021 Scrutiny Debugger
+#   Copyright (c) 2024 Scrutiny Debugger
 
 __all__ = [
     'SerializableWatchableElement',
@@ -19,7 +19,7 @@ from dataclasses import dataclass
 
 from PySide6.QtCore import QMimeData, QByteArray
 from scrutiny.tools import validation
-from typing import Any, Optional, TypedDict, cast, List
+from scrutiny.tools.typing import *
 
 
 @dataclass(frozen=True)

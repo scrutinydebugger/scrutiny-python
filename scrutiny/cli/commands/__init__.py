@@ -16,6 +16,7 @@ __all__ = [
     'ExportDatalog',
     'DatalogInfo',
     'GUI',
+    'Version',
     'get_all_commands',
     'get_commands_by_groups'
 ]
@@ -39,7 +40,7 @@ from .datalog_info import DatalogInfo
 from .version import Version
 from .gui import GUI
 
-from typing import List, Dict, Type
+from scrutiny.tools.typing import *
 
 
 def get_all_commands() -> List[Type[BaseCommand]]:

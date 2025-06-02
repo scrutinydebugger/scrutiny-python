@@ -4,21 +4,23 @@
 #   - License : MIT - See LICENSE file.
 #   - Project :  Scrutiny Debugger (github.com/scrutinydebugger/scrutiny-main)
 #
-#   Copyright (c) 2021 Scrutiny Debugger
+#   Copyright (c) 2024 Scrutiny Debugger
 
-from PySide6.QtWidgets import QDialog, QFormLayout, QLabel, QWidget, QVBoxLayout, QGroupBox, QSizePolicy
-from PySide6.QtCore import Qt
+__all__ = ['AboutDialog']
+
 import os
+import sys
 
 import PySide6
+from PySide6.QtWidgets import QDialog, QFormLayout, QLabel, QWidget, QVBoxLayout, QGroupBox, QSizePolicy
+from PySide6.QtCore import Qt
 import PySide6.QtCore
-
-import sys
-from typing import Optional
 
 import scrutiny
 from scrutiny.gui import assets
 from scrutiny.gui.themes import scrutiny_get_theme
+
+from scrutiny.tools.typing import *
 
 class AboutDialog(QDialog):
 

@@ -4,13 +4,11 @@
 #   - License : MIT - See LICENSE file.
 #   - Project :  Scrutiny Debugger (github.com/scrutinydebugger/scrutiny-main)
 #
-#   Copyright (c) 2021 Scrutiny Debugger
+#   Copyright (c) 2024 Scrutiny Debugger
 
-from dataclasses import dataclass
 import threading
 from test.gui.base_gui_test import ScrutinyBaseGuiTest
-from typing import Optional
-from scrutiny.gui.tools.invoker import InvokeInQtThreadSynchronized, CrossThreadInvoker
+from scrutiny.gui.tools.invoker import invoke_in_qt_thread_synchronized, CrossThreadInvoker
 from scrutiny import tools
 
 class TestInvoker(ScrutinyBaseGuiTest):
@@ -22,7 +20,7 @@ class TestInvoker(ScrutinyBaseGuiTest):
 
         finished = threading.Event()
         def thread_func():
-            InvokeInQtThreadSynchronized(func)
+            invoke_in_qt_thread_synchronized(func)
             finished.set()
 
         thread = threading.Thread(target=thread_func, daemon=True)

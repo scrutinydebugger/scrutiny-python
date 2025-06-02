@@ -4,11 +4,10 @@
 #   - License : MIT - See LICENSE file.
 #   - Project :  Scrutiny Debugger (github.com/scrutinydebugger/scrutiny-main)
 #
-#   Copyright (c) 2021 Scrutiny Debugger
+#   Copyright (c) 2025 Scrutiny Debugger
 
-__all__ = [
-    'WatchComponent'
-]
+__all__ = ['WatchComponent']
+
 import logging
 
 from PySide6.QtCore import QModelIndex, Qt, QModelIndex, Signal

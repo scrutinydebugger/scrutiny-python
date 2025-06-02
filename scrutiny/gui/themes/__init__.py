@@ -8,14 +8,12 @@ __all__ = [
 ]
 
 import enum
-from typing import Any
 import abc
-from typing import Optional
 
 from PySide6.QtWidgets import QApplication, QStyle, QWidget
 from PySide6.QtGui import QPalette, QIcon, QPixmap
 from scrutiny.gui import assets
-
+from scrutiny.tools.typing import *
 
 class ScrutinyThemeProperties(enum.Enum):
     CHART_NORMAL_SERIES_WIDTH=enum.auto()

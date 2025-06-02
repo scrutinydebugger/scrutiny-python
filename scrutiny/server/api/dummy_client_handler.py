@@ -4,7 +4,7 @@
 #   - License : MIT - See LICENSE file.
 #   - Project :  Scrutiny Debugger (github.com/scrutinydebugger/scrutiny-main)
 #
-#   Copyright (c) 2021 Scrutiny Debugger
+#   Copyright (c) 2022 Scrutiny Debugger
 
 __all__ = [
     'DummyConnection',
@@ -21,7 +21,7 @@ import uuid
 
 from scrutiny import tools
 from .abstract_client_handler import AbstractClientHandler, ClientHandlerConfig, ClientHandlerMessage
-from typing import Optional, Dict, List
+from scrutiny.tools.typing import *
 
 
 class DummyConnection:
@@ -81,7 +81,6 @@ class DummyConnection:
 
     def __repr__(self) -> str:
         return '<%s - %s>' % (self.__class__.__name__, self.get_id())
-
 
 class DummyClientHandler(AbstractClientHandler):
 

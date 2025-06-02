@@ -4,7 +4,9 @@
 #   - License : MIT - See LICENSE file.
 #   - Project :  Scrutiny Debugger (github.com/scrutinydebugger/scrutiny-main)
 #
-#   Copyright (c) 2021 Scrutiny Debugger
+#   Copyright (c) 2022 Scrutiny Debugger
+
+__all__ = ['Alias']
 
 import json
 import math
@@ -12,7 +14,7 @@ import math
 from scrutiny.core.basic_types import WatchableType
 from scrutiny.core.embedded_enum import EmbeddedEnum
 
-from typing import Dict, Optional, Any, Union
+from scrutiny.tools.typing import *
 
 
 class Alias:

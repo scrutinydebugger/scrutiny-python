@@ -4,7 +4,7 @@
 #   - License : MIT - See LICENSE file.
 #   - Project :  Scrutiny Debugger (github.com/scrutinydebugger/scrutiny-main)
 #
-#   Copyright (c) 2021 Scrutiny Debugger
+#   Copyright (c) 2022 Scrutiny Debugger
 
 import time
 from scrutiny.core.codecs import Encodable
@@ -30,7 +30,7 @@ from scrutiny.server.device.device_info import *
 from scrutiny.server.datalogging.datalogging_utilities import extract_signal_from_data
 from test import ScrutinyUnitTest, logger
 
-from typing import cast, List
+from scrutiny.tools.typing import *
 
 no_callback:UpdateTargetRequestCallback = lambda *args, **kwargs: None
 

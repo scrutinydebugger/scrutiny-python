@@ -5,17 +5,18 @@
 #   - License : MIT - See LICENSE file.
 #   - Project :  Scrutiny Debugger (github.com/scrutinydebugger/scrutiny-main)
 #
-#   Copyright (c) 2021 Scrutiny Debugger
+#   Copyright (c) 2022 Scrutiny Debugger
+
+__all__ = ['HeartbeatGenerator']
 
 import time
 import logging
-import traceback
 
 from scrutiny.server.protocol import *
 import scrutiny.server.protocol.typing as protocol_typing
 from scrutiny.server.device.request_dispatcher import RequestDispatcher
 from scrutiny import tools
-from typing import Any, Optional, cast
+from scrutiny.tools.typing import *
 
 
 class HeartbeatGenerator:

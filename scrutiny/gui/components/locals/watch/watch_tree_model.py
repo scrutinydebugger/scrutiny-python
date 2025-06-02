@@ -4,9 +4,15 @@
 #   - License : MIT - See LICENSE file.
 #   - Project :  Scrutiny Debugger (github.com/scrutinydebugger/scrutiny-main)
 #
-#   Copyright (c) 2021 Scrutiny Debugger
+#   Copyright (c) 2024 Scrutiny Debugger
 
-__all__ = ['WatchComponentTreeModel', 'WatchComponentTreeWidget', 'ValueStandardItem', 'DataTypeStandardItem']
+__all__ = [
+    'WatchComponentTreeModel',
+    'WatchComponentTreeWidget',
+    'ValueStandardItem',
+    'DataTypeStandardItem',
+    'EnumNameStandardItem'
+    ]
 
 import logging
 import enum
@@ -15,7 +21,7 @@ from PySide6.QtCore import QMimeData, QModelIndex, QPersistentModelIndex, Qt,  S
 from PySide6.QtWidgets import QWidget, QMenu, QAbstractItemDelegate
 from PySide6.QtGui import QStandardItem,QPalette, QContextMenuEvent, QDragMoveEvent, QDropEvent, QDragEnterEvent, QKeyEvent, QStandardItem, QAction
 
-from scrutiny.sdk import EmbeddedDataType, WatchableConfiguration
+from scrutiny.sdk import WatchableConfiguration
 from scrutiny.gui.core.scrutiny_drag_data import ScrutinyDragData, WatchableListDescriptor
 from scrutiny.gui.core.watchable_registry import WatchableRegistry
 from scrutiny.gui.widgets.watchable_tree import (

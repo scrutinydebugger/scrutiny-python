@@ -5,23 +5,24 @@
 #   - License : MIT - See LICENSE file.
 #   - Project :  Scrutiny Debugger (github.com/scrutinydebugger/scrutiny-main)
 #
-#   Copyright (c) 2021 Scrutiny Debugger
+#   Copyright (c) 2023 Scrutiny Debugger
+
+__all__ = ['DatalogInfo']
 
 import argparse
 
 from .base_command import BaseCommand
-from typing import Optional, List
 from dataclasses import dataclass
-from typing import List, Optional, Union
 
+from scrutiny.tools.typing import *
 
 @dataclass
-class OutputTableRow:
+class _OutputTableRow:
     title: str
     value: Union[int, str]
 
 
-def sizeof_fmt(num:float, suffix:str="B") -> str:
+def _sizeof_fmt(num:float, suffix:str="B") -> str:
     for unit in ["", "Ki", "Mi", "Gi", "Ti", "Pi", "Ei", "Zi"]:
         if abs(num) < 1024.0:
             return f"{num:3.1f}{unit}{suffix}"
@@ -44,7 +45,7 @@ class DatalogInfo(BaseCommand):
     def run(self) -> Optional[int]:
         from scrutiny.server.datalogging.datalogging_storage import DataloggingStorage
 
-        table_output: List[OutputTableRow] = []
+        table_output: List[_OutputTableRow] = []
 
         self.parsed_args = self.parser.parse_args(self.args)
         DataloggingStorage.initialize()
@@ -53,12 +54,12 @@ class DatalogInfo(BaseCommand):
         db_hash = DataloggingStorage.get_db_hash()
         date_format = r"%Y-%m-%d %H:%M:%S"
 
-        table_output.append(OutputTableRow(title="Acquisitions count", value=len(acquisitions)))
-        table_output.append(OutputTableRow(title="Oldest acquisition", value="N/A" if timerange is None else timerange[0].strftime(date_format)))
-        table_output.append(OutputTableRow(title="Newest acquisition", value="N/A" if timerange is None else timerange[1].strftime(date_format)))
-        table_output.append(OutputTableRow(title="Storage location", value=DataloggingStorage.get_db_filename()))
-        table_output.append(OutputTableRow(title="Storage size", value=sizeof_fmt(DataloggingStorage.get_size())))
-        table_output.append(OutputTableRow(title="Storage structure hash", value="N/A" if db_hash is None else "%s" % db_hash))
+        table_output.append(_OutputTableRow(title="Acquisitions count", value=len(acquisitions)))
+        table_output.append(_OutputTableRow(title="Oldest acquisition", value="N/A" if timerange is None else timerange[0].strftime(date_format)))
+        table_output.append(_OutputTableRow(title="Newest acquisition", value="N/A" if timerange is None else timerange[1].strftime(date_format)))
+        table_output.append(_OutputTableRow(title="Storage location", value=DataloggingStorage.get_db_filename()))
+        table_output.append(_OutputTableRow(title="Storage size", value=_sizeof_fmt(DataloggingStorage.get_size())))
+        table_output.append(_OutputTableRow(title="Storage structure hash", value="N/A" if db_hash is None else "%s" % db_hash))
 
         col_size_title = 0
         for line in table_output:

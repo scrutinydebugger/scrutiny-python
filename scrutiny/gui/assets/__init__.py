@@ -19,9 +19,9 @@ from scrutiny.gui.core.exceptions import GuiError
 from pathlib import Path
 from PySide6.QtGui import QPixmap, QIcon
 from PySide6.QtCore import QDir
-
-from typing import List, Union, Dict
 import enum
+
+from scrutiny.tools.typing import *
 
 ASSET_PATH = os.path.dirname(__file__)
 

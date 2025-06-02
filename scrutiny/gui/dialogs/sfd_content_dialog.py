@@ -5,13 +5,14 @@
 #   - License : MIT - See LICENSE file.
 #   - Project :  Scrutiny Debugger (github.com/scrutinydebugger/scrutiny-main)
 #
-#   Copyright (c) 2021 Scrutiny Debugger
+#   Copyright (c) 2024 Scrutiny Debugger
+
+__all__ = ['SFDContentDialog']
 
 from PySide6.QtWidgets import QDialog, QFormLayout, QLabel, QWidget, QVBoxLayout, QGroupBox
 from PySide6.QtCore import Qt
-from typing import Optional, List, Tuple
 from scrutiny import sdk
-
+from scrutiny.tools.typing import *
 
 class SFDContentDialog(QDialog):
     def __init__(self, parent:Optional[QWidget], sfd:sdk.SFDInfo) -> None:

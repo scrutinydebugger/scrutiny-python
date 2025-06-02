@@ -7,11 +7,13 @@
 #   - License : MIT - See LICENSE file.
 #   - Project :  Scrutiny Debugger (github.com/scrutinydebugger/scrutiny-main)
 #
-#   Copyright (c) 2021 Scrutiny Debugger
+#   Copyright (c) 2025 Scrutiny Debugger
 
-from typing import Dict
+__all__ = ['ShibokenRefKeeper']
+
 from PySide6.QtCore import QObject
 import shiboken6
+from scrutiny.tools.typing import *
 
 class ShibokenRefKeeper:
     """Tool to keep a python object alive by keeping a reference to it. 

@@ -4,7 +4,7 @@
 #   - License : MIT - See LICENSE file.
 #   - Project :  Scrutiny Debugger (github.com/scrutinydebugger/scrutiny-main)
 #
-#   Copyright (c) 2021 Scrutiny Debugger
+#   Copyright (c) 2024 Scrutiny Debugger
 
 from scrutiny import sdk
 from scrutiny.gui.core.server_manager import ServerManager, ServerConfig, QtBufferedListener
@@ -12,11 +12,10 @@ from scrutiny.gui.core.watchable_registry import WatchableRegistry
 from test.gui.fake_sdk_client import FakeSDKClient, StubbedWatchableHandle
 from test.gui.base_gui_test import ScrutinyBaseGuiTest, EventType
 import time
-from dataclasses import dataclass
 from test import logger
 from scrutiny import tools
 
-from typing import List, Optional, Any
+from scrutiny.tools.typing import *
 
 # These value are not really used as they are given to a fake client
 SERVER_MANAGER_CONFIG = ServerConfig('127.0.0.1', 5555)

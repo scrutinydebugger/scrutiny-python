@@ -6,7 +6,9 @@
 #   - License : MIT - See LICENSE file.
 #   - Project :  Scrutiny Debugger (github.com/scrutinydebugger/scrutiny-main)
 #
-#   Copyright (c) 2021 Scrutiny Debugger
+#   Copyright (c) 2022 Scrutiny Debugger
+
+__all__ = ['Datastore']
 
 import logging
 import functools
@@ -14,7 +16,7 @@ from scrutiny.core.basic_types import WatchableType
 from scrutiny.server.datastore.datastore_entry import *
 from scrutiny import tools
 
-from typing import Callable, List, Dict, Generator, Set, List, Optional, Union, Any
+from scrutiny.tools.typing import *
 
 WatchCallback = Callable[[str], None]
 

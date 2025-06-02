@@ -4,12 +4,18 @@
 #   - License : MIT - See LICENSE file.
 #   - Project :  Scrutiny Debugger (github.com/scrutinydebugger/scrutiny-main)
 #
-#   Copyright (c) 2021 Scrutiny Debugger
+#   Copyright (c) 2025 Scrutiny Debugger
 
-import appdirs  # type: ignore
+__all__ = [
+    'set_server_storage',
+    'get_server_storage'
+    ]
+
+import appdirs
 from pathlib import Path
 
-from typing import Union
+from scrutiny.tools.typing import *
+
 SERVER_STORAGE = Path(appdirs.user_data_dir(appname='server', appauthor='scrutiny'))
 
 def set_server_storage(val:Union[Path]) -> None:

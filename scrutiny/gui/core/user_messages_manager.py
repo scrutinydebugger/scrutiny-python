@@ -6,18 +6,17 @@
 #   - License : MIT - See LICENSE file.
 #   - Project :  Scrutiny Debugger (github.com/scrutinydebugger/scrutiny-main)
 #
-#   Copyright (c) 2021 Scrutiny Debugger
+#   Copyright (c) 2025 Scrutiny Debugger
 
 __all__ = ['UserMessagesManager']
 
-from dataclasses import dataclass
 import time
 import logging
 
 from scrutiny.gui.core.threads import QT_THREAD_NAME
 from scrutiny.tools.thread_enforcer import enforce_thread
 from scrutiny.tools.typing import *
-from scrutiny.gui.tools.invoker import InvokeInQtThread
+from scrutiny.gui.tools.invoker import invoke_in_qt_thread
 
 from PySide6.QtCore import QObject, Signal, QTimer
 
@@ -81,12 +80,12 @@ class UserMessagesManager:
     def register_message_thread_safe(self, id:str, text:str, lifetime:float) -> None:
         def func() -> None:
             self.register_message(id, text, lifetime)
-        InvokeInQtThread(func)
+        invoke_in_qt_thread(func)
 
     def clear_message_thread_safe(self, id:str) -> None:
         def func() -> None:
             self.clear_message(id)
-        InvokeInQtThread(func)
+        invoke_in_qt_thread(func)
 
     @enforce_thread(QT_THREAD_NAME)
     def register_message(self, id:str, text:str, lifetime:float) -> None:

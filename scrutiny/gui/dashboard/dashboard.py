@@ -5,7 +5,9 @@
 #   - License : MIT - See LICENSE file.
 #   - Project :  Scrutiny Debugger (github.com/scrutinydebugger/scrutiny-main)
 #
-#   Copyright (c) 2021 Scrutiny Debugger
+#   Copyright (c) 2025 Scrutiny Debugger
+
+__all__ = ['Dashboard']
 
 import logging
 from dataclasses import dataclass
@@ -36,7 +38,7 @@ from scrutiny.gui.core.persistent_data import gui_persistent_data
 from scrutiny import tools
 from scrutiny.gui.tools import prompt
 from scrutiny.gui.tools.opengl import prepare_for_opengl
-from scrutiny.gui.tools.invoker import InvokeQueued
+from scrutiny.gui.tools.invoker import invoke_later
 from scrutiny.gui.tools.shiboken_ref_keeper import ShibokenRefKeeper
 from scrutiny.gui.themes import scrutiny_get_theme
 from scrutiny.tools.typing import *
@@ -569,7 +571,7 @@ class Dashboard(QWidget):
                 widget.ready()
         self._component_instances[name] = widget            
 
-        InvokeQueued(ready_if_not_deleted)
+        invoke_later(ready_if_not_deleted)
 
         return dock_widget
     

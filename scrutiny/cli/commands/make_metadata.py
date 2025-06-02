@@ -5,16 +5,18 @@
 #   - License : MIT - See LICENSE file.
 #   - Project :  Scrutiny Debugger (github.com/scrutinydebugger/scrutiny-main)
 #
-#   Copyright (c) 2021 Scrutiny Debugger
+#   Copyright (c) 2022 Scrutiny Debugger
+
+__all__ = ['MakeMetadata']
 
 import argparse
-from .base_command import BaseCommand
 import json
 import os
 import datetime
 import platform
-from typing import Optional, List
-import logging
+
+from .base_command import BaseCommand
+from scrutiny.tools.typing import *
 
 
 class MakeMetadata(BaseCommand):

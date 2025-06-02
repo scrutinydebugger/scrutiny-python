@@ -5,7 +5,7 @@
 #   - License : MIT - See LICENSE file.
 #   - Project :  Scrutiny Debugger (github.com/scrutinydebugger/scrutiny-main)
 #
-#   Copyright (c) 2021 Scrutiny Debugger
+#   Copyright (c) 2022 Scrutiny Debugger
 
 from scrutiny.server.device.request_dispatcher import RequestDispatcher, RequestQueue
 from scrutiny.server.protocol.commands import DummyCommand

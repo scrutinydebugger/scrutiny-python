@@ -4,7 +4,9 @@
 #   - License : MIT - See LICENSE file.
 #   - Project :  Scrutiny Debugger (github.com/scrutinydebugger/scrutiny-main)
 #
-#   Copyright (c) 2021 Scrutiny Debugger
+#   Copyright (c) 2022 Scrutiny Debugger
+
+__all__ = ['PLACEHOLDER']
 
 PLACEHOLDER: bytes = bytes([
     0xA9, 0xDC, 0xC0, 0x65, 0x28, 0xFD, 0x41, 0xFA,

@@ -11,7 +11,6 @@ import logging
 import threading
 import types
 import time
-from typing import Union, List, Set, Iterable,Optional, Type, Literal
 
 from scrutiny.sdk.watchable_handle import WatchableHandle
 from scrutiny.tools import validation
@@ -19,6 +18,7 @@ from scrutiny.core.logging import DUMPDATA_LOGLEVEL
 from scrutiny.sdk import exceptions as sdk_exceptions
 from scrutiny.tools.profiling import VariableRateExponentialAverager
 from scrutiny import tools
+from scrutiny.tools.typing import *
 
 @dataclass(frozen=True)
 class ValueUpdate:

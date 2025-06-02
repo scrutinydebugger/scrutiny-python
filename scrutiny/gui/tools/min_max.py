@@ -4,10 +4,12 @@
 #   - License : MIT - See LICENSE file.
 #   - Project :  Scrutiny Debugger (github.com/scrutinydebugger/scrutiny-main)
 #
-#   Copyright (c) 2021 Scrutiny Debugger
+#   Copyright (c) 2025 Scrutiny Debugger
+
+__all__ = ['MinMax']
 
 import math 
-from typing import Optional, Sequence
+from scrutiny.tools.typing import *
 
 class MinMax:
     low:float

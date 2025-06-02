@@ -5,7 +5,9 @@
 #   - License : MIT - See LICENSE file.
 #   - Project :  Scrutiny Debugger (github.com/scrutinydebugger/scrutiny-main)
 #
-#   Copyright (c) 2021 Scrutiny Debugger
+#   Copyright (c) 2022 Scrutiny Debugger
+
+__all__ = ['CLI']
 
 import os
 import sys
@@ -16,9 +18,9 @@ import traceback
 from scrutiny.cli.commands import *
 from scrutiny.core.logging import DUMPDATA_LOGLEVEL
 
-from typing import Optional, List, Type
+from scrutiny.tools.typing import *
 
-class ScrutinyArgumentParser(argparse.ArgumentParser):
+class _ScrutinyArgumentParser(argparse.ArgumentParser):
     def error(self, message:str) -> None:   # type: ignore
         sys.stderr.write('error: %s\n' % message)
         self.print_help()
@@ -31,7 +33,7 @@ class CLI:
     workdir:str
     default_log_level:str
     command_list:List[Type[BaseCommand]]
-    parser:ScrutinyArgumentParser
+    parser:_ScrutinyArgumentParser
 
 
     def __init__(self, workdir:str='.', default_log_level:str='info'):
@@ -39,7 +41,7 @@ class CLI:
         self.default_log_level = default_log_level
 
         self.command_list = get_all_commands()  # comes from commands module
-        self.parser = ScrutinyArgumentParser(
+        self.parser = _ScrutinyArgumentParser(
             prog='scrutiny',
             epilog=self.make_command_list_help(),
             add_help=False,

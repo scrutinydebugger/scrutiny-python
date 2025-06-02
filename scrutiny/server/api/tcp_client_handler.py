@@ -5,7 +5,12 @@
 #   - License : MIT - See LICENSE file.
 #   - Project :  Scrutiny Debugger (github.com/scrutinydebugger/scrutiny-main)
 #
-#   Copyright (c) 2021 Scrutiny Debugger
+#   Copyright (c) 2024 Scrutiny Debugger
+
+__all__ = [
+    'ClientInfo',
+    'TCPClientHandler'
+]
 
 import uuid
 import logging
@@ -13,7 +18,6 @@ import json
 import threading
 import socket
 from dataclasses import dataclass
-import traceback
 import queue
 import selectors
 import time
@@ -24,14 +28,14 @@ from scrutiny.core.logging import DUMPDATA_LOGLEVEL
 from scrutiny.tools.profiling import VariableRateExponentialAverager
 from scrutiny import tools
 
-from typing import Dict, Optional, TypedDict, cast, List, Tuple
+from scrutiny.tools.typing import *
 
 class TCPClientHandlerConfig(TypedDict):
     host:str
     port:int
 
 @dataclass
-class ThreadBasics:
+class _ThreadBasics:
     thread:threading.Thread
     started_event:threading.Event
     stop_event:threading.Event
@@ -51,7 +55,7 @@ class TCPClientHandler(AbstractClientHandler):
     config: TCPClientHandlerConfig
     logger: logging.Logger
     rx_event:Optional[threading.Event]
-    server_thread_info:Optional[ThreadBasics]
+    server_thread_info:Optional[_ThreadBasics]
     server_sock:Optional[socket.socket]
     selector:Optional[selectors.DefaultSelector]
 
@@ -138,7 +142,7 @@ class TCPClientHandler(AbstractClientHandler):
         self.selector.register(self.server_sock, selectors.EVENT_READ)
         
 
-        self.server_thread_info = ThreadBasics(
+        self.server_thread_info = _ThreadBasics(
             thread=threading.Thread(target=self.st_server_thread_fn),
             started_event=threading.Event(),
             stop_event=threading.Event()

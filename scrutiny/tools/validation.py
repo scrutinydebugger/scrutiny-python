@@ -4,12 +4,23 @@
 #   - License : MIT - See LICENSE file.
 #   - Project :  Scrutiny Debugger (github.com/scrutinydebugger/scrutiny-main)
 #
-#   Copyright (c) 2021 Scrutiny Debugger
+#   Copyright (c) 2023 Scrutiny Debugger
 
-from typing import Union, Any, Type, List, Tuple, Sequence, Optional, Iterable
+__all__ = [
+    'assert_type',
+    'assert_type_or_none',
+    'assert_val_in',
+    'assert_int_range',
+    'assert_int_range_if_not_none',
+    'assert_float_range',
+    'assert_float_range_if_not_none',
+    'assert_is_iterable',
+    'assert_not_none',
+    'assert_dict_key'
+]
+
 import math
-
-
+from scrutiny.tools.typing import *
 
 def assert_type(var: Any, name: str, types: Union[Type[Any], List[Type[Any]], Tuple[Type[Any], ...]]) -> None:
     if isinstance(types, (list, tuple)):
@@ -40,7 +51,6 @@ def assert_val_in(var: Any, name: str, vals: Sequence[Any]) -> None:
     if var not in vals:
         raise ValueError(f"\"{name}\" has an invalid value. Expected one of {vals}")
 
-
 def assert_int_range(val: int, name: str, minval: Optional[int] = None, maxval: Optional[int] = None) -> int:
     assert_type(val, name, int)
     if minval is not None:
@@ -52,12 +62,10 @@ def assert_int_range(val: int, name: str, minval: Optional[int] = None, maxval: 
             raise ValueError(f"{name} must be less than {maxval}. Got {val}")
     return val
 
-
 def assert_int_range_if_not_none(val: Optional[int], name: str, minval: Optional[int] = None, maxval: Optional[int] = None) -> Optional[int]:
     if val is None:
         return None
     return assert_int_range(val, name, minval, maxval)
-
 
 def assert_float_range(val: Union[int, float], name: str, minval: Optional[float] = None, maxval: Optional[float] = None) -> float:
     if isinstance(val, int) and not isinstance(val, bool):
@@ -75,7 +83,6 @@ def assert_float_range(val: Union[int, float], name: str, minval: Optional[float
         if val > maxval:
             raise ValueError(f"{name} must be less than {maxval}. Got {val}")
     return val
-
 
 def assert_float_range_if_not_none(val: Optional[float], name: str, minval: Optional[float] = None, maxval: Optional[float] = None) -> Optional[float]:
     if val is None:

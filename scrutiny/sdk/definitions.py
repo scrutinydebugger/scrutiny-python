@@ -4,18 +4,7 @@
 #   - License : MIT - See LICENSE file.
 #   - Project :  Scrutiny Debugger (github.com/scrutinydebugger/scrutiny-main)
 #
-#   Copyright (c) 2021 Scrutiny Debugger
-
-import enum
-from dataclasses import dataclass
-from scrutiny.core.basic_types import MemoryRegion, EmbeddedDataType, WatchableType
-from scrutiny.core.embedded_enum import EmbeddedEnum
-from scrutiny.core.firmware_description import SFDMetadata, SFDGenerationInfo
-from scrutiny.tools import validation
-import abc
-from binascii import hexlify
-
-from scrutiny.tools.typing import *
+#   Copyright (c) 2023 Scrutiny Debugger
 
 __all__ = [
     'AddressSize',
@@ -51,6 +40,18 @@ __all__ = [
     'ServerStatistics',
     'EmbeddedEnum'
 ]
+
+import enum
+from dataclasses import dataclass
+from scrutiny.core.basic_types import MemoryRegion, EmbeddedDataType, WatchableType
+from scrutiny.core.embedded_enum import EmbeddedEnum
+from scrutiny.core.firmware_description import SFDMetadata, SFDGenerationInfo
+from scrutiny.tools import validation
+import abc
+from binascii import hexlify
+
+from scrutiny.tools.typing import *
+
 
 AddressSize = Literal[8, 16, 32, 64, 128]
 

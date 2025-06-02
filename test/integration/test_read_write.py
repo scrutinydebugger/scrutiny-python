@@ -4,7 +4,7 @@
 #   - License : MIT - See LICENSE file.
 #   - Project :  Scrutiny Debugger (github.com/scrutinydebugger/scrutiny-main)
 #
-#   Copyright (c) 2021 Scrutiny Debugger
+#   Copyright (c) 2022 Scrutiny Debugger
 
 import struct
 
@@ -14,12 +14,11 @@ from scrutiny.server.datastore.datastore_entry import *
 from scrutiny.core.basic_types import *
 from scrutiny.core.codecs import *
 from scrutiny.server.protocol import commands as protocol_commands
-from typing import List
 from dataclasses import dataclass
 from binascii import unhexlify
-from typing import *
 import functools
 import math
+from scrutiny.tools.typing import *
 
 from test.integration.integration_test import ScrutinyIntegrationTestWithTestSFD1
 

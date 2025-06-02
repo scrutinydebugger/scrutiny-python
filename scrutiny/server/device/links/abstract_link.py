@@ -4,10 +4,15 @@
 #   - License : MIT - See LICENSE file.
 #   - Project :  Scrutiny Debugger (github.com/scrutinydebugger/scrutiny-main)
 #
-#   Copyright (c) 2021 Scrutiny Debugger
+#   Copyright (c) 2022 Scrutiny Debugger
+
+__all__ = [
+    'LinkConfig',
+    'AbstractLink'
+]
 
 from abc import ABC, abstractmethod
-from typing import Optional, Dict, Any
+from scrutiny.tools.typing import *
 
 LinkConfig = Dict[str, Any]
 

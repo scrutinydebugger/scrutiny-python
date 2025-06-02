@@ -4,19 +4,19 @@
 #   - License : MIT - See LICENSE file.
 #   - Project :  Scrutiny Debugger (github.com/scrutinydebugger/scrutiny-main)
 #
-#   Copyright (c) 2021 Scrutiny Debugger
+#   Copyright (c) 2024 Scrutiny Debugger
 
 __all__ = ['ScrutinyGUIBaseComponent']
 
 from abc import abstractmethod
+import logging
 
 from PySide6.QtWidgets import QWidget
 from PySide6.QtGui import QIcon
-from typing import cast, TYPE_CHECKING, Dict, Any, Type, Optional
 
 from scrutiny.gui.core.server_manager import ServerManager
 from scrutiny.gui.core.watchable_registry import WatchableRegistry
-import logging
+from scrutiny.tools.typing import *
 
 if TYPE_CHECKING:   # Prevent circular dependency
     from scrutiny.gui.main_window import MainWindow

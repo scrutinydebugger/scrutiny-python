@@ -4,18 +4,15 @@
 #   - License : MIT - See LICENSE file.
 #   - Project :  Scrutiny Debugger (github.com/scrutinydebugger/scrutiny-main)
 #
-#   Copyright (c) 2021 Scrutiny Debugger
+#   Copyright (c) 2023 Scrutiny Debugger
 
-import threading
-from datetime import datetime
-import scrutiny.sdk as sdk
+__all__ = ['WriteRequest']
+
 from scrutiny.sdk.pending_request import PendingRequest
-
-from typing import Optional, Union, TYPE_CHECKING
+from scrutiny.tools.typing import *
 
 if TYPE_CHECKING:
     from scrutiny.sdk.watchable_handle import WatchableHandle
-
 
 class WriteRequest(PendingRequest):
     """A handle to a write request. Reports the progress and the status of the request. 

@@ -4,7 +4,7 @@
 #   - License : MIT - See LICENSE file.
 #   - Project :  Scrutiny Debugger (github.com/scrutinydebugger/scrutiny-main)
 #
-#   Copyright (c) 2021 Scrutiny Debugger
+#   Copyright (c) 2024 Scrutiny Debugger
 
 import unittest
 
@@ -18,7 +18,7 @@ from test import SkipOnException
 from test.artifacts import get_artifact
 from test import ScrutinyUnitTest
 
-from typing import Optional
+from scrutiny.tools.typing import *
 
 
 known_enums = {

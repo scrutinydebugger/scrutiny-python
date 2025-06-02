@@ -5,7 +5,7 @@
 #   - License : MIT - See LICENSE file.
 #   - Project :  Scrutiny Debugger (github.com/scrutinydebugger/scrutiny-main)
 #
-#   Copyright (c) 2021 Scrutiny Debugger
+#   Copyright (c) 2022 Scrutiny Debugger
 
 import time
 import json
@@ -22,7 +22,7 @@ from scrutiny.server.sfd_storage import SFDStorage
 from scrutiny.server.datastore.datastore_entry import *
 from scrutiny.core.basic_types import *
 from scrutiny.core.codecs import *
-from typing import cast, List, Tuple, Callable, Optional, Any
+from scrutiny.tools.typing import *
 
 
 class ScrutinyIntegrationTest(ScrutinyUnitTest):

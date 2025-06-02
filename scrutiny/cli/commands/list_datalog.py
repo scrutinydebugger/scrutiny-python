@@ -4,17 +4,19 @@
 #   - License : MIT - See LICENSE file.
 #   - Project :  Scrutiny Debugger (github.com/scrutinydebugger/scrutiny-main)
 #
-#   Copyright (c) 2021 Scrutiny Debugger
+#   Copyright (c) 2023 Scrutiny Debugger
+
+__all__ = ['ListDatalog']
 
 import argparse
 
 from .base_command import BaseCommand
-from typing import Optional, List
 from dataclasses import dataclass
+from scrutiny.tools.typing import *
 
 
 @dataclass
-class DisplayEntry:
+class _DisplayEntry:
     index: str
     reference_id: str
     acq_name: str
@@ -24,7 +26,7 @@ class DisplayEntry:
 
 
 @dataclass
-class DisplayFieldSize:
+class _DisplayFieldSize:
     index: int = 0
     reference_id: int = 0
     acq_name: int = 0
@@ -32,7 +34,7 @@ class DisplayFieldSize:
     dataseries_name: int = 0
     acq_time: int = 0
 
-    def update(self, entry: DisplayEntry) -> None:
+    def update(self, entry: _DisplayEntry) -> None:
         self.index = max(self.index, len(entry.index))
         self.reference_id = max(self.reference_id, len(entry.reference_id))
         self.acq_name = max(self.acq_name, len(entry.acq_name))
@@ -63,8 +65,8 @@ class ListDatalog(BaseCommand):
         self.parsed_args = self.parser.parse_args(self.args)
         DataloggingStorage.initialize()
         acquisitions = DataloggingStorage.list()
-        all_entries: List[DisplayEntry] = []
-        sizes = DisplayFieldSize()
+        all_entries: List[_DisplayEntry] = []
+        sizes = _DisplayFieldSize()
         index = 0
         for reference_id in acquisitions:
             acq = DataloggingStorage.read(reference_id)
@@ -72,7 +74,7 @@ class ListDatalog(BaseCommand):
             if not self.parsed_args.multiline:
                 dataseries_name = [','.join(dataseries_name)]
 
-            entry = DisplayEntry(
+            entry = _DisplayEntry(
                 index=str(index),
                 reference_id=reference_id,
                 acq_name=acq.name if acq.name else "",
@@ -96,7 +98,7 @@ class ListDatalog(BaseCommand):
         if len(all_entries) == 0:
             print("No acquisitions")
         else:
-            header = DisplayEntry(
+            header = _DisplayEntry(
                 index='#',
                 acq_name="Name",
                 dataseries_name=['Signals'],
@@ -117,7 +119,7 @@ class ListDatalog(BaseCommand):
 
         return 0
 
-    def print_line(self, entry: DisplayEntry, sizes: DisplayFieldSize) -> None:
+    def print_line(self, entry: _DisplayEntry, sizes: _DisplayFieldSize) -> None:
         assert self.parsed_args is not None
         SEPARATOR_SIZE = 4
         delta = sizes.index - len(str(entry.index))

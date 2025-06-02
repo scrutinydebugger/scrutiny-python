@@ -4,15 +4,18 @@
 #   - License : MIT - See LICENSE file.
 #   - Project :  Scrutiny Debugger (github.com/scrutinydebugger/scrutiny-main)
 #
-#   Copyright (c) 2021 Scrutiny Debugger
+#   Copyright (c) 2024 Scrutiny Debugger
 
-from scrutiny.tools import validation
-from scrutiny import sdk
+__all__ = ['PendingRequest']
+
 from datetime import datetime
 import threading
 import time
 
-from typing import Optional, TYPE_CHECKING
+from scrutiny.tools import validation
+from scrutiny import sdk
+
+from scrutiny.tools.typing import *
 if TYPE_CHECKING:
     from scrutiny.sdk.client import ScrutinyClient
 

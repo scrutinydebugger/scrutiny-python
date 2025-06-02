@@ -4,23 +4,25 @@
 #   - License : MIT - See LICENSE file.
 #   - Project :  Scrutiny Debugger (github.com/scrutinydebugger/scrutiny-main)
 #
-#   Copyright (c) 2021 Scrutiny Debugger
+#   Copyright (c) 2024 Scrutiny Debugger
 
 __all__ = ['FakeSDKClient']
 
-from scrutiny import sdk
-from scrutiny.sdk.client import WatchableListDownloadRequest, ScrutinyClient
-from scrutiny.core.embedded_enum import EmbeddedEnum
-from scrutiny.core.basic_types import EmbeddedDataType
-from scrutiny.sdk.listeners import BaseListener
-from scrutiny import tools
-from typing import Optional, List, Dict, Callable, Union
 from dataclasses import dataclass
 import inspect
 import queue
 import threading
 from test import logger
 from datetime import datetime
+
+from scrutiny import sdk
+from scrutiny.sdk.client import WatchableListDownloadRequest, ScrutinyClient
+from scrutiny.sdk.listeners import BaseListener
+from scrutiny.core.embedded_enum import EmbeddedEnum
+from scrutiny.core.basic_types import EmbeddedDataType
+from scrutiny import tools
+
+from scrutiny.tools.typing import *
 
 default_server_info = sdk.ServerInfo(
     device_comm_state=sdk.DeviceCommState.Disconnected,
