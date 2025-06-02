@@ -6,7 +6,7 @@
 #
 #   Copyright (c) 2021 Scrutiny Debugger
 
-__all__ = ['WatchComponentTreeModel', 'WatchComponentTreeWidget', 'ValueStandardItem']
+__all__ = ['WatchComponentTreeModel', 'WatchComponentTreeWidget', 'ValueStandardItem', 'DataTypeStandardItem']
 
 import logging
 import enum
@@ -15,7 +15,7 @@ from PySide6.QtCore import QMimeData, QModelIndex, QPersistentModelIndex, Qt,  S
 from PySide6.QtWidgets import QWidget, QMenu, QAbstractItemDelegate
 from PySide6.QtGui import QStandardItem,QPalette, QContextMenuEvent, QDragMoveEvent, QDropEvent, QDragEnterEvent, QKeyEvent, QStandardItem, QAction
 
-from scrutiny.sdk.definitions import WatchableConfiguration
+from scrutiny.sdk import EmbeddedDataType, WatchableConfiguration
 from scrutiny.gui.core.scrutiny_drag_data import ScrutinyDragData, WatchableListDescriptor
 from scrutiny.gui.core.watchable_registry import WatchableRegistry
 from scrutiny.gui.widgets.watchable_tree import (
@@ -40,6 +40,9 @@ WATCHER_ID_ROLE = Qt.ItemDataRole.UserRole+2
 class ValueStandardItem(QStandardItem):
     pass
 
+class DataTypeStandardItem(QStandardItem):
+    pass
+
 class SerializableTreeDescriptor(TypedDict):
     """A serializable description of a node (not the path to it). Used to describe a tree when doing a copy"""
     node:NodeSerializableData
@@ -60,7 +63,7 @@ class WatchComponentTreeWidget(WatchableTreeWidget):
         self.setDragEnabled(True)
         self.setDropIndicatorShown(True)
         self.setDragDropMode(self.DragDropMode.DragDrop)
-        self.set_header_labels(['', 'Value'])
+        self.set_header_labels(['', 'Value', 'Type'])
         self.signals = self._Signals()
 
     def contextMenuEvent(self, event: QContextMenuEvent) -> None:
@@ -247,6 +250,7 @@ class WatchComponentTreeModel(WatchableTreeModel):
     class Column(enum.Enum):
         # Item is always 0.
         VALUE = 1
+        DATATYPE = 2
 
     logger:logging.Logger
     _available_palette:QPalette
@@ -288,8 +292,10 @@ class WatchComponentTreeModel(WatchableTreeModel):
     def itemFromIndex(self, index:Union[QModelIndex, QPersistentModelIndex]) -> BaseWatchableRegistryTreeStandardItem:
         return cast(BaseWatchableRegistryTreeStandardItem, super().itemFromIndex(index))
     
-    def get_watchable_columns(self, watchable_config: Optional[WatchableConfiguration] = None) -> List[QStandardItem]:
-        return [ValueStandardItem()]
+    def get_watchable_extra_columns(self, watchable_config:Optional[WatchableConfiguration] = None) -> List[QStandardItem]:
+        # We don't use watchable_config here even if we could.
+        # We update the value/type when an item is available by calling update_row_state
+        return [ValueStandardItem(), DataTypeStandardItem()]
 
     def _check_support_drag_data(self, drag_data:Optional[ScrutinyDragData], action:Qt.DropAction) -> bool:
         """Tells if a drop would be supported
@@ -468,7 +474,7 @@ class WatchComponentTreeModel(WatchableTreeModel):
                     self.add_row_to_parent(parent, row_index, folder_row)
                     self.fill_from_index_recursive(first_col, parsed_fqn.watchable_type, parsed_fqn.path, keep_folder_fqn=False, editable=True) 
                     for item in self.get_all_watchable_items(parent):
-                        self.update_availability(item)
+                        self.update_row_state(item)
                     
                 elif node['type'] == 'watchable':
                     watchable_row = self.make_watchable_row(node['text'], watchable_type=parsed_fqn.watchable_type, fqn=node['fqn'], editable=True)
@@ -476,7 +482,7 @@ class WatchComponentTreeModel(WatchableTreeModel):
 
                     main_item = watchable_row[self.nesting_col()]
                     assert isinstance(main_item, WatchableStandardItem)
-                    self.update_availability(main_item)
+                    self.update_row_state(main_item)
                 else:
                     pass    # Silently ignore
 
@@ -517,13 +523,13 @@ class WatchComponentTreeModel(WatchableTreeModel):
                 row = self.make_folder_row_existing_item(item, editable=True)
             elif isinstance(item, WatchableStandardItem):
                 self._assign_unique_watcher_id(item)
-                row = self.make_watchable_row_from_existing_item(item, editable=True, extra_columns=self.get_watchable_columns())
+                row = self.make_watchable_row_from_existing_item(item, editable=True, extra_columns=self.get_watchable_extra_columns())
             else:
                 raise NotImplementedError("Unsupported item type")
         
             self.add_row_to_parent(parent, row_index, row)
             if isinstance(item, WatchableStandardItem):
-                self.update_availability(item)
+                self.update_row_state(item)
 
             for child in sorted(descriptor['children'], key=lambda x:x['sortkey']):
                 fill_from_tree_recursive(
@@ -568,7 +574,7 @@ class WatchComponentTreeModel(WatchableTreeModel):
                 name = descriptor.text,
                 fqn=descriptor.fqn,
                 editable=True,
-                extra_columns=self.get_watchable_columns()
+                extra_columns=self.get_watchable_extra_columns()
             )
             rows.append(row)
 
@@ -576,7 +582,7 @@ class WatchComponentTreeModel(WatchableTreeModel):
         for row in rows:
             main_item = row[self.nesting_col()]
             assert isinstance(main_item, WatchableStandardItem)
-            self.update_availability(main_item)
+            self.update_row_state(main_item)
 
         return True
 
@@ -605,14 +611,15 @@ class WatchComponentTreeModel(WatchableTreeModel):
         else:
             recurse(parent)
             
-    def update_availability(self, watchable:WatchableStandardItem) -> None:
+    def update_row_state(self, watchable_item:WatchableStandardItem) -> None:
         """Change the availability of an item based on its availibility in the registry. 
         When the watchable refered by an element is not in the registry, becomes "unavailable" (grayed out).
         """
-        if self._watchable_registry.is_watchable_fqn(watchable.fqn):
-            self.set_available(watchable)
+        watchable_config = self._watchable_registry.get_watchable_fqn(watchable_item.fqn)
+        if watchable_config is not None:
+            self.set_available(watchable_item, watchable_config.datatype)
         else:
-            self.set_unavailable(watchable)
+            self.set_unavailable(watchable_item)
         
     def set_unavailable(self, arg_item:WatchableStandardItem) -> None:
         """Make an item in the tree unavailable (grayed out)"""
@@ -627,8 +634,10 @@ class WatchComponentTreeModel(WatchableTreeModel):
                 if isinstance(item, ValueStandardItem):
                     item.setEditable(False)
                     item.setText('N/A')
+                if isinstance(item, DataTypeStandardItem):
+                    item.setText('N/A')
     
-    def set_available(self, arg_item:WatchableStandardItem) -> None:
+    def set_available(self, arg_item:WatchableStandardItem, datatype:EmbeddedDataType) -> None:
         """Make an item in the tree available (normal color)"""
         background_color = self._available_palette.color(QPalette.ColorRole.Base)
         forground_color = self._available_palette.color(QPalette.ColorRole.Text)
@@ -640,6 +649,8 @@ class WatchComponentTreeModel(WatchableTreeModel):
                 item.setForeground(forground_color)
                 if isinstance(item, ValueStandardItem):
                     item.setEditable(True)
+                if isinstance(item, DataTypeStandardItem):
+                    item.setText(datatype.name)
     
     def is_available(self, arg_item:WatchableStandardItem) -> bool:
         v = cast(Optional[bool], arg_item.data(AVAILABLE_DATA_ROLE))
@@ -652,8 +663,16 @@ class WatchComponentTreeModel(WatchableTreeModel):
         assert isinstance(o, ValueStandardItem)
         return o
 
+    def get_datatype_item(self, item:WatchableStandardItem) -> DataTypeStandardItem:
+        o = self.itemFromIndex(item.index().siblingAtColumn(self.datatype_col()))
+        assert isinstance(o, DataTypeStandardItem)
+        return o
+
     def value_col(self) -> int:
         return self.get_column_index(self.Column.VALUE)    
+
+    def datatype_col(self) -> int:
+        return self.get_column_index(self.Column.DATATYPE)    
 
     def get_column_index(self, col:Column) -> int:
         # Indirection layer to make it easier to enable column reorder

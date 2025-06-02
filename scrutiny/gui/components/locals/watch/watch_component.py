@@ -338,7 +338,7 @@ class WatchComponent(ScrutinyGUIBaseLocalComponent):
                 self._watch_item(item)
             else:
                 self._unwatch_item(item)
-            self._tree_model.update_availability(item)
+            self._tree_model.update_row_state(item)
 
         self._tree.map_to_watchable_node(update_func, start_node)
 

@@ -13,8 +13,6 @@ __all__ = [
     'VarListComponent',
 ]
 
-from typing import Dict, Any, List, cast, Optional, Sequence
-
 from PySide6.QtWidgets import QVBoxLayout, QWidget
 from PySide6.QtGui import QStandardItem, QStandardItemModel, QIcon
 from PySide6.QtCore import QModelIndex, QMimeData, Qt
@@ -32,13 +30,14 @@ from scrutiny.gui.widgets.watchable_tree import (
     )
 
 from scrutiny.sdk import WatchableType, WatchableConfiguration
+from scrutiny.tools.typing import *
 
 class VarListComponentTreeModel(WatchableTreeModel):
     """An extension of the data model used by Watchable Trees dedicated for the Variable List Component
     Mainly handles drag&drop logic
     """
-
-    def get_watchable_columns(self,  watchable_config:Optional[WatchableConfiguration]=None) -> List[QStandardItem]:
+    
+    def get_watchable_extra_columns(self,  watchable_config:Optional[WatchableConfiguration]=None) -> List[QStandardItem]:
         """Define the columns to add for a watchable (leaf) row. Called by the parent class"""
         if watchable_config is None:
             return []
