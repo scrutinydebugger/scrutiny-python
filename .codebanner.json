@@ -808,6 +808,9 @@
         },
         "stubs/elftools/elf/elffile/__init__.pyi": {
             "docstring": "A stub file for the pyelftools package"
+        },
+        "stubs/appdirs.pyi": {
+            "docstring": "A stub file for the appdirs module"
         }
     }
 }

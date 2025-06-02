@@ -8,7 +8,7 @@
 
 __all__ = ['get_gui_storage']
 
-import appdirs  # type: ignore
+import appdirs
 from pathlib import Path
 
 GUI_STORAGE = Path(appdirs.user_data_dir(appname='gui', appauthor='scrutiny'))

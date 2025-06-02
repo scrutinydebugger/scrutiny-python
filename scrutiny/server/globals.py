@@ -11,7 +11,7 @@ __all__ = [
     'get_server_storage'
     ]
 
-import appdirs  # type: ignore
+import appdirs
 from pathlib import Path
 
 from scrutiny.tools.typing import *
