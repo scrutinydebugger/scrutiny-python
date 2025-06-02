@@ -2,13 +2,16 @@
     "folders": [
         "test",
         "scrutiny",
-        "scripts"
+        "scripts",
+        "stubs"
     ],
     "include_patterns": [
         "*.py",
+        "*.pyi",
         "*.sh"
     ],
     "exclude_patterns": [
+        "*__init__.py",
         "*__init__.py",
         "scrutiny/sdk/docs/*"
     ],
@@ -784,6 +787,27 @@
         },
         "scripts/format_package_license.py": {
             "docstring": "Internal script called by make_license.sh to print licenses of each given dependencies in a given format"
+        },
+        "stubs/PySide6QtAds.pyi": {
+            "docstring": "A stub file for the PySide6-QtAds module."
+        },
+        "stubs/elftools/__init__.pyi": {
+            "docstring": "A stub file for the pyelftools package"
+        },
+        "stubs/elftools/dwarf/dwarfinfo.pyi": {
+            "docstring": "A stub file for the pyelftools package"
+        },
+        "stubs/elftools/dwarf/compileunit.pyi": {
+            "docstring": "A stub file for the pyelftools package"
+        },
+        "stubs/elftools/dwarf/die.pyi": {
+            "docstring": "A stub file for the pyelftools package"
+        },
+        "stubs/elftools/elf/__init__.pyi": {
+            "docstring": "A stub file for the pyelftools package"
+        },
+        "stubs/elftools/elf/elffile/__init__.pyi": {
+            "docstring": "A stub file for the pyelftools package"
         }
     }
 }
