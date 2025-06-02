@@ -32,16 +32,29 @@ from scrutiny.gui.themes import scrutiny_get_theme
 from scrutiny.gui import assets
 from scrutiny.tools.global_counters import global_i64_counter
 from scrutiny.tools.typing import *
+from scrutiny import tools
 
 
 AVAILABLE_DATA_ROLE = Qt.ItemDataRole.UserRole+1
 WATCHER_ID_ROLE = Qt.ItemDataRole.UserRole+2
 
 class ValueStandardItem(QStandardItem):
+    """The tree item that stores a watchable value."""
     pass
 
 class DataTypeStandardItem(QStandardItem):
-    pass
+    """The tree item that stores a watchable embedded data type."""
+    @tools.copy_type(QStandardItem.__init__)
+    def __init__(self, *args:Any, **kwargs:Any) -> None:
+        super().__init__(*args, **kwargs)
+        self.setEditable(False)
+
+class EnumNameStandardItem(QStandardItem):
+    """The tree item that stores a watchable enum name."""
+    @tools.copy_type(QStandardItem.__init__)
+    def __init__(self, *args:Any, **kwargs:Any) -> None:
+        super().__init__(*args, **kwargs)
+        self.setEditable(False)
 
 class SerializableTreeDescriptor(TypedDict):
     """A serializable description of a node (not the path to it). Used to describe a tree when doing a copy"""
@@ -63,7 +76,7 @@ class WatchComponentTreeWidget(WatchableTreeWidget):
         self.setDragEnabled(True)
         self.setDropIndicatorShown(True)
         self.setDragDropMode(self.DragDropMode.DragDrop)
-        self.set_header_labels(['', 'Value', 'Type'])
+        self.set_header_labels(['', 'Value', 'Type', 'Enum'])
         self.signals = self._Signals()
 
     def contextMenuEvent(self, event: QContextMenuEvent) -> None:
@@ -251,6 +264,7 @@ class WatchComponentTreeModel(WatchableTreeModel):
         # Item is always 0.
         VALUE = 1
         DATATYPE = 2
+        ENUM = 3
 
     logger:logging.Logger
     _available_palette:QPalette
@@ -295,7 +309,7 @@ class WatchComponentTreeModel(WatchableTreeModel):
     def get_watchable_extra_columns(self, watchable_config:Optional[WatchableConfiguration] = None) -> List[QStandardItem]:
         # We don't use watchable_config here even if we could.
         # We update the value/type when an item is available by calling update_row_state
-        return [ValueStandardItem(), DataTypeStandardItem()]
+        return [ValueStandardItem(), DataTypeStandardItem(), EnumNameStandardItem()]
 
     def _check_support_drag_data(self, drag_data:Optional[ScrutinyDragData], action:Qt.DropAction) -> bool:
         """Tells if a drop would be supported
@@ -617,7 +631,7 @@ class WatchComponentTreeModel(WatchableTreeModel):
         """
         watchable_config = self._watchable_registry.get_watchable_fqn(watchable_item.fqn)
         if watchable_config is not None:
-            self.set_available(watchable_item, watchable_config.datatype)
+            self.set_available(watchable_item, watchable_config)
         else:
             self.set_unavailable(watchable_item)
         
@@ -636,8 +650,10 @@ class WatchComponentTreeModel(WatchableTreeModel):
                     item.setText('N/A')
                 if isinstance(item, DataTypeStandardItem):
                     item.setText('N/A')
+                if isinstance(item, EnumNameStandardItem):
+                    item.setText('')
     
-    def set_available(self, arg_item:WatchableStandardItem, datatype:EmbeddedDataType) -> None:
+    def set_available(self, arg_item:WatchableStandardItem, watchable_config:WatchableConfiguration) -> None:
         """Make an item in the tree available (normal color)"""
         background_color = self._available_palette.color(QPalette.ColorRole.Base)
         forground_color = self._available_palette.color(QPalette.ColorRole.Text)
@@ -650,7 +666,10 @@ class WatchComponentTreeModel(WatchableTreeModel):
                 if isinstance(item, ValueStandardItem):
                     item.setEditable(True)
                 if isinstance(item, DataTypeStandardItem):
-                    item.setText(datatype.name)
+                    item.setText(watchable_config.datatype.name)
+                if isinstance(item, EnumNameStandardItem):
+                    if watchable_config.enum is not None:
+                        item.setText(watchable_config.enum.name)
     
     def is_available(self, arg_item:WatchableStandardItem) -> bool:
         v = cast(Optional[bool], arg_item.data(AVAILABLE_DATA_ROLE))
@@ -668,11 +687,19 @@ class WatchComponentTreeModel(WatchableTreeModel):
         assert isinstance(o, DataTypeStandardItem)
         return o
 
+    def get_enum_item(self, item:WatchableStandardItem) -> EnumNameStandardItem:
+        o = self.itemFromIndex(item.index().siblingAtColumn(self.enum_col()))
+        assert isinstance(o, EnumNameStandardItem)
+        return o
+
     def value_col(self) -> int:
         return self.get_column_index(self.Column.VALUE)    
 
     def datatype_col(self) -> int:
         return self.get_column_index(self.Column.DATATYPE)    
+
+    def enum_col(self) -> int:
+        return self.get_column_index(self.Column.ENUM)    
 
     def get_column_index(self, col:Column) -> int:
         # Indirection layer to make it easier to enable column reorder
