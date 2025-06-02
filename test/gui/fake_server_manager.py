@@ -14,10 +14,12 @@ from scrutiny import sdk
 
 from typing import Optional, Union, Callable
 
+enum_rpv_a_c = sdk.EmbeddedEnum("EnumAC", {'aaa' : 0, 'bbb': 1, 'ccc': 2})
+
 DUMMY_DATASET_RPV = {
     '/rpv/rpv.a/rpv.a.a' : sdk.WatchableConfiguration(server_id='rpv.a.a', watchable_type=sdk.WatchableType.RuntimePublishedValue, datatype=sdk.EmbeddedDataType.float32, enum=None),
     '/rpv/rpv.a/rpv.a.b' : sdk.WatchableConfiguration(server_id='rpv.a.b', watchable_type=sdk.WatchableType.RuntimePublishedValue, datatype=sdk.EmbeddedDataType.float32, enum=None),
-    '/rpv/rpv.a/rpv.a.c' : sdk.WatchableConfiguration(server_id='rpv.a.c', watchable_type=sdk.WatchableType.RuntimePublishedValue, datatype=sdk.EmbeddedDataType.float32, enum=None),
+    '/rpv/rpv.a/rpv.a.c' : sdk.WatchableConfiguration(server_id='rpv.a.c', watchable_type=sdk.WatchableType.RuntimePublishedValue, datatype=sdk.EmbeddedDataType.uint32, enum=enum_rpv_a_c),
     '/rpv/rpv.b/rpv.b.a' : sdk.WatchableConfiguration(server_id='rpv.b.a', watchable_type=sdk.WatchableType.RuntimePublishedValue, datatype=sdk.EmbeddedDataType.float32, enum=None),
     '/rpv/rpv.b/rpv.b.b' : sdk.WatchableConfiguration(server_id='rpv.b.b', watchable_type=sdk.WatchableType.RuntimePublishedValue, datatype=sdk.EmbeddedDataType.float32, enum=None),
     '/rpv/rpv.b/rpv.b.c' : sdk.WatchableConfiguration(server_id='rpv.b.c', watchable_type=sdk.WatchableType.RuntimePublishedValue, datatype=sdk.EmbeddedDataType.float32, enum=None),

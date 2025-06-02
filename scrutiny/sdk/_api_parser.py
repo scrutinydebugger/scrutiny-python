@@ -298,7 +298,6 @@ def parse_subscribe_watchable_response(response: api_typing.S2C.SubscribeWatchab
                 if not isinstance(val, int): 
                     raise sdk.exceptions.BadResponseError('Invalid enum. Value is not an integer')
                 enum.add_value(key, val)
-                
 
         if v['datatype'] not in API.APISTR_2_DATATYPE:
             raise sdk.exceptions.BadResponseError(f"Unknown datatype {v['datatype']}")

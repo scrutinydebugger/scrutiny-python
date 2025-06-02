@@ -48,7 +48,8 @@ __all__ = [
     'FixedFreqSamplingRate',
     'VariableFreqSamplingRate',
     'DataloggingCapabilities',
-    'ServerStatistics'
+    'ServerStatistics',
+    'EmbeddedEnum'
 ]
 
 AddressSize = Literal[8, 16, 32, 64, 128]

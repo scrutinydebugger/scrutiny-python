@@ -217,8 +217,8 @@ class WatchableTreeModel(BaseTreeModel):
     def __init__(self, parent:QWidget, watchable_registry:WatchableRegistry) -> None:
         super().__init__(parent)
         self._watchable_registry = watchable_registry
-
-    def get_watchable_columns(self,  watchable_config:Optional[WatchableConfiguration] = None) -> List[QStandardItem]:
+    
+    def get_watchable_extra_columns(self,  watchable_config:Optional[WatchableConfiguration] = None) -> List[QStandardItem]:
         return []
     
     def watchable_item_created(self, item:WatchableStandardItem) -> None:
@@ -355,7 +355,7 @@ class WatchableTreeModel(BaseTreeModel):
                     watchable_type = watchable_config.watchable_type, 
                     fqn = WatchableRegistry.FQN.make(watchable_type, watchable_path), 
                     editable=editable,
-                    extra_columns=self.get_watchable_columns(watchable_config)
+                    extra_columns=self.get_watchable_extra_columns(watchable_config)
                 )
                 parent.appendRow(row)
 
