@@ -10,13 +10,14 @@ import scrutiny.server.datalogging.definitions.api as api_datalogging
 import scrutiny.server.datalogging.definitions.device as device_datalogging
 from scrutiny.core import datalogging as core_datalogging
 from scrutiny.server.datastore.datastore import *
+from scrutiny.server.datastore.datastore_entry import *
 from scrutiny.core.variable import Variable
 from scrutiny.core.basic_types import *
 from test import ScrutinyUnitTest
 from scrutiny.core.alias import Alias
 
 from scrutiny.server.datalogging.datalogging_manager import DataloggingManager
-
+from scrutiny.tools.typing import *
 
 class TestDataloggingManager(ScrutinyUnitTest):
 
