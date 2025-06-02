@@ -6,6 +6,8 @@
 #
 #   Copyright (c) 2021 Scrutiny Debugger
 
+__all__ = ['ClientHandlerMessage', 'AbstractClientHandler']
+
 from abc import abstractmethod
 from dataclasses import dataclass
 import threading

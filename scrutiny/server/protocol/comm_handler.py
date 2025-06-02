@@ -10,6 +10,8 @@
 #
 #   Copyright (c) 2021 Scrutiny Debugger
 
+__all__ = ['CommHandler']
+
 import logging
 import struct
 import time

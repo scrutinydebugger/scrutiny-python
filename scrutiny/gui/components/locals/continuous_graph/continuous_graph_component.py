@@ -6,6 +6,8 @@
 #
 #   Copyright (c) 2021 Scrutiny Debugger
 
+__all__ = ['ContinuousGraphComponent']
+
 from datetime import datetime
 import functools
 import math

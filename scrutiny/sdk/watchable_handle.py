@@ -7,6 +7,8 @@
 #
 #   Copyright (c) 2021 Scrutiny Debugger
 
+__all__ = ['WatchableHandle']
+
 import threading
 from datetime import datetime
 import time
@@ -24,8 +26,6 @@ if TYPE_CHECKING:
 
 
 ValType = Union[int, float, bool]
-
-__all__ = ['WatchableHandle']
 
 class WatchableHandle:
     """A handle to a server watchable element (Variable / Alias / RuntimePublishedValue) that gets updated by the client thread."""

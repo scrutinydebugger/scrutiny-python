@@ -6,6 +6,8 @@
 #
 #   Copyright (c) 2021 Scrutiny Debugger
 
+__all__ = ['Protocol']
+
 import logging
 from enum import Enum
 from struct import pack, unpack

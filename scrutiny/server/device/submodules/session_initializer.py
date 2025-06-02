@@ -6,6 +6,10 @@
 #
 #   Copyright (c) 2021 Scrutiny Debugger
 
+__all__ = [
+    'SessionInitializer'
+]
+
 import logging
 import time
 

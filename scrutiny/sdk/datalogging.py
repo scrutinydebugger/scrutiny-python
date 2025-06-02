@@ -5,6 +5,20 @@
 #   - Project :  Scrutiny Debugger (github.com/scrutinydebugger/scrutiny-main)
 #
 #   Copyright (c) 2021 Scrutiny Debugger
+__all__ = [
+    'XAxisType',
+    'TriggerCondition',
+    'DataloggingConfig',
+    'DataloggingRequest',
+    'DataloggingStorageEntry',
+
+    # Forwarded from core
+    'AxisDefinition',
+    'DataSeries',
+    'DataSeriesWithAxis',
+    'DataloggingAcquisition',
+    'LoggedWatchable'
+]
 
 import enum
 from datetime import datetime
@@ -23,21 +37,6 @@ from scrutiny.tools.typing import *
 
 if TYPE_CHECKING:
     from scrutiny.sdk.client import ScrutinyClient
-
-__all__ = [
-    'XAxisType',
-    'TriggerCondition',
-    'DataloggingConfig',
-    'DataloggingRequest',
-    'DataloggingStorageEntry',
-
-    # Forwarded from core
-    'AxisDefinition',
-    'DataSeries',
-    'DataSeriesWithAxis',
-    'DataloggingAcquisition',
-    'LoggedWatchable'
-]
 
 
 class XAxisType(enum.Enum):

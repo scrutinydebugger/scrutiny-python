@@ -8,6 +8,12 @@
 #
 #   Copyright (c) 2021 Scrutiny Debugger
 
+__all__ = [
+    'RawMemoryWriteRequestCompletionCallback',
+    'RawMemoryWriteRequest',
+    'MemoryWriter'
+]
+
 import logging
 import queue
 

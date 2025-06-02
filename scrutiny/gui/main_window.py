@@ -6,6 +6,8 @@
 #
 #   Copyright (c) 2021 Scrutiny Debugger
 
+__all__ = ['MainWindow']
+
 import logging
 from pathlib import Path
 
@@ -32,7 +34,7 @@ from scrutiny.gui.components.globals.base_global_component import ScrutinyGUIBas
 from scrutiny.gui.components.globals.varlist.varlist_component import VarListComponent
 from scrutiny.gui.components.locals.watch.watch_component import WatchComponent
 from scrutiny.gui.components.locals.continuous_graph.continuous_graph_component import ContinuousGraphComponent
-from scrutiny.gui.components.locals.embedded_graph.embedded_graph_component import EmbeddedGraph
+from scrutiny.gui.components.locals.embedded_graph.embedded_graph_component import EmbeddedGraphComponent
 from scrutiny.gui.components.globals.metrics.metrics_component import MetricsComponent
 
 from scrutiny.gui.core.server_manager import ServerManager
@@ -52,7 +54,7 @@ class MainWindow(QMainWindow):
     ENABLED_LOCAL_COMPONENTS:List[Type[ScrutinyGUIBaseLocalComponent]] = [
         WatchComponent,
         ContinuousGraphComponent,
-        EmbeddedGraph
+        EmbeddedGraphComponent
     ]
     
     _logger: logging.Logger

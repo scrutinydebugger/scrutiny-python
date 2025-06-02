@@ -9,6 +9,8 @@
 #
 #   Copyright (c) 2021 Scrutiny Debugger
 
+__all__ = ['ShibokenRefKeeper']
+
 from PySide6.QtCore import QObject
 import shiboken6
 from scrutiny.tools.typing import *

@@ -6,6 +6,8 @@
 #
 #   Copyright (c) 2021 Scrutiny Debugger
 
+__all__ = ['VariableRateExponentialAverager']
+
 import time
 
 class VariableRateExponentialAverager:

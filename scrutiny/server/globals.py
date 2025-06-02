@@ -6,6 +6,11 @@
 #
 #   Copyright (c) 2021 Scrutiny Debugger
 
+__all__ = [
+    'set_server_storage',
+    'get_server_storage'
+    ]
+
 import appdirs  # type: ignore
 from pathlib import Path
 

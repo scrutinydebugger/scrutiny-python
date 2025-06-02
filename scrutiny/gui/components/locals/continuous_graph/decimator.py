@@ -6,6 +6,8 @@
 #
 #   Copyright (c) 2021 Scrutiny Debugger
 
+__all__ = ['GraphMonotonicNonUniformMinMaxDecimator']
+
 from PySide6.QtCore import QPointF
 from scrutiny.tools import validation
 

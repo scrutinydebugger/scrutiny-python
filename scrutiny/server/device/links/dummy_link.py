@@ -6,6 +6,10 @@
 #
 #   Copyright (c) 2021 Scrutiny Debugger
 
+__all__ = [
+    'DummyLink'
+]
+
 from .abstract_link import AbstractLink, LinkConfig
 from scrutiny.tools.typing import *
 import queue

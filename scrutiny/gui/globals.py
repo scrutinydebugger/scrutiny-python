@@ -6,6 +6,8 @@
 #
 #   Copyright (c) 2021 Scrutiny Debugger
 
+__all__ = ['get_gui_storage']
+
 import appdirs  # type: ignore
 from pathlib import Path
 

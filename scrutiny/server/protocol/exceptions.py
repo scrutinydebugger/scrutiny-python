@@ -6,6 +6,11 @@
 #
 #   Copyright (c) 2021 Scrutiny Debugger
 
+__all__ = [
+    'InvalidRequestException',
+    'InvalidResponseException'
+    ]
+
 from scrutiny.tools.typing import *
 
 class InvalidRequestException(Exception):

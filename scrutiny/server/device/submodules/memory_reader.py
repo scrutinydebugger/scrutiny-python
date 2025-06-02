@@ -8,6 +8,12 @@
 #
 #   Copyright (c) 2021 Scrutiny Debugger
 
+__all__ = [
+    'RawMemoryReadRequestCompletionCallback',
+    'RawMemoryReadRequest',
+    'MemoryReader'
+]
+
 import logging
 import copy
 import enum

@@ -7,6 +7,8 @@
 #
 #   Copyright (c) 2021 Scrutiny Debugger
 
+__all__ = ['Dashboard']
+
 import logging
 from dataclasses import dataclass
 import os

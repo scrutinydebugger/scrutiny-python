@@ -8,10 +8,6 @@
 
 __all__ = ['ScrutinyGUIBaseLocalComponent']
 
-from abc import ABC, abstractmethod
-
-
-
 from scrutiny.gui.components.base_component import ScrutinyGUIBaseComponent
 
 class ScrutinyGUIBaseLocalComponent(ScrutinyGUIBaseComponent):

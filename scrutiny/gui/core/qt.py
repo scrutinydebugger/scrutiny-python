@@ -7,6 +7,8 @@
 #
 #   Copyright (c) 2021 Scrutiny Debugger
 
+__all__ = ['make_qt_app']
+
 from PySide6.QtWidgets import QApplication
 from scrutiny.gui.core.threads import QT_THREAD_NAME
 from scrutiny.tools.thread_enforcer import register_thread

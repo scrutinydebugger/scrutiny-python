@@ -6,6 +6,11 @@
 #
 #   Copyright (c) 2021 Scrutiny Debugger
 
+__all__ = [
+    'SerialConfig',
+    'SerialLink'
+]
+
 import logging
 import serial   # type: ignore
 import time

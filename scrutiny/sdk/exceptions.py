@@ -6,6 +6,20 @@
 #
 #   Copyright (c) 2021 Scrutiny Debugger
 
+__all__ = [
+    'ScrutinySDKException',
+    'ConnectionError',
+    'InvalidValueError',
+    'OperationFailure',
+    'TimeoutException',
+    'NameNotFoundError',
+    'BadEnumError',
+    'NotAllowedError',
+    'ApiError',
+    'BadResponseError',
+    'ErrorResponseException'
+]
+
 class ScrutinySDKException(Exception):
     """Base class for all Scrutiny SDK exceptions"""
     pass

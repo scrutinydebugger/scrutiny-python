@@ -6,6 +6,8 @@
 #
 #   Copyright (c) 2021 Scrutiny Debugger
 
+__all__ = ['Request']
+
 import struct
 import inspect
 from enum import Enum

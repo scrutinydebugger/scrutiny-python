@@ -6,6 +6,8 @@
 #
 #   Copyright (c) 2021 Scrutiny Debugger
 
+__all__ = ['LogViewer']
+
 from PySide6.QtCore import QSize
 from PySide6.QtWidgets import QWidget, QPlainTextEdit
 

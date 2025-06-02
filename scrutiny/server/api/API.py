@@ -7,6 +7,14 @@
 #
 #   Copyright (c) 2021 Scrutiny Debugger
 
+__all__ = [
+    'API',
+    'APIConfig',
+    'UpdateVarCallback',
+    'TargetUpdateCallback',
+    'InvalidRequestException'
+]
+
 import logging
 import traceback
 import math

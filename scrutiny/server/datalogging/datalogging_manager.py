@@ -6,13 +6,14 @@
 #
 #   Copyright (c) 2021 Scrutiny Debugger
 
+__all__ = ['DataloggingManager']
+
 import queue
 import logging
 import math
 from dataclasses import dataclass
 from uuid import uuid4
 from datetime import datetime
-import traceback
 import enum
 
 import scrutiny.server.datalogging.definitions.api as api_datalogging

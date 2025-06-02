@@ -8,6 +8,8 @@
 #
 #   Copyright (c) 2021 Scrutiny Debugger
 
+__all__ = ['Datastore']
+
 import logging
 import functools
 from scrutiny.core.basic_types import WatchableType

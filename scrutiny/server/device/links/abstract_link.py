@@ -6,6 +6,11 @@
 #
 #   Copyright (c) 2021 Scrutiny Debugger
 
+__all__ = [
+    'LinkConfig',
+    'AbstractLink'
+]
+
 from abc import ABC, abstractmethod
 from scrutiny.tools.typing import *
 

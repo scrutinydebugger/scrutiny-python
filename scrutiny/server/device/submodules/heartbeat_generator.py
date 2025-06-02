@@ -7,6 +7,8 @@
 #
 #   Copyright (c) 2021 Scrutiny Debugger
 
+__all__ = ['HeartbeatGenerator']
+
 import time
 import logging
 

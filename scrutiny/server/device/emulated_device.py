@@ -7,6 +7,15 @@
 #
 #   Copyright (c) 2021 Scrutiny Debugger
 
+__all__ = [
+    'NotAllowedException',
+    'RequestLogRecord',
+    'RPVValuePair',
+    'EmulatedTimebase',
+    'DataloggerEmulator',
+    'EmulatedDevice'
+]
+
 import struct
 import threading
 import time

@@ -6,6 +6,12 @@
 #
 #   Copyright (c) 2021 Scrutiny Debugger
 
+__all__ = [
+    'SFDLoadedCallback',
+    'SFDUnloadedCallback',
+    'ActiveSFDHandler'
+    ]
+
 import logging
 
 from scrutiny.core.firmware_description import FirmwareDescription

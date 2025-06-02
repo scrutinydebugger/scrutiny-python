@@ -7,6 +7,12 @@
 #
 #   Copyright (c) 2021 Scrutiny Debugger
 
+__all__ = [
+    'BadVersionError',
+    'DataloggingStorageManager',
+    'DataloggingStorage'
+]
+
 import os
 import tempfile
 import logging

@@ -6,6 +6,8 @@
 #
 #   Copyright (c) 2021 Scrutiny Debugger
 
+__all__ = ['crc32']
+
 from typing import Union
 
 def crc32(data: Union[bytes, bytearray]) -> int:

@@ -6,6 +6,8 @@
 #
 #   Copyright (c) 2021 Scrutiny Debugger
 
+__all__ = ['AboutDialog']
+
 import os
 import sys
 
@@ -14,11 +16,11 @@ from PySide6.QtWidgets import QDialog, QFormLayout, QLabel, QWidget, QVBoxLayout
 from PySide6.QtCore import Qt
 import PySide6.QtCore
 
-
 import scrutiny
-from scrutiny.tools.typing import *
 from scrutiny.gui import assets
 from scrutiny.gui.themes import scrutiny_get_theme
+
+from scrutiny.tools.typing import *
 
 class AboutDialog(QDialog):
 

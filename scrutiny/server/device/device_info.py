@@ -6,6 +6,15 @@
 #
 #   Copyright (c) 2021 Scrutiny Debugger
 
+__all__ = [
+    'ExecLoopType',
+    'ExecLoop',
+    'FixedFreqLoop',
+    'VariableFreqLoop',
+    'SupportedFeatureMap',
+    'DeviceInfo'
+]
+
 from enum import Enum
 from abc import abstractmethod
 

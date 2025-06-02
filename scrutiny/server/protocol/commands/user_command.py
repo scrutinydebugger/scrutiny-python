@@ -8,8 +8,9 @@
 #
 #   Copyright (c) 2021 Scrutiny Debugger
 
-from .base_command import BaseCommand
+__all__ = ['UserCommand']
 
+from .base_command import BaseCommand
 
 class UserCommand(BaseCommand):
     _cmd_id = 4

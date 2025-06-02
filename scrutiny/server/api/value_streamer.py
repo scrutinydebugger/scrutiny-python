@@ -7,6 +7,8 @@
 #
 #   Copyright (c) 2021 Scrutiny Debugger
 
+__all__ = ['ValueStreamer']
+
 from scrutiny.server.datastore.datastore_entry import DatastoreEntry
 from scrutiny import tools
 

@@ -6,6 +6,8 @@
 #
 #   Copyright (c) 2021 Scrutiny Debugger
 
+__all__ = ['prepare_for_opengl']
+
 from PySide6.QtWidgets import QWidget
 
 def prepare_for_opengl(widget:QWidget) -> None:

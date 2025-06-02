@@ -6,6 +6,8 @@
 #
 #   Copyright (c) 2021 Scrutiny Debugger
 
+__all__ = ['FeedbackLabel']
+
 import enum
 
 from PySide6.QtWidgets import QWidget, QLabel, QHBoxLayout, QSizePolicy

@@ -6,6 +6,8 @@
 #
 #   Copyright (c) 2021 Scrutiny Debugger
 
+__all__ = ['DefaultTheme']
+
 from scrutiny.gui.themes import ScrutinyTheme, ScrutinyThemeProperties
 from PySide6.QtGui import QColor, QGuiApplication
 from PySide6.QtWidgets import QApplication

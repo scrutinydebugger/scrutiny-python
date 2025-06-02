@@ -6,6 +6,8 @@
 #
 #   Copyright (c) 2021 Scrutiny Debugger
 
+__all__ = ['PendingRequest']
+
 from datetime import datetime
 import threading
 import time

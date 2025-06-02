@@ -7,6 +7,8 @@
 #
 #   Copyright (c) 2021 Scrutiny Debugger
 
+__all__ = ['ValidableLineEdit']
+
 from PySide6.QtWidgets import QLineEdit, QWidget
 from PySide6.QtGui import QValidator
 

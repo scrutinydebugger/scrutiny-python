@@ -6,6 +6,8 @@
 #
 #   Copyright (c) 2021 Scrutiny Debugger
 
+__all__ = ['extract_signal_from_data']
+
 import scrutiny.server.datalogging.definitions.device as device_datalogging
 from scrutiny.core.basic_types import RuntimePublishedValue
 

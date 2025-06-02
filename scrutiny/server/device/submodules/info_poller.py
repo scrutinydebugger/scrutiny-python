@@ -8,10 +8,17 @@
 #
 #   Copyright (c) 2021 Scrutiny Debugger
 
+__all__ = [
+    'ProtocolVersionCallback',
+    'CommParamCallback',
+    'InfoPoller'
+    ]
+
 import logging
 import enum
 import copy
 
+from scrutiny.core.basic_types import MemoryRegion
 from scrutiny.server.protocol import ResponseCode
 from scrutiny.server.device.device_info import *
 from scrutiny.server.datalogging.definitions import device as device_datalogging

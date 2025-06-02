@@ -6,6 +6,12 @@
 #
 #   Copyright (c) 2021 Scrutiny Debugger
 
+__all__ = [
+    'DEFAULT_SERVER_PORT',
+    'SupportedTheme',
+    'ScrutinyQtGUI',
+]
+
 import sys
 import os
 import ctypes

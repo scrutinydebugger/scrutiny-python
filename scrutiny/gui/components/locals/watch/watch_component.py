@@ -6,9 +6,8 @@
 #
 #   Copyright (c) 2021 Scrutiny Debugger
 
-__all__ = [
-    'WatchComponent'
-]
+__all__ = ['WatchComponent']
+
 import logging
 
 from PySide6.QtCore import QModelIndex, Qt, QModelIndex, Signal

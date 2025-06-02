@@ -7,6 +7,8 @@
 #
 #   Copyright (c) 2021 Scrutiny Debugger
 
+__all__ = ['LocalServerRunner']
+
 from PySide6.QtCore import Signal, QObject, SignalInstance
 
 import subprocess

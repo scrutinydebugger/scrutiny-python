@@ -6,6 +6,8 @@
 #
 #   Copyright (c) 2021 Scrutiny Debugger
 
+__all__ = ['Timer']
+
 import time
 from scrutiny.tools.typing import *
 

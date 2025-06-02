@@ -6,5 +6,7 @@
 #
 #   Copyright (c) 2021 Scrutiny Debugger
 
+__all__ = ['EnvionmentNotSetUpException']
+
 class EnvionmentNotSetUpException(Exception):
     pass

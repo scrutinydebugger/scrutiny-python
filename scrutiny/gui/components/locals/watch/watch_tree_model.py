@@ -6,7 +6,13 @@
 #
 #   Copyright (c) 2021 Scrutiny Debugger
 
-__all__ = ['WatchComponentTreeModel', 'WatchComponentTreeWidget', 'ValueStandardItem', 'DataTypeStandardItem', 'EnumNameStandardItem']
+__all__ = [
+    'WatchComponentTreeModel',
+    'WatchComponentTreeWidget',
+    'ValueStandardItem',
+    'DataTypeStandardItem',
+    'EnumNameStandardItem'
+    ]
 
 import logging
 import enum

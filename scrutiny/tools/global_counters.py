@@ -6,6 +6,7 @@
 #
 #   Copyright (c) 2021 Scrutiny Debugger
 
+__all__ = ['global_i64_counter']
 import threading
 
 int64 = 0

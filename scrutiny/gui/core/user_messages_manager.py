@@ -10,7 +10,6 @@
 
 __all__ = ['UserMessagesManager']
 
-from dataclasses import dataclass
 import time
 import logging
 

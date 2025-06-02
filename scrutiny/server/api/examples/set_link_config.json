@@ -1,9 +1,0 @@
-//Request
-{
-    "cmd": "set_link_config",
-    "link_type": "udp",
-    "link_config" : {
-        "port": 12345,
-        "host": "192.168.1.100"
-    }
-}

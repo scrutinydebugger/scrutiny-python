@@ -6,6 +6,11 @@
 #
 #   Copyright (c) 2021 Scrutiny Debugger
 
+__all__ = [
+    'UdpConfig',
+    'UdpLink'
+]
+
 import logging
 import socket
 import errno

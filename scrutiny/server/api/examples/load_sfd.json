@@ -1,6 +1,0 @@
-// Request
-{
-    "cmd": "load_sfd",
-    "reqid": 123,
-    "firmware_id": "DEADBEEFDEADBEEF00000"
-}

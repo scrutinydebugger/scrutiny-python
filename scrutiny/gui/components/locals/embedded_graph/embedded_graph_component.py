@@ -163,7 +163,7 @@ class EmbeddedGraphState:
 @dataclass
 class InitialGraphListDownloadConditions:
     firmware_id:Optional[str]
-class EmbeddedGraph(ScrutinyGUIBaseLocalComponent):
+class EmbeddedGraphComponent(ScrutinyGUIBaseLocalComponent):
     instance_name : str
 
     _NAME = "Embedded Graph"
