@@ -7,6 +7,14 @@
 #
 #   Copyright (c) 2021 Scrutiny Debugger
 
+__all__ = [
+    'AxisDefinition',
+    'DataSeries',
+    'DataSeriesWithAxis',
+    'DataloggingAcquisition',
+    'LoggedWatchable'
+]
+
 import zlib
 import struct
 from uuid import uuid4
@@ -21,15 +29,6 @@ from scrutiny.tools.typing import *
 
 if TYPE_CHECKING:
     import _csv
-
-__all__ = [
-    'AxisDefinition',
-    'DataSeries',
-    'DataSeriesWithAxis',
-    'DataloggingAcquisition',
-    'LoggedWatchable'
-]
-
 
 @dataclass(frozen=True)
 class AxisDefinition:

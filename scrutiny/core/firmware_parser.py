@@ -6,6 +6,8 @@
 #
 #   Copyright (c) 2021 Scrutiny Debugger
 
+__all__ = ['FirmwareParser']
+
 import hashlib
 import mmap
 import logging
@@ -15,7 +17,6 @@ from binascii import hexlify
 import shutil
 
 from scrutiny.tools.typing import *
-
 
 class FirmwareParser:
     """

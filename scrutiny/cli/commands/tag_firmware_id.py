@@ -6,8 +6,9 @@
 #
 #   Copyright (c) 2021 Scrutiny Debugger
 
-import argparse
+__all__ = ['TagFirmwareID']
 
+import argparse
 import os
 
 from .base_command import BaseCommand

@@ -7,6 +7,8 @@
 #
 #   Copyright (c) 2021 Scrutiny Debugger
 
+__all__ = ['InstallSFD']
+
 import argparse
 from .base_command import BaseCommand
 from scrutiny.tools.typing import *

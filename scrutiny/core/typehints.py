@@ -6,6 +6,8 @@
 #
 #   Copyright (c) 2021 Scrutiny Debugger
 
+__all__ = ['EmptyDict']
+
 from typing import TypedDict
 
 class EmptyDict(TypedDict):

@@ -8,6 +8,8 @@
 #
 #   Copyright (c) 2021 Scrutiny Debugger
 
+__all__ = ['GetFirmwareId']
+
 import argparse
 
 import os

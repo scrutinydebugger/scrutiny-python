@@ -7,6 +7,8 @@
 #
 #   Copyright (c) 2021 Scrutiny Debugger
 
+__all__ = ['AddAlias']
+
 import argparse
 import logging
 import os

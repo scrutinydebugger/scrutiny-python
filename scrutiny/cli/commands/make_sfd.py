@@ -6,10 +6,11 @@
 #
 #   Copyright (c) 2021 Scrutiny Debugger
 
+__all__ = ['MakeSFD']
+
 import argparse
 from .base_command import BaseCommand
 from scrutiny.tools.typing import *
-
 
 class MakeSFD(BaseCommand):
     _cmd_name_ = 'make-sfd'

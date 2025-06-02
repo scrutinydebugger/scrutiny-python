@@ -6,6 +6,8 @@
 #
 #   Copyright (c) 2021 Scrutiny Debugger
 
+__all__ = ['BaseDemangler', 'GccDemangler']
+
 import subprocess
 import shutil
 import abc

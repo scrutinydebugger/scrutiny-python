@@ -6,6 +6,8 @@
 #
 #   Copyright (c) 2021 Scrutiny Debugger
 
+__all__ = ['UninstallSFD']
+
 import argparse
 
 from .base_command import BaseCommand

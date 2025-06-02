@@ -7,6 +7,8 @@
 #
 #   Copyright (c) 2021 Scrutiny Debugger
 
+__all__ = ['BaseCommand']
+
 from abc import ABC, abstractmethod
 import logging
 from scrutiny.tools.typing import *

@@ -7,6 +7,8 @@
 #
 #   Copyright (c) 2021 Scrutiny Debugger
 
+__all__ = ['MakeMetadata']
+
 import argparse
 import json
 import os

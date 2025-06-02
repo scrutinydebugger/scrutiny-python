@@ -9,12 +9,12 @@
 
 __all__ = ['ElfDwarfVarExtractor']
 
+import elftools
 from elftools.elf.elffile import ELFFile
 import os
 from enum import Enum, auto
 from .demangler import GccDemangler
 import logging
-import traceback
 import inspect
 from dataclasses import dataclass
 from inspect import currentframe
@@ -24,7 +24,6 @@ from scrutiny.core.basic_types import *
 from scrutiny.core.variable import *
 from scrutiny.core.embedded_enum import *
 from scrutiny.exceptions import EnvionmentNotSetUpException
-from scrutiny.core.bintools import elftools_stubs
 from scrutiny import tools
 from scrutiny.core.logging import DUMPDATA_LOGLEVEL
 
@@ -53,8 +52,8 @@ class TypeOfVar(Enum):
 @dataclass
 class TypeDescriptor:
     type: TypeOfVar
-    enum_die:Optional[ "elftools_stubs.Die"]
-    type_die: "elftools_stubs.Die"
+    enum_die:Optional[ elftools.Die]
+    type_die: elftools.Die
 
 class ElfParsingError(Exception):
     pass
@@ -67,13 +66,13 @@ class CuName:
     _class_internal_id = 0
     PATH_JOIN_CHAR = '_'
 
-    cu: "elftools_stubs.CompileUnit"
+    cu: elftools.CompileUnit
     fullpath: str
     filename: str
     display_name: str
     segments: List[str]
 
-    def __init__(self, cu: "elftools_stubs.CompileUnit", fullpath: str) -> None:
+    def __init__(self, cu: elftools.CompileUnit, fullpath: str) -> None:
         self.cu = cu
         self.fullpath = os.path.normpath(fullpath)
         self.filename = os.path.basename(self.fullpath)
@@ -140,11 +139,11 @@ class ElfDwarfVarExtractor:
         DW_ATE_hi_user = 0xff
 
     varmap: VarMap
-    die2typeid_map: Dict["elftools_stubs.Die", str]
-    die2vartype_map: Dict["elftools_stubs.Die", EmbeddedDataType]
-    cu_name_map: Dict["elftools_stubs.CompileUnit", str]
-    enum_die_map: Dict["elftools_stubs.Die", EmbeddedEnum]
-    struct_die_map: Dict["elftools_stubs.Die", Struct]
+    die2typeid_map: Dict[elftools.Die, str]
+    die2vartype_map: Dict[elftools.Die, EmbeddedDataType]
+    cu_name_map: Dict[elftools.CompileUnit, str]
+    enum_die_map: Dict[elftools.Die, EmbeddedEnum]
+    struct_die_map: Dict[elftools.Die, Struct]
     endianness: Endianness
     cppfilt: Optional[str]
     logger: logging.Logger
@@ -166,7 +165,7 @@ class ElfDwarfVarExtractor:
         if filename is not None:
             self.load_from_elf_file(filename)
 
-    def make_name_for_log(self, die: Optional["elftools_stubs.Die"]) -> str:
+    def make_name_for_log(self, die: Optional[elftools.Die]) -> str:
         if die is None:
             return "<None>"
         name=''
@@ -176,7 +175,7 @@ class ElfDwarfVarExtractor:
             pass
         return f'{die.tag} <{die.offset:x}> "{name}"'
 
-    def log_debug_process_die(self, die: "elftools_stubs.Die") -> None:
+    def log_debug_process_die(self, die: elftools.Die) -> None:
         if self.logger.isEnabledFor(DUMPDATA_LOGLEVEL): # pragma: no cover
             stack_depth = len(inspect.stack()) - self.initial_stack_depth-1
             stack_depth = max(stack_depth, 1)
@@ -188,13 +187,13 @@ class ElfDwarfVarExtractor:
         return self.varmap
 
     # Builds a dictionary that maps a CompuleUnit object to a unique displayable name
-    def make_cu_name_map(self, dwarfinfo: "elftools_stubs.ELFFile") -> None:
+    def make_cu_name_map(self, dwarfinfo: elftools.DWARFInfo) -> None:
 
         fullpath_cu_tuple_list = []
         fullpath_set = set()
-        cu: "elftools_stubs.CompileUnit"
+        cu: elftools.CompileUnit
         for cu in dwarfinfo.iter_CUs():
-            topdie: "elftools_stubs.Die" = cu.get_top_DIE()
+            topdie: elftools.Die = cu.get_top_DIE()
             if topdie.tag != 'DW_TAG_compile_unit':
                 raise ElfParsingError('Top die should be a compile unit')
 
@@ -217,7 +216,7 @@ class ElfDwarfVarExtractor:
             self.cu_name_map[item[1]] = item[0]
 
     @classmethod
-    def make_unique_display_name(cls, fullpath_cu_tuple_list: List[Tuple[str, "elftools_stubs.CompileUnit"]]) -> List[Tuple[str, "elftools_stubs.CompileUnit"]]:
+    def make_unique_display_name(cls, fullpath_cu_tuple_list: List[Tuple[str, elftools.CompileUnit]]) -> List[Tuple[str, elftools.CompileUnit]]:
         displayname_map: Dict[str, List[CuName]] = {}
 
         for item in fullpath_cu_tuple_list:
@@ -256,25 +255,25 @@ class ElfDwarfVarExtractor:
 
                 del displayname_map[display_name]
 
-        displayname_cu_tuple_list: List[Tuple[str, "elftools_stubs.CompileUnit"]] = []
+        displayname_cu_tuple_list: List[Tuple[str, elftools.CompileUnit]] = []
         for displayname in displayname_map:
             displayname_cu_tuple_list.append((displayname, displayname_map[displayname][0].cu))
         return displayname_cu_tuple_list
 
-    def get_cu_name(self, die: "elftools_stubs.Die") -> str:
+    def get_cu_name(self, die: elftools.Die) -> str:
         return self.cu_name_map[die.cu]
 
-    def get_die_at_spec(self, die: "elftools_stubs.Die") -> "elftools_stubs.Die":
+    def get_die_at_spec(self, die: elftools.Die) -> elftools.Die:
         self.log_debug_process_die(die)
         refaddr = cast(int, die.attributes['DW_AT_specification'].value) + die.cu.cu_offset
         return die.dwarfinfo.get_DIE_from_refaddr(refaddr)
     
-    def get_die_at_abstract_origin(self, die: "elftools_stubs.Die") -> "elftools_stubs.Die":
+    def get_die_at_abstract_origin(self, die: elftools.Die) -> elftools.Die:
         self.log_debug_process_die(die)
         refaddr = cast(int, die.attributes['DW_AT_abstract_origin'].value) + die.cu.cu_offset
         return die.dwarfinfo.get_DIE_from_refaddr(refaddr)
 
-    def get_name(self, die: "elftools_stubs.Die", default: Optional[str] = None, nolog:bool=False) -> str:
+    def get_name(self, die: elftools.Die, default: Optional[str] = None, nolog:bool=False) -> str:
         if not nolog:
             self.log_debug_process_die(die)
         if 'DW_AT_name' in die.attributes:
@@ -287,14 +286,14 @@ class ElfDwarfVarExtractor:
             else:
                 raise ElfParsingError('Cannot get a name for this die. %s' % die)
 
-    def has_linkage_name(self, die: "elftools_stubs.Die") -> bool:
+    def has_linkage_name(self, die: elftools.Die) -> bool:
         if 'DW_AT_linkage_name' in die.attributes:
             return True
         if 'DW_AT_MIPS_linkage_name' in die.attributes:
             return True
         return False
     
-    def get_linkage_name(self, die: "elftools_stubs.Die") -> str:
+    def get_linkage_name(self, die: elftools.Die) -> str:
         self.log_debug_process_die(die)
         if 'DW_AT_linkage_name' in die.attributes:
             mangled_encoded = die.attributes['DW_AT_linkage_name'].value
@@ -305,7 +304,7 @@ class ElfDwarfVarExtractor:
         
         return self.demangler.demangle(mangled_encoded.decode('ascii'))
 
-    def is_external(self, die: "elftools_stubs.Die") -> bool:
+    def is_external(self, die: elftools.Die) -> bool:
         """Tells if the die is accessible from outside the compile unit. If it is, it's global, otherwise it's static."""
         try:
             return cast(bool, die.attributes['DW_AT_external'].value)
@@ -413,7 +412,7 @@ class ElfDwarfVarExtractor:
                 die = cu.get_top_DIE()
                 self.extract_var_recursive(die) # Recursion start point
 
-    def extract_var_recursive(self, die: "elftools_stubs.Die") -> None:
+    def extract_var_recursive(self, die: elftools.Die) -> None:
         # Finds all "variable" tags and create an entry in the varmap.
         # Types / structures / enums are discovered as we go. We only take
         # definitions that are used by a variables, the rest will be ignored.
@@ -429,11 +428,11 @@ class ElfDwarfVarExtractor:
             except Exception as e:
                 tools.log_exception(self.logger, e, f"Failed to extract var under {child}.") 
     
-    def get_typename_from_die(self, die: "elftools_stubs.Die") -> str:
+    def get_typename_from_die(self, die: elftools.Die) -> str:
         return cast(bytes, die.attributes['DW_AT_name'].value).decode('ascii')
     
     # Process die of type "base type". Register the type in the global index and maps it to a known type.
-    def die_process_base_type(self, die: "elftools_stubs.Die") -> None:
+    def die_process_base_type(self, die: elftools.Die) -> None:
         self.log_debug_process_die(die)
         name = self.get_typename_from_die(die)
         encoding = self.DwarfEncoding(cast(int, die.attributes['DW_AT_encoding'].value))
@@ -445,7 +444,7 @@ class ElfDwarfVarExtractor:
         self.die2typeid_map[die] = self.varmap.get_type_id(name)
         self.die2vartype_map[die] = basetype
 
-    def die_process_enum(self, die: "elftools_stubs.Die") -> None:
+    def die_process_enum(self, die: elftools.Die) -> None:
         self.log_debug_process_die(die)
         name = self.get_name(die)
         if die not in self.enum_die_map:
@@ -465,14 +464,14 @@ class ElfDwarfVarExtractor:
             self.enum_die_map[die] = enum
 
 
-    def extract_basetype_die(self, die: "elftools_stubs.Die") -> "elftools_stubs.Die":
+    def extract_basetype_die(self, die: elftools.Die) -> elftools.Die:
         self.log_debug_process_die(die)
         basetype_die = self.get_first_parent_of_type(die, 'DW_TAG_base_type')
         if basetype_die is None:
             raise ElfParsingError("Given die does not resolve to a base type")
         return basetype_die
     
-    def get_first_parent_of_type(self, die: "elftools_stubs.Die", tags:Union[str, List[str]] ) -> Optional["elftools_stubs.Die"]:
+    def get_first_parent_of_type(self, die: elftools.Die, tags:Union[str, List[str]] ) -> Optional[elftools.Die]:
         self.log_debug_process_die(die)
         if isinstance(tags, str):
             tags = [tags]
@@ -487,11 +486,11 @@ class ElfDwarfVarExtractor:
             else:
                 prevdie = nextdie
 
-    def get_type_of_var(self, die: "elftools_stubs.Die") -> TypeDescriptor:
+    def get_type_of_var(self, die: elftools.Die) -> TypeDescriptor:
         """Go up the hiearchy to find the die that represent the type of the variable. """
         self.log_debug_process_die(die)
         prevdie = die
-        enum:Optional["elftools_stubs.Die"] = None
+        enum:Optional[elftools.Die] = None
         while True:
             refaddr = prevdie.attributes['DW_AT_type'].value + prevdie.cu.cu_offset
             nextdie = prevdie.dwarfinfo.get_DIE_from_refaddr(refaddr)
@@ -521,7 +520,7 @@ class ElfDwarfVarExtractor:
     # this definition includes all submember with their respective offset.
     # each time we will encounter a instance of this struct, we will generate a variable for each sub member
 
-    def die_process_struct_class_union(self, die: "elftools_stubs.Die") -> None:
+    def die_process_struct_class_union(self, die: elftools.Die) -> None:
         self.log_debug_process_die(die)
 
         if die not in self.struct_die_map:
@@ -529,7 +528,7 @@ class ElfDwarfVarExtractor:
 
 
     # Go down the hierarchy to get the whole struct def in a recursive way
-    def get_composite_type_def(self, die: "elftools_stubs.Die") -> Struct:
+    def get_composite_type_def(self, die: elftools.Die) -> Struct:
         """Get the definition of a struct/class/union type"""
 
         self.log_debug_process_die(die)
@@ -558,11 +557,11 @@ class ElfDwarfVarExtractor:
 
         return struct
     
-    def has_member_byte_offset(self, die: "elftools_stubs.Die") -> bool:
+    def has_member_byte_offset(self, die: elftools.Die) -> bool:
         """Tells if an offset relative to the structure base is available on this member die"""
         return 'DW_AT_data_member_location' in die.attributes
 
-    def get_member_byte_offset(self, die: "elftools_stubs.Die") -> int:
+    def get_member_byte_offset(self, die: elftools.Die) -> int:
         """Tell the offset at which this member is located relative to the structure base"""
 
         if 'DW_AT_data_member_location' not in die.attributes:
@@ -583,7 +582,7 @@ class ElfDwarfVarExtractor:
 
         raise ElfParsingError(f"Does not know how to read member location for die {die}")
 
-    def process_enum_only_type(self, enum_die:"elftools_stubs.Die") -> str:
+    def process_enum_only_type(self, enum_die:elftools.Die) -> str:
         """With clang Dwarf V2, some enums may have no base type, so we try to deduce it from the propertie son the enum"""
         enum = self.enum_die_map[enum_die]
         if 'DW_AT_byte_size' not in enum_die.attributes:
@@ -602,7 +601,7 @@ class ElfDwarfVarExtractor:
     
     # Read a member die and generate a Struct.Member that we will later on use to register a variable.
     # The struct.Member object contains everything we need to map a
-    def get_member_from_die(self, die: "elftools_stubs.Die", is_in_union:bool=False) -> Optional[Struct.Member]:
+    def get_member_from_die(self, die: elftools.Die, is_in_union:bool=False) -> Optional[Struct.Member]:
         self.log_debug_process_die(die)
         try:
             name = self.get_name(die) 
@@ -677,7 +676,7 @@ class ElfDwarfVarExtractor:
 
     # We have an instance of a struct. Use the location and go down the structure recursively
     # using the members offsets to find the final address that we will apply to the output var
-    def register_struct_var(self, die: "elftools_stubs.Die", type_die:"elftools_stubs.Die", location: VariableLocation) -> None:
+    def register_struct_var(self, die: elftools.Die, type_die:elftools.Die, location: VariableLocation) -> None:
         """Register an instance of a struct at a given location"""
         path_segments = self.make_varpath(die)
         path_segments.append(self.get_name(die))
@@ -749,7 +748,7 @@ class ElfDwarfVarExtractor:
             enum=enum
         )
     
-    def get_location(self, die: "elftools_stubs.Die") -> Optional[VariableLocation]:
+    def get_location(self, die: elftools.Die) -> Optional[VariableLocation]:
         """Try t extract the location from a die. Returns ``None`` if not available"""
         if 'DW_AT_location' in die.attributes:
             dieloc = (die.attributes['DW_AT_location'].value)
@@ -770,7 +769,7 @@ class ElfDwarfVarExtractor:
             return VariableLocation.from_bytes(dieloc[1:], self.endianness)
         return None
 
-    def die_process_variable(self, die: "elftools_stubs.Die", location: Optional[VariableLocation] = None) -> None:
+    def die_process_variable(self, die: elftools.Die, location: Optional[VariableLocation] = None) -> None:
         """Process a variable die and insert a variable in the varmap object if it has an absolute address"""
         if location is None:
             location = self.get_location(die)
@@ -821,7 +820,7 @@ class ElfDwarfVarExtractor:
                 else:
                     self.logger.warning(f"Line {get_linenumber()}: Found a variable with a type die {self.make_name_for_log(type_desc.type_die)} (type={type_desc.type.name}). Not supported yet")
 
-    def get_varpath_from_hierarchy(self, die: "elftools_stubs.Die") -> List[str]:
+    def get_varpath_from_hierarchy(self, die: elftools.Die) -> List[str]:
         """Go up in the DWARF hierarchy and make a path segment for each level"""
         segments: List[str] = []
         parent = die.get_parent()
@@ -844,7 +843,7 @@ class ElfDwarfVarExtractor:
             parent = parent.get_parent()
         return segments
 
-    def get_varpath_from_linkage_name(self, die: "elftools_stubs.Die") -> List[str]:
+    def get_varpath_from_linkage_name(self, die: elftools.Die) -> List[str]:
         """Generate path segments by parsing the linkage name. Relies on the ability to demangle"""
         demangled = self.get_linkage_name(die)
         segments = demangled.split('::')
@@ -855,7 +854,7 @@ class ElfDwarfVarExtractor:
         
         return segments
 
-    def make_varpath(self, die: "elftools_stubs.Die") -> List[str]:
+    def make_varpath(self, die: elftools.Die) -> List[str]:
         """Generate the display path for a die, either from the hierarchy or the linkage name"""
         if self.has_linkage_name(die):
             segments = self.get_varpath_from_linkage_name(die)
