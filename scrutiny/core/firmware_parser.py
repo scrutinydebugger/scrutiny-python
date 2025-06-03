@@ -18,6 +18,7 @@ import shutil
 
 from scrutiny.tools.typing import *
 
+
 class FirmwareParser:
     """
     This class can read a freshly compiled firmware then generate a firmware ID and also write this

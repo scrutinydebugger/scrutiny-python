@@ -55,6 +55,7 @@ from scrutiny.tools.typing import *
 
 AddressSize = Literal[8, 16, 32, 64, 128]
 
+
 class ServerState(enum.Enum):
     """(Enum) The state of the connection between the client and the server"""
 
@@ -155,6 +156,7 @@ class DeviceLinkType(enum.Enum):
     # CAN = 5 # Todo
     # SPI = 6 # Todo
 
+
 class DataloggingListChangeType(enum.Enum):
     """(Enum) The type of change that was performed on the server datalogging storage """
 
@@ -166,6 +168,7 @@ class DataloggingListChangeType(enum.Enum):
     """An acquisition was modified"""
     DELETE_ALL = 3
     """The server datalogging storage has been cleared completely"""
+
 
 @dataclass(frozen=True)
 class SupportedFeatureMap:
@@ -196,13 +199,11 @@ class DataloggingInfo:
     """The completion ratio of the actually running acquisition. ``None`` if no acquisition being captured"""
 
 
-
 class DataloggingEncoding(enum.Enum):
     """(Enum) Defines the data format used to store the samples in the datalogging buffer.
     This structure is a provision for the future where new encoding methods may be implementated (supporting compression for example)
     """
     RAW = 1
-    
 
 
 @dataclass(frozen=True, init=False)
@@ -267,7 +268,7 @@ class DataloggingCapabilities:
 class DeviceInfo:
     """(Immutable struct) Information about the device connected to the server"""
 
-    session_id: str 
+    session_id: str
     """The unique ID assigned to the communication session between the server abd the device when this data was gathered"""
 
     device_id: str
@@ -309,9 +310,8 @@ class DeviceInfo:
     readonly_memory_regions: List[MemoryRegion]
     """List of memory region that are read-only"""
 
-    datalogging_capabilities:Optional[DataloggingCapabilities]
+    datalogging_capabilities: Optional[DataloggingCapabilities]
     """Contains the device datalogging capabilites. ``None`` if datalogging is not supported"""
-
 
 
 @dataclass(frozen=True)
@@ -335,7 +335,7 @@ class NoneLinkConfig(BaseLinkConfig):
     """(Immutable struct) An Empty object acting as configuration structure for a device link of type :attr:`NONE<scrutiny.sdk.DeviceLinkType.NONE>`
     Exists only to differentiate ``None`` (data not available) from ``NoneLinkConfig`` (data available - no link configured)
     """
-    
+
     def _to_api_format(self) -> Dict[str, Any]:
         return {}
 
@@ -392,16 +392,16 @@ class SerialLinkConfig(BaseLinkConfig):
         def get_numerical(self) -> float:
             """Return the number of stop bits as ``float``"""
             return float(self.value)
-        
+
         @classmethod
-        def from_float(cls, v:float, default:Optional["Self"]=None) -> "Self":
+        def from_float(cls, v: float, default: Optional["Self"] = None) -> "Self":
             try:
                 return cls(v)
             except Exception:
                 if default is None:
                     raise
                 return default
-        
+
         def to_float(self) -> float:
             return float(self.value)
 
@@ -415,22 +415,22 @@ class SerialLinkConfig(BaseLinkConfig):
         def get_numerical(self) -> int:
             """Return the number of data bits as ``int``"""
             return int(self.value)
-        
+
         @classmethod
-        def from_int(cls, v:int, default:Optional["Self"]=None) -> "Self":
+        def from_int(cls, v: int, default: Optional["Self"] = None) -> "Self":
             try:
                 return cls(v)
             except Exception:
                 if default is None:
                     raise
                 return default
-        
+
         def to_int(self) -> int:
             return self.value
 
     class Parity(enum.Enum):
         """A serial port parity configuration"""
-        NONE = "none" 
+        NONE = "none"
         EVEN = "even"
         ODD = "odd"
         MARK = "mark"
@@ -439,25 +439,24 @@ class SerialLinkConfig(BaseLinkConfig):
         def get_displayable_name(self) -> str:
             """Return the value as ``str``"""
             return self.value
-        
+
         @classmethod
-        def from_str(cls, v:str, default:Optional["Self"]=None) -> "Self":
+        def from_str(cls, v: str, default: Optional["Self"] = None) -> "Self":
             try:
                 return cls(v)
             except Exception:
                 if default is None:
                     raise
                 return default
-        
+
         def to_str(self) -> str:
             return self.value
-
 
     port: str
     """Port name on the machine. COMX on Windows. /dev/xxx on posix platforms"""
     baudrate: int
     """Communication speed in baud/sec"""
-    start_delay:float
+    start_delay: float
     """A delay of communication silence after opening the port. Accomodate devices that triggers a bootloader upon port open (like Arduino)."""
     stopbits: StopBits = StopBits.ONE
     """Number of stop bits. 1, 1.5, 2"""
@@ -465,7 +464,6 @@ class SerialLinkConfig(BaseLinkConfig):
     """Number of data bits. 5, 6, 7, 8"""
     parity: Parity = Parity.NONE
     """Serial communication parity bits"""
-
 
     def __post_init__(self) -> None:
         validation.assert_type(self.port, 'port', str)
@@ -482,9 +480,8 @@ class SerialLinkConfig(BaseLinkConfig):
             'stopbits': str(self.stopbits.value),
             'databits': self.databits.value,
             'parity': self.parity.value,
-            'start_delay' : self.start_delay
+            'start_delay': self.start_delay
         }
-
 
 
 @dataclass(frozen=True)
@@ -508,18 +505,18 @@ class RTTLinkConfig(BaseLinkConfig):
 
         ICSP = 'icsp'
         """Microchip In-Circuit Serial Programming"""
-        
+
         SPI = 'spi'
         """Motorola Serial Peripheral Interface"""
-        
+
         C2 = 'c2'
         """SiLabs C2 Adapter"""
 
         def to_str(self) -> str:
             return self.value
-        
+
         @classmethod
-        def from_str(cls, v:str, default:Optional["Self"]=None) -> "Self":
+        def from_str(cls, v: str, default: Optional["Self"] = None) -> "Self":
             try:
                 return cls(v)
             except Exception:
@@ -534,7 +531,7 @@ class RTTLinkConfig(BaseLinkConfig):
     """The type of JLink interface"""
 
     def __post_init__(self) -> None:
-        validation.assert_type(self.target_device, 'target_device',str)
+        validation.assert_type(self.target_device, 'target_device', str)
         validation.assert_type(self.jlink_interface, 'jlink_interface', self.JLinkInterface)
 
     def _to_api_format(self) -> Dict[str, Any]:
@@ -555,8 +552,9 @@ class DeviceLinkInfo:
     """Type of communication channel between the server and the device"""
     config: Optional[SupportedLinkConfig]
     """A channel type specific configuration"""
-    operational:bool
+    operational: bool
     """Tells if the link is opened and working correctly"""
+
 
 @dataclass(frozen=True)
 class ServerInfo:
@@ -591,58 +589,59 @@ class UserCommandResponse:
     def __repr__(self) -> str:
         return f'{self.__class__.__name__}(subfunction={self.subfunction}, data=b\'{hexlify(self.data).decode()}\')'
 
+
 @dataclass(frozen=True)
 class WatchableConfiguration:
     """(Immutable struct) Represents a watchable available in the server datastore"""
-    
+
     server_id: str
     """The unique ID assigned to that watchable item by the server"""
 
-    watchable_type:WatchableType
+    watchable_type: WatchableType
     """The type of the item, either a Variable, an Alias or a Runtime Published Value"""
-    
-    datatype:EmbeddedDataType
+
+    datatype: EmbeddedDataType
     """The data type of the value in the embedded firmware that this watchable refers to"""
 
-    enum:Optional[EmbeddedEnum]
+    enum: Optional[EmbeddedEnum]
     """An optional enumeration associated with the possible values of the item"""
 
 
 @dataclass(frozen=True)
 class ServerStatistics:
 
-    uptime:float
+    uptime: float
     """Time in seconds elapsed since the server has been started"""
-    
-    invalid_request_count:int
+
+    invalid_request_count: int
     """Number of invalid request the server received"""
 
-    unexpected_error_count:int
+    unexpected_error_count: int
     """Number of unexpected error the server encountered while processing a request"""
 
-    client_count:int
+    client_count: int
     """Number of clients actually connected to the server"""
 
-    to_all_clients_datarate_byte_per_sec:float
+    to_all_clients_datarate_byte_per_sec: float
     """Datarate (byte/sec) going out of the API, all clients summed together"""
 
-    from_any_client_datarate_byte_per_sec:float
+    from_any_client_datarate_byte_per_sec: float
     """Datarate (byte/sec) going in the API, all clients summed together"""
 
-    msg_received:int
+    msg_received: int
     """Number of message received, all clients summed together"""
 
-    msg_sent:int
+    msg_sent: int
     """Number of message sent, all clients summed together"""
 
-    device_session_count:int
+    device_session_count: int
     """Counter indicating how many new working connections has been established with a device """
 
-    to_device_datarate_byte_per_sec:float
+    to_device_datarate_byte_per_sec: float
     """Datarate (byte/sec) traveling from the server to the device"""
 
-    from_device_datarate_byte_per_sec:float
+    from_device_datarate_byte_per_sec: float
     """Datarate (byte/sec) traveling from the device to the server"""
 
-    device_request_per_sec:float
+    device_request_per_sec: float
     """Number of request/response per seconds exchanged between the server and the device"""

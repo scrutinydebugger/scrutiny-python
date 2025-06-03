@@ -31,6 +31,7 @@ from scrutiny.server.datastore.datastore_entry import DatastoreEntry
 import scrutiny.server.datalogging.definitions.device as device_datalogging
 from scrutiny.tools.typing import *
 
+
 class XAxisType(Enum):
     """Represent a type of X-Axis that a user can select"""
     IdealTime = 0,

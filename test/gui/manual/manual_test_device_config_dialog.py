@@ -6,10 +6,11 @@
 #
 #   Copyright (c) 2024 Scrutiny Debugger
 
-if __name__ != '__main__' : 
+if __name__ != '__main__':
     raise RuntimeError("This script is expected to run from the command line")
 
-import sys, os
+import sys
+import os
 sys.path.insert(0, os.path.dirname(__file__))
 from manual_test_base import make_manual_test_app
 app = make_manual_test_app()
@@ -19,7 +20,8 @@ from PySide6.QtWidgets import QMainWindow, QPushButton, QWidget, QVBoxLayout
 from scrutiny.gui.dialogs.device_config_dialog import DeviceConfigDialog
 from scrutiny import sdk
 
-def config_applied(dialog:DeviceConfigDialog):
+
+def config_applied(dialog: DeviceConfigDialog):
     link_type, config = dialog.get_type_and_config()
     logging.info(f"Config applied: Link: {link_type}. Config : {config}")
 
@@ -29,13 +31,13 @@ central_widget = QWidget()
 btn_show = QPushButton("show")
 btn_fail = QPushButton("Simulate fail")
 btn_success = QPushButton("Simulate success")
-btn_show.setFixedSize(50,20)
+btn_show.setFixedSize(50, 20)
 window.setCentralWidget(central_widget)
 layout = QVBoxLayout(central_widget)
 layout.addWidget(btn_show)
 layout.addWidget(btn_fail)
 layout.addWidget(btn_success)
-dialog = DeviceConfigDialog(apply_callback=config_applied )
+dialog = DeviceConfigDialog(apply_callback=config_applied)
 dialog.set_config(sdk.DeviceLinkType.UDP, sdk.UDPLinkConfig(host="google.com", port=80))
 dialog.set_config(sdk.DeviceLinkType.TCP, sdk.TCPLinkConfig(host="localhost", port=1234))
 

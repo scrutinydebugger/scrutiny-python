@@ -7,7 +7,8 @@
 #
 #   Copyright (c) 2025 Scrutiny Debugger
 
-import sys, os
+import sys
+import os
 import logging
 from PySide6.QtWidgets import QApplication
 from PySide6.QtCore import QTimer
@@ -18,11 +19,12 @@ sys.path.insert(0, project_root)
 from scrutiny.gui.core.threads import QT_THREAD_NAME
 from scrutiny.tools.thread_enforcer import register_thread
 from scrutiny.gui.themes import scrutiny_set_theme
-from scrutiny.gui.themes.default_theme import DefaultTheme 
+from scrutiny.gui.themes.default_theme import DefaultTheme
 from scrutiny.gui.themes.fusion_theme import FusionTheme
 from scrutiny.gui.tools.invoker import CrossThreadInvoker
 
 from scrutiny.tools.signals import SignalExitHandler
+
 
 def make_manual_test_app() -> QApplication:
     os.environ['SCRUTINY_MANUAL_TEST'] = '1'
@@ -40,8 +42,8 @@ def make_manual_test_app() -> QApplication:
     app._scrutiny_check_signal_timer = QTimer()
     app._scrutiny_check_signal_timer.setInterval(500)
     app._scrutiny_check_signal_timer.start()
-    app._scrutiny_check_signal_timer.timeout.connect(lambda *a : None)
+    app._scrutiny_check_signal_timer.timeout.connect(lambda *a: None)
 
     app._scrutiny_exit_handler = SignalExitHandler(app.quit)
-    
+
     return app

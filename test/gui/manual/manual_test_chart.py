@@ -6,10 +6,11 @@
 #
 #   Copyright (c) 2025 Scrutiny Debugger
 
-if __name__ != '__main__' : 
+if __name__ != '__main__':
     raise RuntimeError("This script is expected to run from the command line")
 
-import sys, os
+import sys
+import os
 sys.path.insert(0, os.path.dirname(__file__))
 from manual_test_base import make_manual_test_app
 app = make_manual_test_app()
@@ -27,28 +28,32 @@ from scrutiny.core.basic_types import WatchableType
 from scrutiny.tools.typing import *
 import random
 
-def config_applied(dialog:DeviceConfigDialog):
+
+def config_applied(dialog: DeviceConfigDialog):
     link_type, config = dialog.get_type_and_config()
     logging.info(f"Config applied: Link: {link_type}. Config : {config}")
 
 
 window = QMainWindow()
-window.setGeometry(0,0,1200,800)
+window.setGeometry(0, 0, 1200, 800)
 registry = WatchableRegistry()
 xlabel = QLabel()
 xlabel.setText("N/A")
-def x_val_write(val:float, enabled:bool):
+
+
+def x_val_write(val: float, enabled: bool):
     if enabled:
         xlabel.setText(str(val))
     else:
         xlabel.setText("N/A")
+
 
 server_manager = FakeServerManager(registry)
 
 signal_tree = GraphSignalTree(window, registry, has_value_col=True)
 right_side = QWidget()
 right_vlayout = QVBoxLayout(right_side)
-right_vlayout.setContentsMargins(0,0,0,0)
+right_vlayout.setContentsMargins(0, 0, 0, 0)
 right_vlayout.addWidget(xlabel)
 right_vlayout.addWidget(signal_tree)
 
@@ -79,7 +84,7 @@ window.setCentralWidget(splitter)
 
 
 # Fill the registry with dummy data by enabling a simulated device
-server_manager.start(ServerConfig("...", 0) )
+server_manager.start(ServerConfig("...", 0))
 server_manager.simulate_server_connect()
 server_manager.simulate_device_ready()
 server_manager.simulate_sfd_loaded()
@@ -88,9 +93,10 @@ xaxis = ScrutinyValueAxisWithMinMax()
 xaxis.setTitleText("Test graph")
 xaxis.setTitleVisible(True)
 chart.setAxisX(xaxis)
-yaxes:List[ScrutinyValueAxisWithMinMax] = []
+yaxes: List[ScrutinyValueAxisWithMinMax] = []
 
-def set_zoombox_slot(zoombox:QRectF):
+
+def set_zoombox_slot(zoombox: QRectF):
     xaxis.apply_zoombox_x(zoombox)
     selected_axis_items = signal_tree.get_selected_axes(include_if_signal_is_selected=True)
     selected_axis_ids = [id(item.axis()) for item in selected_axis_items]
@@ -98,13 +104,15 @@ def set_zoombox_slot(zoombox:QRectF):
         if id(yaxis) in selected_axis_ids or len(selected_axis_ids) == 0:
             # Y-axis is not bound by the value. we leave the freedom to the user to unzoom like crazy
             # We rely on the capacity to reset the zoom to come back to something reasonable if the user gets lost
-            yaxis.apply_zoombox_y(zoombox)  
+            yaxis.apply_zoombox_y(zoombox)
     chartview.update()
+
 
 chartview.allow_zoom(True)
 chartview.allow_drag(True)
 chartview.signals.zoombox_selected.connect(set_zoombox_slot)
 chartview.signals.graph_dragged.connect(chart.apply_drag)
+
 
 def build_chart():
 
@@ -136,14 +144,15 @@ def build_chart():
             series.attachAxis(xaxis)
             series.attachAxis(yaxis)
 
-            data = [QPointF(x, random.random()*2 - 1) for x in xdata]
+            data = [QPointF(x, random.random() * 2 - 1) for x in xdata]
 
             series.replace(data)
-    
+
         xaxis.set_minval(min(xdata))
         xaxis.set_maxval(max(xdata))
         xaxis.autoset_range()
         chart_toolbar.disable_chart_cursor()
+
 
 window.show()
 build_chart()

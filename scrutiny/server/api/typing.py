@@ -62,7 +62,7 @@ class DatastoreEntryDefinition(TypedDict, total=False):
     id: str
     display_path: str
     datatype: Datatype
-    type:WatchableType              # Can be missing
+    type: WatchableType              # Can be missing
     enum: Optional[EnumDefinition]  # Can be missing. Default to None
 
 
@@ -85,6 +85,7 @@ class DataloggingCapabilities(TypedDict):
     max_nb_signal: int
     sampling_rates: List[SamplingRate]
 
+
 class DeviceInfo(TypedDict):
     session_id: str
     device_id: str
@@ -100,12 +101,13 @@ class DeviceInfo(TypedDict):
     supported_feature_map: Dict[SupportedFeature, bool]
     forbidden_memory_regions: List[Dict[Literal['start', 'size', 'end'], int]]
     readonly_memory_regions: List[Dict[Literal['start', 'size', 'end'], int]]
-    datalogging_capabilities:Optional[DataloggingCapabilities]
+    datalogging_capabilities: Optional[DataloggingCapabilities]
+
 
 class DeviceCommLinkDef(TypedDict):
     link_type: LinkType
     link_config: LinkConfig
-    link_operational:bool
+    link_operational: bool
 
 
 class GetWatchableList_Filter(TypedDict, total=False):
@@ -129,12 +131,12 @@ class DataloggingOperand(TypedDict):
     type: Literal['literal', 'watchable']
     value: Union[float, str]
 
+
 class WatchableUpdateRecord(TypedDict):
     # We want compact key names to save some bandwidth
-    id:str
-    t:float
-    v:Union[bool, float, int]
-
+    id: str
+    t: float
+    v: Union[bool, float, int]
 
 
 class SupportedCondition(TypedDict):
@@ -167,14 +169,16 @@ class DataloggingAcquisitionMetadata(TypedDict):
     firmware_id: str
     firmware_metadata: Optional[SFDMetadata]
 
+
 class LoggedWatchable(TypedDict):
-    path:str
-    type:str
+    path: str
+    type: str
+
 
 class DataloggingSignalData(TypedDict):
     name: str
-    data: List[Union[float,str]]
-    watchable : Optional[LoggedWatchable]
+    data: List[Union[float, str]]
+    watchable: Optional[LoggedWatchable]
 
 
 class DataloggingSignalDataWithAxis(DataloggingSignalData):
@@ -225,7 +229,6 @@ class C2S:
     class WriteValue(BaseC2SMessage):
         updates: List[UpdateRecord]
 
-
     class RequestDataloggingAcquisition(BaseC2SMessage):
         name: Optional[str]
         sampling_rate_id: int
@@ -268,7 +271,7 @@ class C2S:
     class UserCommand(BaseC2SMessage):
         subfunction: int
         data: str
-    
+
     class GetServerStats(BaseC2SMessage):
         pass
 
@@ -288,7 +291,7 @@ class S2C:
         msg: str
 
     class Welcome(BaseS2CMessage):
-        server_time_zero_timestamp:float
+        server_time_zero_timestamp: float
 
     class GetInstalledSFD(BaseS2CMessage):
         sfd_list: Dict[str, SFDMetadata]
@@ -336,7 +339,7 @@ class S2C:
         watchable: str
         success: bool
         request_token: str
-        completion_server_time_us:float
+        completion_server_time_us: float
 
     class RequestDataloggingAcquisition(BaseS2CMessage):
         request_token: str
@@ -378,7 +381,7 @@ class S2C:
         request_token: str
         success: bool
         data: Optional[str]
-        completion_server_time_us:float
+        completion_server_time_us: float
         detail_msg: Optional[str]
 
     class WriteMemory(BaseS2CMessage):
@@ -387,7 +390,7 @@ class S2C:
     class WriteMemoryComplete(BaseS2CMessage):
         request_token: str
         success: bool
-        completion_server_time_us:float
+        completion_server_time_us: float
         detail_msg: Optional[str]
 
     class UserCommand(BaseS2CMessage):
@@ -395,18 +398,18 @@ class S2C:
         data: str
 
     class GetServerStats(BaseS2CMessage):
-        uptime:float
-        invalid_request_count:int
-        unexpected_error_count:int
-        client_count:int
-        to_all_clients_datarate_byte_per_sec:float
-        from_any_client_datarate_byte_per_sec:float
-        msg_received:int
-        msg_sent:int
-        device_session_count:int
-        to_device_datarate_byte_per_sec:float
-        from_device_datarate_byte_per_sec:float
-        device_request_per_sec:float
+        uptime: float
+        invalid_request_count: int
+        unexpected_error_count: int
+        client_count: int
+        to_all_clients_datarate_byte_per_sec: float
+        from_any_client_datarate_byte_per_sec: float
+        msg_received: int
+        msg_sent: int
+        device_session_count: int
+        to_device_datarate_byte_per_sec: float
+        from_device_datarate_byte_per_sec: float
+        device_request_per_sec: float
 
 
 C2SMessage = Union[

@@ -61,6 +61,7 @@ from scrutiny.tools.typing import *
 if TYPE_CHECKING:
     from scrutiny.server.server import ScrutinyServer
 
+
 class APIConfig(TypedDict, total=False):
     client_interface_type: str
     client_interface_config: Any
@@ -71,7 +72,7 @@ TargetUpdateCallback = Callable[[str, DatastoreEntry], None]
 
 
 class InvalidRequestException(Exception):
-    def __init__(self, req:Any, msg:str) -> None:
+    def __init__(self, req: Any, msg: str) -> None:
         super().__init__(msg)
         self.req = req
 
@@ -140,9 +141,9 @@ class API:
 
     @dataclass(frozen=True)
     class Statistics:
-        client_handler:AbstractClientHandler.Statistics
-        invalid_request_count:int
-        unexpected_error_count:int
+        client_handler: AbstractClientHandler.Statistics
+        invalid_request_count: int
+        unexpected_error_count: int
 
     class DataloggingStatus:
         UNAVAILABLE: api_typing.DataloggerState = 'unavailable'
@@ -265,14 +266,14 @@ class API:
     sfd_handler: ActiveSFDHandler
     datalogging_manager: DataloggingManager
     handle_unexpected_errors: bool   # Always true, except during unit tests
-    invalid_request_count:int
-    unexpected_error_count:int
+    invalid_request_count: int
+    unexpected_error_count: int
 
     def __init__(self,
                  config: APIConfig,
-                 server:"ScrutinyServer",
+                 server: "ScrutinyServer",
                  enable_debug: bool = False,
-                 rx_event:Optional[threading.Event]=None):
+                 rx_event: Optional[threading.Event] = None):
         self.validate_config(config)
 
         if config['client_interface_type'] == 'tcp':
@@ -325,7 +326,7 @@ class API:
         }
 
         if enable_debug:
-            import ipdb # type: ignore
+            import ipdb  # type: ignore
             API.Command.Client2Api.DEBUG = 'debug'
             self.ApiRequestCallbacks[API.Command.Client2Api.DEBUG] = self.process_debug
 
@@ -363,10 +364,10 @@ class API:
         self.logger.debug("Device state change callback called")
         if new_status in [DeviceHandler.ConnectionStatus.DISCONNECTED, DeviceHandler.ConnectionStatus.CONNECTED_READY]:
             self.send_server_status_to_all_clients()
-    
-    def datalogger_state_changed_callback(self, 
-                                          datalogger_state: Optional[device_datalogging.DataloggerState], 
-                                          completion_ratio:Optional[float]) -> None:
+
+    def datalogger_state_changed_callback(self,
+                                          datalogger_state: Optional[device_datalogging.DataloggerState],
+                                          completion_ratio: Optional[float]) -> None:
         """Called when the datalogger state or completion ratio changes"""
         self.logger.debug("Datalogger state change callback called")
         if datalogger_state is not None:
@@ -451,7 +452,7 @@ class API:
         # Handle an incoming request from the client handler
         try:
             self.req_count += 1
-            if self.logger.isEnabledFor(logging.DEBUG): # pragma: no cover
+            if self.logger.isEnabledFor(logging.DEBUG):  # pragma: no cover
                 self.logger.debug('[Conn:%s] Processing request #%d - %s' % (conn_id, self.req_count, req))
 
             if 'cmd' not in req:
@@ -472,7 +473,7 @@ class API:
         except InvalidRequestException as e:
             self.invalid_request_count += 1
             # Client sent a bad request. Controlled error
-            if self.logger.isEnabledFor(logging.DEBUG): # pragma: no cover
+            if self.logger.isEnabledFor(logging.DEBUG):  # pragma: no cover
                 self.logger.debug('[Conn:%s] Invalid request #%d. %s' % (conn_id, self.req_count, str(e)))
             response = self.make_error_response(req, str(e))
             self.client_handler.send(ClientHandlerMessage(conn_id=conn_id, obj=response))
@@ -503,12 +504,12 @@ class API:
         }
         self.client_handler.send(ClientHandlerMessage(conn_id=conn_id, obj=response))
 
-    # === WELCOME ==== 
-    def send_welcome_message(self, conn_id:str) -> None:
-        welcome:api_typing.S2C.Welcome = {
-            'cmd' : API.Command.Api2Client.WELCOME,
-            'reqid' : None,
-            'server_time_zero_timestamp' : server_timebase.get_zero_timestamp()
+    # === WELCOME ====
+    def send_welcome_message(self, conn_id: str) -> None:
+        welcome: api_typing.S2C.Welcome = {
+            'cmd': API.Command.Api2Client.WELCOME,
+            'reqid': None,
+            'server_time_zero_timestamp': server_timebase.get_zero_timestamp()
         }
         self.client_handler.send(ClientHandlerMessage(conn_id=conn_id, obj=welcome))
 
@@ -544,7 +545,7 @@ class API:
                 elif isinstance(req['filter']['name'], str):
                     name_filters = [req['filter']['name']]
                 else:
-                     raise InvalidRequestException(req, "Invalid name filter")
+                    raise InvalidRequestException(req, "Invalid name filter")
 
         if len(type_to_include) == 0:
             type_to_include = [WatchableType.Variable, WatchableType.Alias, WatchableType.RuntimePublishedValue]
@@ -724,7 +725,7 @@ class API:
             'cmd': self.Command.Api2Client.GET_LOADED_SFD_RESPONSE,
             'reqid': self.get_req_id(req),
             'firmware_id': sfd.get_firmware_id_ascii() if sfd is not None else None,
-            'metadata' : sfd.get_metadata().to_dict() if sfd is not None else None
+            'metadata': sfd.get_metadata().to_dict() if sfd is not None else None
         }
 
         self.client_handler.send(ClientHandlerMessage(conn_id=conn_id, obj=response))
@@ -758,11 +759,11 @@ class API:
                 for region in regions:
                     output.append({'start': region.start, 'end': region.end, 'size': region.size})
             return output
-        
+
         def make_datalogging_capabilities(
-                dl_setup:Optional[device_datalogging.DataloggingSetup],
+                dl_setup: Optional[device_datalogging.DataloggingSetup],
                 sampling_rates: List[api_datalogging.SamplingRate]
-                ) -> Optional[api_typing.DataloggingCapabilities]:
+        ) -> Optional[api_typing.DataloggingCapabilities]:
 
             if dl_setup is None or sampling_rates is None:
                 return None
@@ -784,16 +785,15 @@ class API:
                 'max_nb_signal': dl_setup.max_signal_count,
                 'sampling_rates': output_sampling_rates
             }
-            
-        
+
         device_info_output: Optional[api_typing.DeviceInfo] = None
         if device_info_input is not None and device_info_input.all_ready():
-            assert session_id is not None # If we have data, we have a session
+            assert session_id is not None  # If we have data, we have a session
             max_bitrate_bps: Optional[int] = None
             if device_info_input.max_bitrate_bps is not None and device_info_input.max_bitrate_bps > 0:
                 max_bitrate_bps = device_info_input.max_bitrate_bps
             device_info_output = {
-                'session_id' : session_id,
+                'session_id': session_id,
                 'device_id': cast(str, device_info_input.device_id),
                 'display_name': cast(str, device_info_input.display_name),
                 'max_tx_data_size': cast(int, device_info_input.max_tx_data_size),
@@ -807,17 +807,17 @@ class API:
                 'supported_feature_map': cast(Dict[api_typing.SupportedFeature, bool], device_info_input.supported_feature_map),
                 'forbidden_memory_regions': make_memory_region_map(device_info_input.forbidden_memory_regions),
                 'readonly_memory_regions': make_memory_region_map(device_info_input.readonly_memory_regions),
-                'datalogging_capabilities' : make_datalogging_capabilities( # Capabilities = setup + sampling rate (loops)
-                    device_info_input.datalogging_setup, 
+                'datalogging_capabilities': make_datalogging_capabilities(  # Capabilities = setup + sampling rate (loops)
+                    device_info_input.datalogging_setup,
                     self.datalogging_manager.get_available_sampling_rates()
-                    )
+                )
             }
 
         response: api_typing.S2C.GetDeviceInfo = {
             'cmd': self.Command.Api2Client.GET_DEVICE_INFO,
             'reqid': self.get_req_id(req),
-            'available' : True if device_info_output is not None else False,
-            'device_info' : device_info_output
+            'available': True if device_info_output is not None else False,
+            'device_info': device_info_output
         }
 
         self.client_handler.send(ClientHandlerMessage(conn_id=conn_id, obj=response))
@@ -1036,7 +1036,8 @@ class API:
 
         request_token = uuid4().hex
         closure_data = dict(request_token=request_token, conn_id=conn_id)
-        def callback(request: RawMemoryReadRequest, success: bool, completion_server_time_us:float, data: Optional[bytes], error: str) -> None:
+
+        def callback(request: RawMemoryReadRequest, success: bool, completion_server_time_us: float, data: Optional[bytes], error: str) -> None:
             self.read_raw_memory_callback(request, success, completion_server_time_us, data, error, **closure_data)
 
         self.device_handler.read_memory(req['address'], req['size'], callback=callback)
@@ -1075,7 +1076,8 @@ class API:
 
         request_token = uuid4().hex
         closure_data = dict(request_token=request_token, conn_id=conn_id)
-        def callback(request: RawMemoryWriteRequest, success: bool, completion_server_time_us:float, error: str) -> None:
+
+        def callback(request: RawMemoryWriteRequest, success: bool, completion_server_time_us: float, error: str) -> None:
             self.write_raw_memory_callback(request, success, completion_server_time_us, error, **closure_data)
 
         self.device_handler.write_memory(req['address'], data, callback=callback)
@@ -1125,13 +1127,13 @@ class API:
             assert error is not None
             self.client_handler.send(ClientHandlerMessage(conn_id=conn_id, obj=self.make_error_response(req, error)))
 
-    def read_raw_memory_callback(self, 
-                                 request: RawMemoryReadRequest, 
-                                 success: bool, 
-                                 completion_server_time_us:float,
-                                 data: Optional[bytes], 
-                                 error: str, 
-                                 conn_id: str, 
+    def read_raw_memory_callback(self,
+                                 request: RawMemoryReadRequest,
+                                 success: bool,
+                                 completion_server_time_us: float,
+                                 data: Optional[bytes],
+                                 error: str,
+                                 conn_id: str,
                                  request_token: str
                                  ) -> None:
         data_out: Optional[str] = None
@@ -1145,17 +1147,17 @@ class API:
             'success': success,
             'data': data_out,
             'detail_msg': error if success == False else None,
-            'completion_server_time_us' : completion_server_time_us
+            'completion_server_time_us': completion_server_time_us
         }
 
         self.client_handler.send(ClientHandlerMessage(conn_id=conn_id, obj=response))
 
-    def write_raw_memory_callback(self, 
-                                  request: RawMemoryWriteRequest, 
-                                  success: bool, 
-                                  completion_server_time_us:float,
-                                  error: str, 
-                                  conn_id: str, 
+    def write_raw_memory_callback(self,
+                                  request: RawMemoryWriteRequest,
+                                  success: bool,
+                                  completion_server_time_us: float,
+                                  error: str,
+                                  conn_id: str,
                                   request_token: str
                                   ) -> None:
         response: api_typing.S2C.WriteMemoryComplete = {
@@ -1169,8 +1171,8 @@ class API:
 
         self.client_handler.send(ClientHandlerMessage(conn_id=conn_id, obj=response))
 
-
     # === DATALOGGING_REQUEST_ACQUISITION ==
+
     def process_datalogging_request_acquisition(self, conn_id: str, req: api_typing.C2S.RequestDataloggingAcquisition) -> None:
         if not self.datalogging_manager.is_ready_for_request():
             raise InvalidRequestException(req, 'Device is not ready to receive a request')
@@ -1430,7 +1432,7 @@ class API:
                 self.client_handler.send(ClientHandlerMessage(conn_id=conn_id, obj=broadcast_msg))
 
     # === LIST_DATALOGGING_ACQUISITION ===
-    def process_list_datalogging_acquisition(self, conn_id: str, req: api_typing.C2S.ListDataloggingAcquisitions) -> None:        
+    def process_list_datalogging_acquisition(self, conn_id: str, req: api_typing.C2S.ListDataloggingAcquisitions) -> None:
         reference_id: Optional[str] = None
         if 'reference_id' in req:
             if not isinstance(req['reference_id'], str) and req['reference_id'] is not None:
@@ -1444,25 +1446,24 @@ class API:
                     raise InvalidRequestException(req, 'Invalid firmware ID')
                 firmware_id = req['firmware_id']
 
-            before_datetime:Optional[datetime] = None
+            before_datetime: Optional[datetime] = None
             if 'before_timestamp' in req and req['before_timestamp'] is not None:
                 if not isinstance(req['before_timestamp'], (int, float)):
                     raise InvalidRequestException(req, 'Invalid before_timestamp field')
-                
+
                 if req['before_timestamp'] < 0:
                     raise InvalidRequestException(req, 'Invalid before_timestamp value')
                 try:
                     before_datetime = datetime.fromtimestamp(req['before_timestamp'])
                 except Exception:
                     raise InvalidRequestException(req, 'Invalid before_timestamp value')
-                    
-        
+
             if 'count' not in req:
                 raise InvalidRequestException(req, 'Missing count field')
 
             if not isinstance(req['count'], int):
                 raise InvalidRequestException(req, 'Invalid count field')
-        
+
             MAX_COUNT = 10000
             if req['count'] < 0 or req['count'] > MAX_COUNT:
                 raise InvalidRequestException(req, f'Invalid count value. Value must be between 0 and {MAX_COUNT}')
@@ -1645,11 +1646,11 @@ class API:
             raise InvalidRequestException(req, "Failed to read acquisition. %s" % (str(err)))
 
         def dataseries_to_api_signal_data(ds: core_datalogging.DataSeries) -> api_typing.DataloggingSignalData:
-            logged_watchable:Optional[api_typing.LoggedWatchable] = None
+            logged_watchable: Optional[api_typing.LoggedWatchable] = None
             if ds.logged_watchable is not None:
                 logged_watchable = {
-                    'path' : ds.logged_watchable.path,
-                    'type' : ds.logged_watchable.type.value
+                    'path': ds.logged_watchable.path,
+                    'type': ds.logged_watchable.type.value
                 }
             signal: api_typing.DataloggingSignalData = {
                 'name': ds.name,
@@ -1696,18 +1697,18 @@ class API:
         response: api_typing.S2C.GetServerStats = {
             'cmd': API.Command.Api2Client.GET_SERVER_STATS,
             'reqid': self.get_req_id(req),
-            'uptime' : stats.uptime,
-            'invalid_request_count' : stats.api.invalid_request_count,
-            'unexpected_error_count' : stats.api.unexpected_error_count,
-            'client_count' : stats.api.client_handler.client_count,
-            'to_all_clients_datarate_byte_per_sec' : stats.api.client_handler.output_datarate_byte_per_sec,
-            'from_any_client_datarate_byte_per_sec' : stats.api.client_handler.input_datarate_byte_per_sec,
-            'msg_received' : stats.api.client_handler.msg_received,
-            'msg_sent' : stats.api.client_handler.msg_sent,
-            'device_session_count' : stats.device.device_session_count,
-            'to_device_datarate_byte_per_sec' : stats.device.comm_handler.tx_datarate_byte_per_sec,
-            'from_device_datarate_byte_per_sec' : stats.device.comm_handler.rx_datarate_byte_per_sec,
-            'device_request_per_sec' : stats.device.comm_handler.request_per_sec,
+            'uptime': stats.uptime,
+            'invalid_request_count': stats.api.invalid_request_count,
+            'unexpected_error_count': stats.api.unexpected_error_count,
+            'client_count': stats.api.client_handler.client_count,
+            'to_all_clients_datarate_byte_per_sec': stats.api.client_handler.output_datarate_byte_per_sec,
+            'from_any_client_datarate_byte_per_sec': stats.api.client_handler.input_datarate_byte_per_sec,
+            'msg_received': stats.api.client_handler.msg_received,
+            'msg_sent': stats.api.client_handler.msg_sent,
+            'device_session_count': stats.device.device_session_count,
+            'to_device_datarate_byte_per_sec': stats.device.comm_handler.tx_datarate_byte_per_sec,
+            'from_device_datarate_byte_per_sec': stats.device.comm_handler.rx_datarate_byte_per_sec,
+            'device_request_per_sec': stats.device.comm_handler.request_per_sec,
         }
 
         self.client_handler.send(ClientHandlerMessage(conn_id=conn_id, obj=response))
@@ -1718,7 +1719,6 @@ class API:
         sfd = self.sfd_handler.get_loaded_sfd()
         device_link_type = self.device_handler.get_link_type()
         device_comm_link = self.device_handler.get_comm_link()
-        
 
         loaded_sfd_firmware_id: Optional[str] = None
         if sfd is not None:
@@ -1730,7 +1730,6 @@ class API:
         else:
             link_config = cast(api_typing.LinkConfig, device_comm_link.get_config())
             link_operational = device_comm_link.operational()
-            
 
         datalogger_state_api = API.DataloggingStatus.UNAVAILABLE
         datalogger_state = self.device_handler.get_datalogger_state()
@@ -1749,13 +1748,13 @@ class API:
             },
             'device_comm_link': {
                 'link_type': cast(api_typing.LinkType, device_link_type),
-                'link_operational' : link_operational,
+                'link_operational': link_operational,
                 'link_config': link_config
             }
         }
 
         return response
-    
+
     def send_server_status_to_all_clients(self) -> None:
         msg_obj = self.craft_inform_server_status()
         for conn_id in self.connections:
@@ -1766,11 +1765,11 @@ class API:
         self.streamer.publish(datastore_entry, conn_id)
         self.stream_all_we_can()
 
-    def entry_target_update_callback(self, 
-                                     request_token: str, 
-                                     batch_index: int, 
-                                     success: bool, 
-                                     datastore_entry: DatastoreEntry, 
+    def entry_target_update_callback(self,
+                                     request_token: str,
+                                     batch_index: int,
+                                     success: bool,
+                                     datastore_entry: DatastoreEntry,
                                      completion_server_time_us: float) -> None:
         # This callback is given to the datastore when we make a write request (target update request)
         # It will be called once the request is completed.
@@ -1789,12 +1788,12 @@ class API:
         for watcher_conn_id in watchers:
             self.client_handler.send(ClientHandlerMessage(conn_id=watcher_conn_id, obj=msg))
 
-    def make_datastore_entry_definition(self, 
-                                        entry: DatastoreEntry, 
-                                        include_type:bool=True, 
-                                        include_display_path:bool=True,
-                                        include_datatype:bool=True,
-                                        include_enum:bool=True
+    def make_datastore_entry_definition(self,
+                                        entry: DatastoreEntry,
+                                        include_type: bool = True,
+                                        include_display_path: bool = True,
+                                        include_datatype: bool = True,
+                                        include_enum: bool = True
                                         ) -> api_typing.DatastoreEntryDefinition:
         # Craft the data structure sent by the API to give the available watchables
         definition: api_typing.DatastoreEntryDefinition = {

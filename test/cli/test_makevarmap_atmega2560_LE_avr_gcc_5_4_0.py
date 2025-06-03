@@ -136,14 +136,14 @@ known_enums = {
         "UnexpectedClaim": 2
     },
 
-    "Main2LoopMessageID" : {
+    "Main2LoopMessageID": {
         "RELEASE_DATALOGGER_OWNERSHIP": 0,
         "TAKE_DATALOGGER_OWNERSHIP": 1,
         "DATALOGGER_ARM_TRIGGER": 2,
         "DATALOGGER_DISARM_TRIGGER": 3
     },
 
-    "Loop2MainMessageID" : {
+    "Loop2MainMessageID": {
         "DATALOGGER_OWNERSHIP_TAKEN": 0,
         "DATALOGGER_OWNERSHIP_RELEASED": 1,
         "DATALOGGER_DATA_ACQUIRED": 2,
@@ -174,7 +174,7 @@ class TestMakeVarMap_ATMega2560_LE_avr_gcc_5_4_0(ScrutinyUnitTest):
     def load_var(self, fullname):
         return self.varmap.get_var(fullname)
 
-    def assert_var(self, fullname, thetype, addr=None, bitsize=None, bitoffset=None, enum:Optional[str]=None):
+    def assert_var(self, fullname, thetype, addr=None, bitsize=None, bitoffset=None, enum: Optional[str] = None):
         v = self.load_var(fullname)
         self.assertEqual(thetype, v.get_type())
 
@@ -215,7 +215,7 @@ class TestMakeVarMap_ATMega2560_LE_avr_gcc_5_4_0(ScrutinyUnitTest):
         self.assert_var('/static/main.cpp/task_100hz()/var_100hz', EmbeddedDataType.uint32)
         self.assert_var('/static/main.cpp/task_1hz()/var_1hz', EmbeddedDataType.uint32)
         self.assert_var('/static/main.cpp/task_1hz()/led_state', EmbeddedDataType.sint16)
-        
+
         self.assert_var('/static/main.cpp/loop/last_timestamp_us', EmbeddedDataType.uint32)
         self.assert_var('/static/main.cpp/loop/last_timestamp_task_1hz_us', EmbeddedDataType.uint32)
         self.assert_var('/static/main.cpp/loop/last_timestamp_task_100hz_us', EmbeddedDataType.uint32)
@@ -226,15 +226,16 @@ class TestMakeVarMap_ATMega2560_LE_avr_gcc_5_4_0(ScrutinyUnitTest):
         self.assert_var('/global/task_idle_loop_handler/m_main2loop_msg/data/message_id', EmbeddedDataType.uint8, enum='Main2LoopMessageID')
         self.assert_var('/global/task_idle_loop_handler/m_loop2main_msg/m_written', EmbeddedDataType.boolean)
         self.assert_var('/global/task_idle_loop_handler/m_loop2main_msg/data/message_id', EmbeddedDataType.uint8, enum='Loop2MainMessageID')
-        
-        self.assert_var('/global/task_idle_loop_handler/m_loop2main_msg/data/data/datalogger_status_update/state', EmbeddedDataType.uint8, enum='DataloggerState')
-        self.assert_var('/global/task_idle_loop_handler/m_loop2main_msg/data/data/datalogger_status_update/bytes_to_acquire_from_trigger_to_completion', EmbeddedDataType.uint16)
+
+        self.assert_var('/global/task_idle_loop_handler/m_loop2main_msg/data/data/datalogger_status_update/state',
+                        EmbeddedDataType.uint8, enum='DataloggerState')
+        self.assert_var(
+            '/global/task_idle_loop_handler/m_loop2main_msg/data/data/datalogger_status_update/bytes_to_acquire_from_trigger_to_completion', EmbeddedDataType.uint16)
         self.assert_var('/global/task_idle_loop_handler/m_loop2main_msg/data/data/datalogger_status_update/write_counter_since_trigger', EmbeddedDataType.uint16)
 
         self.assert_var('/global/task_idle_loop_handler/m_owns_datalogger', EmbeddedDataType.boolean)
         self.assert_var('/global/task_idle_loop_handler/m_datalogger_data_acquired', EmbeddedDataType.boolean)
         self.assert_var('/global/task_idle_loop_handler/m_support_datalogging', EmbeddedDataType.boolean)
-
 
         self.assert_var('/global/task_100hz_loop_handler/m_timestep_100ns', EmbeddedDataType.uint32)
         self.assert_var('/global/task_100hz_loop_handler/m_timebase/m_time_100ns', EmbeddedDataType.uint32)
@@ -242,14 +243,15 @@ class TestMakeVarMap_ATMega2560_LE_avr_gcc_5_4_0(ScrutinyUnitTest):
         self.assert_var('/global/task_100hz_loop_handler/m_main2loop_msg/data/message_id', EmbeddedDataType.uint8, enum='Main2LoopMessageID')
         self.assert_var('/global/task_100hz_loop_handler/m_loop2main_msg/m_written', EmbeddedDataType.boolean)
         self.assert_var('/global/task_100hz_loop_handler/m_loop2main_msg/data/message_id', EmbeddedDataType.uint8, enum='Loop2MainMessageID')
-        self.assert_var('/global/task_100hz_loop_handler/m_loop2main_msg/data/data/datalogger_status_update/state', EmbeddedDataType.uint8, enum='DataloggerState')
-        self.assert_var('/global/task_100hz_loop_handler/m_loop2main_msg/data/data/datalogger_status_update/bytes_to_acquire_from_trigger_to_completion', EmbeddedDataType.uint16)
+        self.assert_var('/global/task_100hz_loop_handler/m_loop2main_msg/data/data/datalogger_status_update/state',
+                        EmbeddedDataType.uint8, enum='DataloggerState')
+        self.assert_var(
+            '/global/task_100hz_loop_handler/m_loop2main_msg/data/data/datalogger_status_update/bytes_to_acquire_from_trigger_to_completion', EmbeddedDataType.uint16)
         self.assert_var('/global/task_100hz_loop_handler/m_loop2main_msg/data/data/datalogger_status_update/write_counter_since_trigger', EmbeddedDataType.uint16)
 
         self.assert_var('/global/task_100hz_loop_handler/m_owns_datalogger', EmbeddedDataType.boolean)
         self.assert_var('/global/task_100hz_loop_handler/m_datalogger_data_acquired', EmbeddedDataType.boolean)
         self.assert_var('/global/task_100hz_loop_handler/m_support_datalogging', EmbeddedDataType.boolean)
-       
 
         self.assert_var('/global/task_20hz_loop_handler/m_timestep_100ns', EmbeddedDataType.uint32)
         self.assert_var('/global/task_20hz_loop_handler/m_timebase/m_time_100ns', EmbeddedDataType.uint32)
@@ -257,37 +259,38 @@ class TestMakeVarMap_ATMega2560_LE_avr_gcc_5_4_0(ScrutinyUnitTest):
         self.assert_var('/global/task_20hz_loop_handler/m_main2loop_msg/data/message_id', EmbeddedDataType.uint8, enum='Main2LoopMessageID')
         self.assert_var('/global/task_20hz_loop_handler/m_loop2main_msg/m_written', EmbeddedDataType.boolean)
         self.assert_var('/global/task_20hz_loop_handler/m_loop2main_msg/data/message_id', EmbeddedDataType.uint8, enum='Loop2MainMessageID')
-        self.assert_var('/global/task_20hz_loop_handler/m_loop2main_msg/data/data/datalogger_status_update/state', EmbeddedDataType.uint8, enum='DataloggerState')
-        self.assert_var('/global/task_20hz_loop_handler/m_loop2main_msg/data/data/datalogger_status_update/bytes_to_acquire_from_trigger_to_completion', EmbeddedDataType.uint16)
+        self.assert_var('/global/task_20hz_loop_handler/m_loop2main_msg/data/data/datalogger_status_update/state',
+                        EmbeddedDataType.uint8, enum='DataloggerState')
+        self.assert_var(
+            '/global/task_20hz_loop_handler/m_loop2main_msg/data/data/datalogger_status_update/bytes_to_acquire_from_trigger_to_completion', EmbeddedDataType.uint16)
         self.assert_var('/global/task_20hz_loop_handler/m_loop2main_msg/data/data/datalogger_status_update/write_counter_since_trigger', EmbeddedDataType.uint16)
 
         self.assert_var('/global/task_20hz_loop_handler/m_owns_datalogger', EmbeddedDataType.boolean)
         self.assert_var('/global/task_20hz_loop_handler/m_datalogger_data_acquired', EmbeddedDataType.boolean)
         self.assert_var('/global/task_20hz_loop_handler/m_support_datalogging', EmbeddedDataType.boolean)
-       
 
     def test_main_handler(self):
-        #self.assert_var("/static/scrutiny_integration.cpp/config/m_rx_buffer", EmbeddedDataType.pointer)
+        # self.assert_var("/static/scrutiny_integration.cpp/config/m_rx_buffer", EmbeddedDataType.pointer)
         self.assert_var("/static/scrutiny_integration.cpp/config/m_rx_buffer_size", EmbeddedDataType.uint16)
-        #self.assert_var("/static/scrutiny_integration.cpp/config/m_tx_buffer", EmbeddedDataType.pointer)
+        # self.assert_var("/static/scrutiny_integration.cpp/config/m_tx_buffer", EmbeddedDataType.pointer)
         self.assert_var("/static/scrutiny_integration.cpp/config/m_tx_buffer_size", EmbeddedDataType.uint16)
-        #self.assert_var("/static/scrutiny_integration.cpp/config/m_forbidden_address_ranges", EmbeddedDataType.pointer)
+        # self.assert_var("/static/scrutiny_integration.cpp/config/m_forbidden_address_ranges", EmbeddedDataType.pointer)
         self.assert_var("/static/scrutiny_integration.cpp/config/m_forbidden_range_count", EmbeddedDataType.uint8)
-        #self.assert_var("/static/scrutiny_integration.cpp/config/m_readonly_address_ranges", EmbeddedDataType.pointer)
+        # self.assert_var("/static/scrutiny_integration.cpp/config/m_readonly_address_ranges", EmbeddedDataType.pointer)
         self.assert_var("/static/scrutiny_integration.cpp/config/m_readonly_range_count", EmbeddedDataType.uint8)
-        #self.assert_var("/static/scrutiny_integration.cpp/config/m_rpvs", EmbeddedDataType.pointer)
+        # self.assert_var("/static/scrutiny_integration.cpp/config/m_rpvs", EmbeddedDataType.pointer)
         self.assert_var("/static/scrutiny_integration.cpp/config/m_rpv_count", EmbeddedDataType.uint16)
-        #self.assert_var("/static/scrutiny_integration.cpp/config/m_rpv_read_callback", EmbeddedDataType.pointer)
-        #self.assert_var("/static/scrutiny_integration.cpp/config/m_rpv_write_callback", EmbeddedDataType.pointer)
-        #self.assert_var("/static/scrutiny_integration.cpp/config/m_loops", EmbeddedDataType.pointer)
+        # self.assert_var("/static/scrutiny_integration.cpp/config/m_rpv_read_callback", EmbeddedDataType.pointer)
+        # self.assert_var("/static/scrutiny_integration.cpp/config/m_rpv_write_callback", EmbeddedDataType.pointer)
+        # self.assert_var("/static/scrutiny_integration.cpp/config/m_loops", EmbeddedDataType.pointer)
         self.assert_var("/static/scrutiny_integration.cpp/config/m_loop_count", EmbeddedDataType.uint8)
-        #self.assert_var("/static/scrutiny_integration.cpp/config/m_user_command_callback", EmbeddedDataType.pointer)
-        #self.assert_var("/static/scrutiny_integration.cpp/config/m_datalogger_buffer", EmbeddedDataType.pointer)
+        # self.assert_var("/static/scrutiny_integration.cpp/config/m_user_command_callback", EmbeddedDataType.pointer)
+        # self.assert_var("/static/scrutiny_integration.cpp/config/m_datalogger_buffer", EmbeddedDataType.pointer)
         self.assert_var("/static/scrutiny_integration.cpp/config/m_datalogger_buffer_size", EmbeddedDataType.uint16)
-        #self.assert_var("/static/scrutiny_integration.cpp/config/m_datalogger_trigger_callback", EmbeddedDataType.pointer)
+        # self.assert_var("/static/scrutiny_integration.cpp/config/m_datalogger_trigger_callback", EmbeddedDataType.pointer)
 
         self.assert_var("/static/scrutiny_integration.cpp/main_handler/m_timebase/m_time_100ns", EmbeddedDataType.uint32)
-        self.assert_var("/static/scrutiny_integration.cpp/main_handler/m_comm_handler/m_state", EmbeddedDataType.uint8, enum='CommHandlerState' )
+        self.assert_var("/static/scrutiny_integration.cpp/main_handler/m_comm_handler/m_state", EmbeddedDataType.uint8, enum='CommHandlerState')
         self.assert_var("/static/scrutiny_integration.cpp/main_handler/m_comm_handler/m_enabled", EmbeddedDataType.boolean)
         self.assert_var("/static/scrutiny_integration.cpp/main_handler/m_comm_handler/m_session_id", EmbeddedDataType.uint32)
         self.assert_var("/static/scrutiny_integration.cpp/main_handler/m_comm_handler/m_session_active", EmbeddedDataType.boolean)
@@ -301,7 +304,8 @@ class TestMakeVarMap_ATMega2560_LE_avr_gcc_5_4_0(ScrutinyUnitTest):
         self.assert_var("/static/scrutiny_integration.cpp/main_handler/m_comm_handler/m_active_request/data_length", EmbeddedDataType.uint16)
         self.assert_var("/static/scrutiny_integration.cpp/main_handler/m_comm_handler/m_active_request/data_max_length", EmbeddedDataType.uint16)
         self.assert_var("/static/scrutiny_integration.cpp/main_handler/m_comm_handler/m_active_request/crc", EmbeddedDataType.uint32)
-        self.assert_var("/static/scrutiny_integration.cpp/main_handler/m_comm_handler/m_rx_state", EmbeddedDataType.uint8, enum='CommHandlerRxFSMState')
+        self.assert_var("/static/scrutiny_integration.cpp/main_handler/m_comm_handler/m_rx_state",
+                        EmbeddedDataType.uint8, enum='CommHandlerRxFSMState')
         self.assert_var("/static/scrutiny_integration.cpp/main_handler/m_comm_handler/m_rx_error", EmbeddedDataType.uint8, enum='CommHandlerRxError')
         self.assert_var("/static/scrutiny_integration.cpp/main_handler/m_comm_handler/m_request_received", EmbeddedDataType.boolean)
         self.assert_var("/static/scrutiny_integration.cpp/main_handler/m_comm_handler/m_per_state_data/crc_bytes_received", EmbeddedDataType.uint8)
@@ -333,7 +337,8 @@ class TestMakeVarMap_ATMega2560_LE_avr_gcc_5_4_0(ScrutinyUnitTest):
         self.assert_var("/static/scrutiny_integration.cpp/main_handler/m_process_again_timestamp_taken", EmbeddedDataType.boolean)
         self.assert_var("/static/scrutiny_integration.cpp/main_handler/m_process_again_timestamp", EmbeddedDataType.uint32)
         self.assert_var("/static/scrutiny_integration.cpp/main_handler/m_datalogging/datalogger/m_buffer_size", EmbeddedDataType.uint16)
-        self.assert_var("/static/scrutiny_integration.cpp/main_handler/m_datalogging/datalogger/m_state", EmbeddedDataType.uint8, enum='DataloggerState')
+        self.assert_var("/static/scrutiny_integration.cpp/main_handler/m_datalogging/datalogger/m_state",
+                        EmbeddedDataType.uint8, enum='DataloggerState')
         self.assert_var("/static/scrutiny_integration.cpp/main_handler/m_datalogging/datalogger/m_trigger_timestamp", EmbeddedDataType.uint32)
         self.assert_var("/static/scrutiny_integration.cpp/main_handler/m_datalogging/datalogger/m_trigger_cursor_location", EmbeddedDataType.uint16)
         self.assert_var("/static/scrutiny_integration.cpp/main_handler/m_datalogging/datalogger/m_remaining_data_to_write", EmbeddedDataType.uint16)
@@ -342,7 +347,8 @@ class TestMakeVarMap_ATMega2560_LE_avr_gcc_5_4_0(ScrutinyUnitTest):
         self.assert_var("/static/scrutiny_integration.cpp/main_handler/m_datalogging/datalogger/m_config/decimation", EmbeddedDataType.uint16)
         self.assert_var("/static/scrutiny_integration.cpp/main_handler/m_datalogging/datalogger/m_config/probe_location", EmbeddedDataType.uint8)
         self.assert_var("/static/scrutiny_integration.cpp/main_handler/m_datalogging/datalogger/m_config/timeout_100ns", EmbeddedDataType.uint32)
-        self.assert_var("/static/scrutiny_integration.cpp/main_handler/m_datalogging/datalogger/m_config/trigger/condition", EmbeddedDataType.uint8, enum='SupportedTriggerConditions')
+        self.assert_var("/static/scrutiny_integration.cpp/main_handler/m_datalogging/datalogger/m_config/trigger/condition",
+                        EmbeddedDataType.uint8, enum='SupportedTriggerConditions')
         self.assert_var("/static/scrutiny_integration.cpp/main_handler/m_datalogging/datalogger/m_config/trigger/operand_count", EmbeddedDataType.uint8)
         self.assert_var("/static/scrutiny_integration.cpp/main_handler/m_datalogging/datalogger/m_config/trigger/hold_time_100ns", EmbeddedDataType.uint32)
         self.assert_var("/static/scrutiny_integration.cpp/main_handler/m_datalogging/datalogger/m_config_valid", EmbeddedDataType.boolean)
@@ -364,9 +370,12 @@ class TestMakeVarMap_ATMega2560_LE_avr_gcc_5_4_0(ScrutinyUnitTest):
         self.assert_var("/static/scrutiny_integration.cpp/main_handler/m_datalogging/datalogger/m_log_points_after_trigger", EmbeddedDataType.uint16)
         self.assert_var("/static/scrutiny_integration.cpp/main_handler/m_datalogging/datalogger/m_trigger/previous_val", EmbeddedDataType.boolean)
         self.assert_var("/static/scrutiny_integration.cpp/main_handler/m_datalogging/datalogger/m_trigger/rising_edge_timestamp", EmbeddedDataType.uint32)
-        self.assert_var("/static/scrutiny_integration.cpp/main_handler/m_datalogging/datalogger/m_trigger/conditions/m_data/cmt/initialized", EmbeddedDataType.boolean)
-        self.assert_var("/static/scrutiny_integration.cpp/main_handler/m_datalogging/threadsafe_data/datalogger_state", EmbeddedDataType.uint8, enum='DataloggerState')
-        self.assert_var("/static/scrutiny_integration.cpp/main_handler/m_datalogging/threadsafe_data/bytes_to_acquire_from_trigger_to_completion", EmbeddedDataType.uint16)
+        self.assert_var(
+            "/static/scrutiny_integration.cpp/main_handler/m_datalogging/datalogger/m_trigger/conditions/m_data/cmt/initialized", EmbeddedDataType.boolean)
+        self.assert_var("/static/scrutiny_integration.cpp/main_handler/m_datalogging/threadsafe_data/datalogger_state",
+                        EmbeddedDataType.uint8, enum='DataloggerState')
+        self.assert_var(
+            "/static/scrutiny_integration.cpp/main_handler/m_datalogging/threadsafe_data/bytes_to_acquire_from_trigger_to_completion", EmbeddedDataType.uint16)
         self.assert_var("/static/scrutiny_integration.cpp/main_handler/m_datalogging/threadsafe_data/write_counter_since_trigger", EmbeddedDataType.uint16)
         self.assert_var("/static/scrutiny_integration.cpp/main_handler/m_datalogging/error", EmbeddedDataType.uint8, enum='DataloggingError')
         self.assert_var("/static/scrutiny_integration.cpp/main_handler/m_datalogging/request_arm_trigger", EmbeddedDataType.boolean)
@@ -378,8 +387,8 @@ class TestMakeVarMap_ATMega2560_LE_avr_gcc_5_4_0(ScrutinyUnitTest):
         self.assert_var("/static/scrutiny_integration.cpp/main_handler/m_datalogging/read_acquisition_crc", EmbeddedDataType.uint32)
 
     def test_scrutiny_integration(self):
-        self.assert_var("/static/scrutiny_integration.cpp/rpv_write_callback(scrutiny::RuntimePublishedValue, scrutiny::AnyType const*)/some_counter", EmbeddedDataType.uint32)
-
+        self.assert_var(
+            "/static/scrutiny_integration.cpp/rpv_write_callback(scrutiny::RuntimePublishedValue, scrutiny::AnyType const*)/some_counter", EmbeddedDataType.uint32)
 
     def test_bno055(self):
         self.assert_var('/global/bno055/m_i2c_addr', EmbeddedDataType.uint8)
@@ -395,22 +404,23 @@ class TestMakeVarMap_ATMega2560_LE_avr_gcc_5_4_0(ScrutinyUnitTest):
         self.assert_var('/global/bno055/m_double_buffer_flag', EmbeddedDataType.boolean)
         self.assert_var('/global/bno055/m_interrupt_read_state', EmbeddedDataType.uint8, enum='InterruptReadState')
         self.assert_var('/global/bno055/m_interrupt_read_mode', EmbeddedDataType.uint8, enum='InterruptReadMode')
-        
+
         self.assert_var('/global/bno055/m_acc/x', EmbeddedDataType.sint16)
         self.assert_var('/global/bno055/m_acc/y', EmbeddedDataType.sint16)
         self.assert_var('/global/bno055/m_acc/z', EmbeddedDataType.sint16)
-        
+
         self.assert_var('/global/bno055/m_gyro/x', EmbeddedDataType.sint16)
         self.assert_var('/global/bno055/m_gyro/y', EmbeddedDataType.sint16)
         self.assert_var('/global/bno055/m_gyro/z', EmbeddedDataType.sint16)
-        
+
         self.assert_var('/global/bno055/m_mag/x', EmbeddedDataType.sint16)
         self.assert_var('/global/bno055/m_mag/y', EmbeddedDataType.sint16)
         self.assert_var('/global/bno055/m_mag/z', EmbeddedDataType.sint16)
-        
-        #self.assert_var('/global/bno055/m_i2c_rx_buffer', array)
+
+        # self.assert_var('/global/bno055/m_i2c_rx_buffer', array)
         self.assert_var('/global/bno055/m_i2c_data_available', EmbeddedDataType.boolean)
         self.assert_var('/global/bno055/m_i2c_data_len', EmbeddedDataType.uint8)
+
 
 if __name__ == '__main__':
     import unittest

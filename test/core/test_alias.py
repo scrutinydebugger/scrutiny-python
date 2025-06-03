@@ -48,14 +48,14 @@ class TestAlias(ScrutinyUnitTest):
         self.assertIsNone(x.enum)
 
         x = Alias.from_dict('aaa', {
-            'target': 'asd', 
+            'target': 'asd',
             'target_type': WatchableType.RuntimePublishedValue,
-            'enum' : {
-                'name' : 'some_enum',
-                'values' : {
-                    'a':1,
-                    'b':2,
-                    'c':3,
+            'enum': {
+                'name': 'some_enum',
+                'values': {
+                    'a': 1,
+                    'b': 2,
+                    'c': 3,
                 }
             }
         })

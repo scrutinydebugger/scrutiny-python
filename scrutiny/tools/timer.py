@@ -11,6 +11,7 @@ __all__ = ['Timer']
 import time
 from scrutiny.tools.typing import *
 
+
 class Timer:
     """
     Class to make periodic task or timeout easier to manage.

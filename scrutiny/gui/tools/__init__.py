@@ -4,7 +4,8 @@ __all__ = ['watchabletype_2_icon']
 from scrutiny.sdk import WatchableType
 from scrutiny.gui import assets
 
-def watchabletype_2_icon(wt:WatchableType) -> assets.Icons:
+
+def watchabletype_2_icon(wt: WatchableType) -> assets.Icons:
     """Return the proper icon for a given watchable type (var, alias, rpv)"""
     if wt == WatchableType.Variable:
         return assets.Icons.Var

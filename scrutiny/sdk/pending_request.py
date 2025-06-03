@@ -19,6 +19,7 @@ from scrutiny.tools.typing import *
 if TYPE_CHECKING:
     from scrutiny.sdk.client import ScrutinyClient
 
+
 class PendingRequest:
     _client: "ScrutinyClient"
 
@@ -37,7 +38,7 @@ class PendingRequest:
         self._failure_reason = ""
         self._monotonic_creation_timestamp = time.monotonic()
 
-    def _is_expired(self, timeout:float) -> bool:
+    def _is_expired(self, timeout: float) -> bool:
         return time.monotonic() - self._monotonic_creation_timestamp > timeout
 
     def _mark_complete(self, success: bool, failure_reason: str = "", server_time_us: Optional[float] = None) -> None:
@@ -51,9 +52,9 @@ class PendingRequest:
         self._completed = True
         self._completed_event.set()
 
-    def _timeout_exception_msg(self, timeout:float) -> str:
+    def _timeout_exception_msg(self, timeout: float) -> str:
         return f"Request did not complete in {timeout} seconds"
-    
+
     def _failure_exception_msg(self) -> str:
         return f"Request failed to complete. {self._failure_reason}"
 

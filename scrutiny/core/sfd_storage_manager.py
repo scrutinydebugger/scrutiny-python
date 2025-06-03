@@ -54,7 +54,7 @@ class SFDStorageManager:
     def __init__(self, folder: str) -> None:
         self.folder = folder
         self.temporary_dir = None
-    
+
     def use_temp_folder(self) -> TempStorageWithAutoRestore:
         """Require the storage manager to switch to a temporary directory. Used for unit testing"""
         self.temporary_dir = tempfile.TemporaryDirectory()
@@ -64,7 +64,7 @@ class SFDStorageManager:
         """Require the storage manager to work on the real directory and not a temporary directory"""
         self.temporary_dir = None
 
-    def get_storage_dir(self, create:bool=False) -> str:
+    def get_storage_dir(self, create: bool = False) -> str:
         """Ge the actual storage directory"""
         if self.temporary_dir is not None:
             return self.temporary_dir.name

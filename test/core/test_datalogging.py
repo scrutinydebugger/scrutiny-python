@@ -17,7 +17,7 @@ class TestDatalogging(ScrutinyUnitTest):
 
         axis1 = AxisDefinition(name='axis1', axis_id=0)
         axis2 = AxisDefinition(name='axis2', axis_id=1)
-        
+
         watchable1 = LoggedWatchable("/a/b", WatchableType.Variable)
         watchable2 = LoggedWatchable("/a/c", WatchableType.Alias)
         acq.add_data(DataSeries([1, 2, 3], logged_watchable=watchable1), axis1)

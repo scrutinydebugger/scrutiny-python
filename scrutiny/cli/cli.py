@@ -20,23 +20,24 @@ from scrutiny.core.logging import DUMPDATA_LOGLEVEL
 
 from scrutiny.tools.typing import *
 
+
 class _ScrutinyArgumentParser(argparse.ArgumentParser):
-    def error(self, message:str) -> None:   # type: ignore
+    def error(self, message: str) -> None:   # type: ignore
         sys.stderr.write('error: %s\n' % message)
         self.print_help()
         sys.exit(2)
+
 
 class CLI:
     """Scrutiny Command Line Interface.
     All commands are executed through this class."""
 
-    workdir:str
-    default_log_level:str
-    command_list:List[Type[BaseCommand]]
-    parser:_ScrutinyArgumentParser
+    workdir: str
+    default_log_level: str
+    command_list: List[Type[BaseCommand]]
+    parser: _ScrutinyArgumentParser
 
-
-    def __init__(self, workdir:str='.', default_log_level:str='info'):
+    def __init__(self, workdir: str = '.', default_log_level: str = 'info'):
         self.workdir = workdir
         self.default_log_level = default_log_level
 
@@ -48,7 +49,8 @@ class CLI:
             formatter_class=argparse.RawTextHelpFormatter
         )
         self.parser.add_argument('command', help='Command to execute')
-        self.parser.add_argument('--loglevel', help='Log level to use.', default=None, choices=['critical', 'error', 'warning', 'info', 'debug', 'dumpdata'], metavar='LEVEL')
+        self.parser.add_argument('--loglevel', help='Log level to use.', default=None,
+                                 choices=['critical', 'error', 'warning', 'info', 'debug', 'dumpdata'], metavar='LEVEL')
         self.parser.add_argument('--logfile', help='File to write logs', default=None, metavar='FILENAME')
         self.parser.add_argument('--disable-loggers', nargs='+', help='list of loggers to disable', default=None, metavar='LOGGERS')
 
@@ -75,7 +77,7 @@ class CLI:
 
         return msg
 
-    def run(self, args:List[str], except_failed:bool=False) -> int:
+    def run(self, args: List[str], except_failed: bool = False) -> int:
         """Run a command. Arguments must be passed as a list of strings (like they would be splitted in a shell)"""
         if len(args) > 0:   # The help might be for a subcommand, so we take it only if it'S the first argument.
             if args[0] in ['-h', '--help']:
@@ -93,8 +95,8 @@ class CLI:
         try:
             logging_level_str = cargs.loglevel if cargs.loglevel else self.default_log_level
             if logging_level_str.upper().strip() == 'DUMPDATA':
-                logging_level = DUMPDATA_LOGLEVEL 
-            else:  
+                logging_level = DUMPDATA_LOGLEVEL
+            else:
                 logging_level = getattr(logging, logging_level_str.upper())
             format_string = ""
             if logging_level <= logging.DEBUG:
@@ -112,7 +114,7 @@ class CLI:
 
             current_workdir = os.getcwd()
             os.chdir(self.workdir)
-            code:Optional[int] = 0
+            code: Optional[int] = 0
             try:
                 code = cmd_instance.run()  # Existence of cmd_instance is guaranteed as per above check of valid name
                 if code is None:

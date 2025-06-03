@@ -23,6 +23,7 @@ import scrutiny.server.datalogging.definitions.device as device_datalogging
 
 from scrutiny.tools.typing import *
 
+
 class ExecLoopType(Enum):
     FIXED_FREQ = 0
     VARIABLE_FREQ = 1
@@ -147,7 +148,7 @@ class DeviceInfo:
     loops: Optional[List[ExecLoop]]
     """List of execution loops (tasks) exposed by the embedded device"""
 
-    datalogging_setup:Optional[device_datalogging.DataloggingSetup]
+    datalogging_setup: Optional[device_datalogging.DataloggingSetup]
 
     def get_attributes(self) -> Tuple[str, ...]:
         return self.__slots__
@@ -165,7 +166,7 @@ class DeviceInfo:
             if getattr(self, attr) is None:
                 ready = False
                 break
-        
+
         # datalogging_setup can be None if not supported.
         if ready:
             assert self.supported_feature_map is not None

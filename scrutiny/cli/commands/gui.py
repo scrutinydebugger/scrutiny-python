@@ -16,6 +16,7 @@ from scrutiny.tools.typing import *
 
 from scrutiny.gui import DEFAULT_SERVER_PORT
 
+
 class GUI(BaseCommand):
     _cmd_name_ = 'gui'
     _brief_ = 'Launch an instance of the Graphical User Interface'
@@ -30,16 +31,16 @@ class GUI(BaseCommand):
         self.parser.add_argument("--debug-layout", action='store_true', default=False, help="Enable GUI diagnostic rendering")
         self.parser.add_argument("--auto-connect", action='store_true', default=False, help="Try to connect to a server as soon as the GUI is ready")
         self.parser.add_argument("--no-opengl", action='store_true', default=False, help="Disable OpenGL accelerations")
-        self.parser.add_argument("--local-server-port",  default=DEFAULT_SERVER_PORT, type=int, help="Set the listening port for the local server")
-        self.parser.add_argument("--start-local-server",  default=False, action='store_true', help="Starts a local server")
-        self.parser.add_argument("--theme",  default=None, choices=['default', 'fusion'], help="The GUI theme to use")
+        self.parser.add_argument("--local-server-port", default=DEFAULT_SERVER_PORT, type=int, help="Set the listening port for the local server")
+        self.parser.add_argument("--start-local-server", default=False, action='store_true', help="Starts a local server")
+        self.parser.add_argument("--theme", default=None, choices=['default', 'fusion'], help="The GUI theme to use")
 
     def run(self) -> Optional[int]:
         from scrutiny.gui.gui import ScrutinyQtGUI, SupportedTheme
 
         args = self.parser.parse_args(self.args)
-        
-        theme_str:Optional[str] = os.environ.get('SCRUTINY_THEME', None)
+
+        theme_str: Optional[str] = os.environ.get('SCRUTINY_THEME', None)
 
         theme = SupportedTheme.Fusion
         if args.theme is not None:
@@ -59,5 +60,5 @@ class GUI(BaseCommand):
             start_local_server=args.start_local_server,
             theme=theme
         )
-    
+
         return gui.run([])

@@ -32,7 +32,7 @@ from test import ScrutinyUnitTest, logger
 
 from scrutiny.tools.typing import *
 
-no_callback:UpdateTargetRequestCallback = lambda *args, **kwargs: None
+no_callback: UpdateTargetRequestCallback = lambda *args, **kwargs: None
 
 
 def d2f(d):
@@ -304,7 +304,6 @@ class TestDeviceHandler(ScrutinyUnitTest):
                 t1 = time.monotonic()
                 timeout = measurement_time
 
-
         self.assertIsNotNone(connect_time)
         measured_bitrate = self.device_handler.get_average_bitrate()
         logger.info('Measured bitrate = %0.2fkbps. Target = %0.2fkbps' % (measured_bitrate / 1000.0, target_bitrate / 1000.0))
@@ -379,7 +378,7 @@ class TestDeviceHandler(ScrutinyUnitTest):
 
                 elif state == 'read_memory':
                     value_updated = (vfloat32.get_value_change_server_time_us() > init_memory_server_time_us + time_margin) and (vint64.get_value_change_server_time_us() >
-                                                                                                                  init_memory_server_time_us + time_margin) and (vbool.get_value_change_server_time_us() > init_memory_server_time_us + time_margin)
+                                                                                                                                 init_memory_server_time_us + time_margin) and (vbool.get_value_change_server_time_us() > init_memory_server_time_us + time_margin)
 
                     if value_updated:
                         self.assertEqual(vfloat32.get_value(), d2f(3.1415926), 'round=%d' % round_completed)
@@ -924,7 +923,7 @@ class TestDeviceHandlerMultipleLink(ScrutinyUnitTest):
         self.emulated_device1.start()
         self.emulated_device2.start()
 
-        #signal.signal(signal.SIGINT, self.ctrlc_handler)    # Clean exit on Ctrl+C
+        # signal.signal(signal.SIGINT, self.ctrlc_handler)    # Clean exit on Ctrl+C
 
     def tearDown(self):
         self.emulated_device1.stop()

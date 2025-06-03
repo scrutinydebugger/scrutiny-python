@@ -15,9 +15,9 @@ from scrutiny.tools.typing import *
 
 
 def extract_signal_from_data(
-        data: Union[bytes, bytearray], 
-        config: device_datalogging.Configuration, 
-        rpv_map: Dict[int, RuntimePublishedValue], 
+        data: Union[bytes, bytearray],
+        config: device_datalogging.Configuration,
+        rpv_map: Dict[int, RuntimePublishedValue],
         encoding: device_datalogging.Encoding) -> List[List[bytes]]:
     """
     Takes data written in the format [s1[n], s2[n], s3[n], s1[n+1], s2[n+1], s3[n+1], s1[n+2] ...]

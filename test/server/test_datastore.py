@@ -24,13 +24,13 @@ class TestDataStore(ScrutinyUnitTest):
         self.target_update_callback_call_history = {}
 
     def make_dummy_entries(self, n: int, entry_type: WatchableType, prefix='path'):
-        dummy_var = Variable('dummy', 
-            vartype=EmbeddedDataType.float32, 
-            path_segments=['a', 'b', 'c'], 
-            location=0x12345678, 
-            endianness=Endianness.Little
-        )
-        
+        dummy_var = Variable('dummy',
+                             vartype=EmbeddedDataType.float32,
+                             path_segments=['a', 'b', 'c'],
+                             location=0x12345678,
+                             endianness=Endianness.Little
+                             )
+
         for i in range(n):
             name = '%s_%d' % (prefix, i)
             entry: DatastoreEntry
@@ -399,48 +399,47 @@ class TestDataStore(ScrutinyUnitTest):
         self.assertTargetUpdateCallbackCalled(alias_rpv_1_2, n=1)
 
     def test_enum_access(self):
-        var1 = Variable('var1', 
-            vartype=EmbeddedDataType.uint32, 
-            path_segments=['a', 'b', 'c'], 
-            location=0x12345678, 
-            endianness=Endianness.Little,
-            enum=EmbeddedEnum('var1_enum', vals={'a':1, 'b':2, 'c':3})
-        )
-
+        var1 = Variable('var1',
+                        vartype=EmbeddedDataType.uint32,
+                        path_segments=['a', 'b', 'c'],
+                        location=0x12345678,
+                        endianness=Endianness.Little,
+                        enum=EmbeddedEnum('var1_enum', vals={'a': 1, 'b': 2, 'c': 3})
+                        )
 
         var1_entry = DatastoreVariableEntry('/a/b/c/var1', var1)
         rpv1_entry = DatastoreRPVEntry('/a/b/c/rpv1', RuntimePublishedValue(id=0x1234, datatype=EmbeddedDataType.uint16))
 
         alias_var_1_no_enum = DatastoreAliasEntry(
-            aliasdef=Alias('alias_var_1_no_enum', target='/a/b/c/var1'), 
+            aliasdef=Alias('alias_var_1_no_enum', target='/a/b/c/var1'),
             refentry=var1_entry
         )
 
         alias_var_1_enum = DatastoreAliasEntry(
-            aliasdef=Alias('alias_var_1_enum', 
-                target='/a/b/c/var1',
-                enum=EmbeddedEnum(
-                    name='alias_var1_enum',
-                    vals={'aaa':111, 'bbb':222, 'ccc':333}
-                ),
-            ), 
+            aliasdef=Alias('alias_var_1_enum',
+                           target='/a/b/c/var1',
+                           enum=EmbeddedEnum(
+                               name='alias_var1_enum',
+                               vals={'aaa': 111, 'bbb': 222, 'ccc': 333}
+                           ),
+                           ),
             refentry=var1_entry
         )
 
         alias_rpv_entry_enum = DatastoreAliasEntry(
-            aliasdef=Alias('alias_rpv_entry_enum', 
-                target='/a/b/c/rpv1',
-                enum=EmbeddedEnum(
-                    name='alias_rpv_enum',
-                    vals={'xxx':1, 'yyy':2, 'zzz':3}
-                ),
-            ), 
+            aliasdef=Alias('alias_rpv_entry_enum',
+                           target='/a/b/c/rpv1',
+                           enum=EmbeddedEnum(
+                               name='alias_rpv_enum',
+                               vals={'xxx': 1, 'yyy': 2, 'zzz': 3}
+                           ),
+                           ),
             refentry=rpv1_entry
         )
-    
-        self.assertTrue(var1_entry.has_enum()) 
+
+        self.assertTrue(var1_entry.has_enum())
         self.assertFalse(rpv1_entry.has_enum())
-        self.assertTrue(alias_var_1_no_enum.has_enum()) # Defaults to the variable enum
+        self.assertTrue(alias_var_1_no_enum.has_enum())  # Defaults to the variable enum
         self.assertTrue(alias_var_1_enum.has_enum())
         self.assertTrue(alias_rpv_entry_enum.has_enum())
 

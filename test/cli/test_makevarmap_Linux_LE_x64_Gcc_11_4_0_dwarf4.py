@@ -20,6 +20,7 @@ class TestMakeVarMap_CPP_LinuxLEx64_Gcc11_4_0_Dwarf4(BaseTestAppMakeVarmapTest, 
     def test_dwarf_version(self):
         self.assert_dwarf_version(self.bin_filename, 4)
 
+
 class TestMakeVarMap_C_LinuxLEx64_Gcc11_4_0_Dwarf4(BaseCTestAppMakeVarmapTest, ScrutinyUnitTest):
     bin_filename = get_artifact('ctestapp20240530_UbuntuLEx64_gcc11_4_0-dwarf4')
     memdump_filename = get_artifact('ctestapp20240530_UbuntuLEx64_gcc11_4_0-dwarf4.memdump')

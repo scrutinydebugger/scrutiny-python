@@ -22,10 +22,11 @@ from scrutiny.gui.themes import scrutiny_get_theme
 
 from scrutiny.tools.typing import *
 
+
 class AboutDialog(QDialog):
 
-    def __init__(self, parent:Optional[QWidget] = None) -> None:
-        super().__init__(parent) 
+    def __init__(self, parent: Optional[QWidget] = None) -> None:
+        super().__init__(parent)
 
         self.setWindowTitle("About this software")
         self.setModal(True)
@@ -52,7 +53,7 @@ class AboutDialog(QDialog):
         version_gb.setAlignment(Qt.AlignmentFlag.AlignCenter)
         gb_layout = QFormLayout(version_gb)
         gb_layout.setAlignment(Qt.AlignmentFlag.AlignCenter)
-        
+
         layout = QVBoxLayout()
         layout.addWidget(logo_label)
         layout.addWidget(copyright_label)
@@ -77,7 +78,7 @@ class AboutDialog(QDialog):
             property_label = QLabel(fields[i][0])
             value_label = QLabel(fields[i][1])
             value_label.setSizePolicy(QSizePolicy.Policy.Minimum, QSizePolicy.Policy.Preferred)
-            gb_layout.addRow(property_label, value_label )
+            gb_layout.addRow(property_label, value_label)
 
             for label in (property_label, value_label):
                 label.setTextInteractionFlags(Qt.TextInteractionFlag.TextSelectableByMouse)

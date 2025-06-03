@@ -21,6 +21,7 @@ from dataclasses import dataclass
 from scrutiny.tools import validation
 from scrutiny.tools.typing import *
 
+
 @dataclass(frozen=True)
 class MemoryRegion:
     """(Immutable struct) 
@@ -155,9 +156,9 @@ class EmbeddedDataType(Enum):
         if type_type in (DataTypeType._sint.value, DataTypeType._float.value, DataTypeType._cfloat.value):
             return True
         return False
-    
+
     @classmethod
-    def make(cls, datatype_type:DataTypeType, size:Union[int, DataTypeSize]) -> "EmbeddedDataType":
+    def make(cls, datatype_type: DataTypeType, size: Union[int, DataTypeSize]) -> "EmbeddedDataType":
         if isinstance(size, int):
             if size == 1:
                 return cls.make(datatype_type, DataTypeSize._8)
@@ -210,14 +211,13 @@ class WatchableType(str, Enum):
     def all(cls) -> List["WatchableType"]:
         """Return the list of valid Watchable types. Mainly for unit testing"""
         return [cls.Variable, cls.RuntimePublishedValue, cls.Alias]
-    
+
     def __str__(self) -> str:
         return self.value
-    
+
     def to_str(self) -> str:
         return str(self)
-    
+
     @classmethod
-    def from_str(cls, v:str) -> "WatchableType":
+    def from_str(cls, v: str) -> "WatchableType":
         return WatchableType(v)
-    

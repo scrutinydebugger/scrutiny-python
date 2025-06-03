@@ -15,11 +15,12 @@ from scrutiny.sdk.datalogging import *
 
 from scrutiny.tools.typing import *
 
+
 class TestEmbeddedGraph(ScrutinyBaseGuiTest):
     def setUp(self):
         super().setUp()
 
-        self.device_with_datalogging =  DeviceInfo(
+        self.device_with_datalogging = DeviceInfo(
             session_id="asd",
             device_id="xxx",
             display_name="unit test",
@@ -33,7 +34,7 @@ class TestEmbeddedGraph(ScrutinyBaseGuiTest):
             max_bitrate_bps=0,
             forbidden_memory_regions=[],
             readonly_memory_regions=[],
-            supported_features=SupportedFeatureMap(memory_write=True,datalogging=True,user_command=False,sixtyfour_bits=True),
+            supported_features=SupportedFeatureMap(memory_write=True, datalogging=True, user_command=False, sixtyfour_bits=True),
             datalogging_capabilities=DataloggingCapabilities(
                 encoding=DataloggingEncoding.RAW,
                 buffer_size=4096,
@@ -47,7 +48,7 @@ class TestEmbeddedGraph(ScrutinyBaseGuiTest):
             )
         )
 
-        self.device_no_datalogging =  DeviceInfo(
+        self.device_no_datalogging = DeviceInfo(
             session_id="asd",
             device_id="xxx",
             display_name="unit test",
@@ -61,35 +62,34 @@ class TestEmbeddedGraph(ScrutinyBaseGuiTest):
             max_bitrate_bps=0,
             forbidden_memory_regions=[],
             readonly_memory_regions=[],
-            supported_features=SupportedFeatureMap(memory_write=True,datalogging=True,user_command=False,sixtyfour_bits=True),
+            supported_features=SupportedFeatureMap(memory_write=True, datalogging=True, user_command=False, sixtyfour_bits=True),
             datalogging_capabilities=None
         )
 
         self.registry = WatchableRegistry()
         self.registry.write_content({
-            WatchableType.Alias : {
-                '/my_var' : WatchableConfiguration('my_var', WatchableType.Variable, EmbeddedDataType.float32, enum=None)
+            WatchableType.Alias: {
+                '/my_var': WatchableConfiguration('my_var', WatchableType.Variable, EmbeddedDataType.float32, enum=None)
             },
-            WatchableType.RuntimePublishedValue : {
-                '/my_rpva' : WatchableConfiguration('my_rpv', WatchableType.RuntimePublishedValue, EmbeddedDataType.float32, enum=None)
+            WatchableType.RuntimePublishedValue: {
+                '/my_rpva': WatchableConfiguration('my_rpv', WatchableType.RuntimePublishedValue, EmbeddedDataType.float32, enum=None)
             },
-            WatchableType.Variable : {
-                '/my_alias' : WatchableConfiguration('my_alias', WatchableType.Alias, EmbeddedDataType.float32, enum=None),
+            WatchableType.Variable: {
+                '/my_alias': WatchableConfiguration('my_alias', WatchableType.Alias, EmbeddedDataType.float32, enum=None),
             },
         })
 
-        self.signal_types:List[EmbeddedDataType] = []
-        self.widget = GraphConfigWidget(parent=None, watchable_registry=self.registry, get_signal_dtype_fn=lambda : self.signal_types)
-
+        self.signal_types: List[EmbeddedDataType] = []
+        self.widget = GraphConfigWidget(parent=None, watchable_registry=self.registry, get_signal_dtype_fn=lambda: self.signal_types)
 
     def test_graph_config_widget_dynamic_behavior(self) -> None:
         na_string = "N/A"
-        self.assertIsNone( self.widget.get_selected_sampling_rate() )
-        self.assertEqual( self.widget.get_lbl_effective_sampling_rate().text(), na_string)
-        self.assertEqual( self.widget.get_lbl_estimated_duration().text(), na_string)
+        self.assertIsNone(self.widget.get_selected_sampling_rate())
+        self.assertEqual(self.widget.get_lbl_effective_sampling_rate().text(), na_string)
+        self.assertEqual(self.widget.get_lbl_estimated_duration().text(), na_string)
 
         self.widget.configure_from_device_info(self.device_with_datalogging)
-        self.assertIsNotNone( self.widget.get_selected_sampling_rate() )
+        self.assertIsNotNone(self.widget.get_selected_sampling_rate())
 
         cmb_sampling_rate = self.widget.get_cmb_sampling_rate()
         fixed_freq_identifier = 0
@@ -97,9 +97,12 @@ class TestEmbeddedGraph(ScrutinyBaseGuiTest):
         variable_freq_no_name_identifier = 2
         fixed_freq_no_name_identifier = 3
         self.assertIsInstance(self.device_with_datalogging.datalogging_capabilities.sampling_rates[fixed_freq_identifier], FixedFreqSamplingRate)
-        self.assertIsInstance(self.device_with_datalogging.datalogging_capabilities.sampling_rates[variable_freq_identifier], VariableFreqSamplingRate)
-        self.assertIsInstance(self.device_with_datalogging.datalogging_capabilities.sampling_rates[variable_freq_no_name_identifier], VariableFreqSamplingRate)
-        self.assertIsInstance(self.device_with_datalogging.datalogging_capabilities.sampling_rates[fixed_freq_no_name_identifier], FixedFreqSamplingRate)
+        self.assertIsInstance(
+            self.device_with_datalogging.datalogging_capabilities.sampling_rates[variable_freq_identifier], VariableFreqSamplingRate)
+        self.assertIsInstance(
+            self.device_with_datalogging.datalogging_capabilities.sampling_rates[variable_freq_no_name_identifier], VariableFreqSamplingRate)
+        self.assertIsInstance(
+            self.device_with_datalogging.datalogging_capabilities.sampling_rates[fixed_freq_no_name_identifier], FixedFreqSamplingRate)
 
         self.assertEqual(cmb_sampling_rate.count(), 4)
         # For test simplicity, we store the sampling rate in the order of their identifier. Allow indexing the combobox witht he same variable as the sampling rate
@@ -123,7 +126,7 @@ class TestEmbeddedGraph(ScrutinyBaseGuiTest):
         xaxis_signal_index = cmb_xaxis_type.findData(XAxisType.Signal)
         xaxis_indexed_index = cmb_xaxis_type.findData(XAxisType.Indexed)
 
-        self.assertCountEqual([0,1,2,3], [xaxis_ideal_time_index, xaxis_measured_time_index, xaxis_signal_index, xaxis_indexed_index])
+        self.assertCountEqual([0, 1, 2, 3], [xaxis_ideal_time_index, xaxis_measured_time_index, xaxis_signal_index, xaxis_indexed_index])
 
         ideal_time_item = cast(QStandardItemModel, cmb_xaxis_type.model()).item(xaxis_ideal_time_index)
         self.assertTrue(ideal_time_item.isEnabled())
@@ -138,7 +141,6 @@ class TestEmbeddedGraph(ScrutinyBaseGuiTest):
         self.widget.update_content()
         self.assertEqual(self.widget.get_lbl_effective_sampling_rate().text(), na_string)
         self.assertEqual(self.widget.get_lbl_estimated_duration().text(), na_string)
-
 
         cmb_sampling_rate.setCurrentIndex(fixed_freq_identifier)
         self.widget.update_content()
@@ -157,7 +159,7 @@ class TestEmbeddedGraph(ScrutinyBaseGuiTest):
 
         self.widget.get_spin_decimation().setValue(1)
         self.signal_types.clear()
-        self.signal_types.extend([EmbeddedDataType.uint32, EmbeddedDataType.float32 ])
+        self.signal_types.extend([EmbeddedDataType.uint32, EmbeddedDataType.float32])
         self.widget.update_content()
         self.assertNotEqual(self.widget.get_lbl_estimated_duration().text(), na_string)
 
@@ -165,8 +167,6 @@ class TestEmbeddedGraph(ScrutinyBaseGuiTest):
         self.widget.update_content()
         self.assertEqual(self.widget.get_lbl_estimated_duration().text(), na_string)
 
-
-        
     def test_graph_config_widget_limit_values(self):
         self.widget.configure_from_device_info(self.device_with_datalogging)
         self.assertTrue(self.widget.validate())
@@ -197,7 +197,6 @@ class TestEmbeddedGraph(ScrutinyBaseGuiTest):
         self.assertIsNone(self.widget.get_hold_time_sec())
         self.widget.get_txt_hold_time_ms().setText("0")
 
-
         self.widget.get_txt_acquisition_timeout().setText("0")
         self.assertTrue(self.widget.validate())
         self.assertEqual(self.widget.get_acquisition_timeout_sec(), 0)
@@ -212,22 +211,21 @@ class TestEmbeddedGraph(ScrutinyBaseGuiTest):
         self.assertIsNone(self.widget.get_acquisition_timeout_sec())
         self.widget.get_txt_acquisition_timeout().setText("0")
 
-
         trigger_condition = self.widget.get_cmb_trigger_condition()
         operand1 = self.widget.get_txtw_trigger_operand1()
         operand2 = self.widget.get_txtw_trigger_operand2()
         operand3 = self.widget.get_txtw_trigger_operand3()
 
         visiblity_map = {
-            TriggerCondition.AlwaysTrue : [False, False, False],
-            TriggerCondition.Equal : [True, True, False],
-            TriggerCondition.NotEqual : [True, True, False],
-            TriggerCondition.LessThan : [True, True, False],
-            TriggerCondition.LessOrEqualThan : [True, True, False],
-            TriggerCondition.GreaterThan : [True, True, False],
-            TriggerCondition.GreaterOrEqualThan : [True, True, False],
-            TriggerCondition.ChangeMoreThan : [True, True, False],
-            TriggerCondition.IsWithin : [True, True, True],
+            TriggerCondition.AlwaysTrue: [False, False, False],
+            TriggerCondition.Equal: [True, True, False],
+            TriggerCondition.NotEqual: [True, True, False],
+            TriggerCondition.LessThan: [True, True, False],
+            TriggerCondition.LessOrEqualThan: [True, True, False],
+            TriggerCondition.GreaterThan: [True, True, False],
+            TriggerCondition.GreaterOrEqualThan: [True, True, False],
+            TriggerCondition.ChangeMoreThan: [True, True, False],
+            TriggerCondition.IsWithin: [True, True, True],
         }
 
         for condition, visiblity_array in visiblity_map.items():
@@ -235,7 +233,5 @@ class TestEmbeddedGraph(ScrutinyBaseGuiTest):
             self.widget.update_content()
             self.widget.update()
             self.process_events()
-            self.assertEqual(visiblity_array, [operand1.isVisibleTo(self.widget), operand2.isVisibleTo(self.widget), operand3.isVisibleTo(self.widget)], f"condition={condition}")
-        
-        
-        
+            self.assertEqual(visiblity_array, [operand1.isVisibleTo(self.widget), operand2.isVisibleTo(
+                self.widget), operand3.isVisibleTo(self.widget)], f"condition={condition}")

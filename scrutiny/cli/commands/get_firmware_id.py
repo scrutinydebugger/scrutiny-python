@@ -17,6 +17,7 @@ import os
 from .base_command import BaseCommand
 from scrutiny.tools.typing import *
 
+
 class GetFirmwareId(BaseCommand):
     _cmd_name_ = 'get-firmware-id'
     _brief_ = 'Extract a unique hash from a binary firmware used for device identification.'

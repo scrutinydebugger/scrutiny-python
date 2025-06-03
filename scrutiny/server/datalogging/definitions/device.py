@@ -14,6 +14,7 @@ from dataclasses import dataclass
 from scrutiny.core.basic_types import EmbeddedDataType
 from scrutiny.tools.typing import *
 
+
 class Encoding(Enum):
     """Represent a type of data encoding used by the device. Matches the device definition"""
     RAW = 0

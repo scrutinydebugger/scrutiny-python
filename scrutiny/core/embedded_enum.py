@@ -10,6 +10,7 @@ __all__ = ['EmbeddedEnum', 'EmbeddedEnumDef']
 
 from scrutiny.tools.typing import *
 
+
 class EmbeddedEnumDef(TypedDict):
     """
     Represent the dictionary version of the EmbeddedEnum (for .json import/export).
@@ -27,16 +28,16 @@ class EmbeddedEnum:
     name: str
     vals: Dict[str, int]
 
-    def __init__(self, name: str, vals:Optional[Dict[str, int]]=None):
+    def __init__(self, name: str, vals: Optional[Dict[str, int]] = None):
         self.name = name
         self.vals = {}
         if vals is not None:
-            for k,v in vals.items():
-                self.add_value(k,v)
+            for k, v in vals.items():
+                self.add_value(k, v)
 
     def add_value(self, name: str, value: int) -> None:
         """Adds a string/value pair in the enum
-        
+
         :param name: Enumerator name
         :param value: Enumerator value
 
@@ -54,18 +55,18 @@ class EmbeddedEnum:
 
     def get_value(self, name: str) -> int:
         """Returns the value associated with a name
-        
+
         :param name: Enumerator name
-        
+
         :raises ValueError: If the given enumerator name is not part of the enumeration
         """
         if name not in self.vals:
             raise ValueError('%s is not a valid name for enum %s' % (name, self.name))
         return self.vals[name]
-    
+
     def has_value(self, name: str) -> bool:
         """Tells if the enum has value with the given name
-        
+
         :param name: Enumerator name
         """
         return name in self.vals
@@ -85,18 +86,17 @@ class EmbeddedEnum:
             if v < 0:
                 return True
         return False
-    
+
     def copy(self) -> "EmbeddedEnum":
         """Creates a copy of the enum"""
         return EmbeddedEnum(name=self.name, vals=self.vals)
 
-
     @classmethod
     def from_def(cls, enum_def: EmbeddedEnumDef) -> "EmbeddedEnum":
         """Recreates from a .json dict
-        
+
         :param enum_def: The json structure created with :meth:`get_def<get_def>`
-        
+
         """
         obj = EmbeddedEnum(enum_def['name'])
         obj.vals = enum_def['values']

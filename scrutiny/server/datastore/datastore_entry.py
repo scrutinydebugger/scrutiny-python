@@ -32,9 +32,9 @@ from scrutiny.tools.global_counters import global_i64_counter
 from scrutiny.tools.typing import *
 
 
-
 UpdateTargetRequestCallback = Callable[[bool, 'DatastoreEntry', float], None]   # callback(success, entry, timestamp)
 UserValueChangeCallback = Callable[[str, "DatastoreEntry"], None]
+
 
 class ValueChangeCallbackInstance:
     """
@@ -57,6 +57,7 @@ class ValueChangeCallbackInstance:
 
     def __call__(self, *args: Any, **kwargs: Any) -> None:
         self.fn(self.owner, *args, **kwargs)
+
 
 class UpdateTargetRequest:
     """
@@ -140,10 +141,10 @@ class DatastoreEntry(abc.ABC):
         self.value = 0
 
     @classmethod
-    def clean_display_path(cls, display_path:str) -> str:
+    def clean_display_path(cls, display_path: str) -> str:
         display_path = display_path.strip()
         display_path = display_path.strip('/')
-        return '/'+display_path
+        return '/' + display_path
 
     @abc.abstractmethod
     def get_data_type(self) -> EmbeddedDataType:
@@ -372,21 +373,21 @@ class DatastoreAliasEntry(DatastoreEntry):
         # These function are meant to be used internally to make the alias mechanism work. Not to be used by a user.
         new_value = self.aliasdef.compute_device_to_user(value)
         DatastoreEntry.set_value(self, new_value)
-    
-    def compute_device_to_user(self, value:Union[int, float, bool]) -> Union[int, float, bool]:
+
+    def compute_device_to_user(self, value: Union[int, float, bool]) -> Union[int, float, bool]:
         """Transform a value from the device side to the user side applying the alias configuration"""
         return self.aliasdef.compute_device_to_user(value)
-    
-    def compute_user_to_device(self, value:Union[int, float, bool], apply_saturation:bool=True) -> Union[int, float, bool]:
+
+    def compute_user_to_device(self, value: Union[int, float, bool], apply_saturation: bool = True) -> Union[int, float, bool]:
         """Transform a value from the user side to the device side applying the alias configuration"""
         return self.aliasdef.compute_user_to_device(value, apply_saturation)
-    
+
     def has_value_modifier(self) -> bool:
         """Tells if the alias is configured to modify the value for the user"""
         val = False
-        val = val or self.aliasdef.gain is not None 
-        val = val or self.aliasdef.offset is not None 
-        val = val or self.aliasdef.max is not None 
+        val = val or self.aliasdef.gain is not None
+        val = val or self.aliasdef.offset is not None
+        val = val or self.aliasdef.max is not None
         val = val or self.aliasdef.min is not None
         return val
 

@@ -12,6 +12,7 @@ import argparse
 from .base_command import BaseCommand
 from scrutiny.tools.typing import *
 
+
 class MakeSFD(BaseCommand):
     _cmd_name_ = 'make-sfd'
     _brief_ = 'Generates a SFD file (Scrutiny Firmware Description) from a given folder containing the required files.'
@@ -28,7 +29,7 @@ class MakeSFD(BaseCommand):
         self.parser.add_argument('--install', action="store_true", default=False, help='Install the firmware info file after making it')
 
     def run(self) -> Optional[int]:
-        from scrutiny.core.firmware_description import FirmwareDescription        
+        from scrutiny.core.firmware_description import FirmwareDescription
         args = self.parser.parse_args(self.args)
         sfd = FirmwareDescription(args.folder)
         sfd.write(args.output)

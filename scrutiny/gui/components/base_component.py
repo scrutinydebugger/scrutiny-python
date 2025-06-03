@@ -21,28 +21,29 @@ from scrutiny.tools.typing import *
 if TYPE_CHECKING:   # Prevent circular dependency
     from scrutiny.gui.main_window import MainWindow
 
-class ScrutinyGUIBaseComponent(QWidget):
-    instance_name:str
-    main_window:"MainWindow"
-    server_manager:ServerManager
-    watchable_registry:WatchableRegistry
-    logger:logging.Logger
 
-    def __init__(self, main_window:"MainWindow", 
-                 instance_name:str,
-                 watchable_registry:WatchableRegistry,
-                 server_manager:ServerManager
+class ScrutinyGUIBaseComponent(QWidget):
+    instance_name: str
+    main_window: "MainWindow"
+    server_manager: ServerManager
+    watchable_registry: WatchableRegistry
+    logger: logging.Logger
+
+    def __init__(self, main_window: "MainWindow",
+                 instance_name: str,
+                 watchable_registry: WatchableRegistry,
+                 server_manager: ServerManager
                  ) -> None:
         self.instance_name = instance_name
         self.main_window = main_window
         self.server_manager = server_manager
-        self.watchable_registry=watchable_registry
+        self.watchable_registry = watchable_registry
         self.logger = logging.getLogger(self.__class__.__name__)
         super().__init__()
 
     @classmethod
-    def class_from_type_id(cls:Type["ScrutinyGUIBaseComponent"], type_id:str) -> Optional[Type["ScrutinyGUIBaseComponent"]]:
-        def find_recursive(parent_class:Type["ScrutinyGUIBaseComponent"], type_id:str) -> Optional[Type["ScrutinyGUIBaseComponent"]]:
+    def class_from_type_id(cls: Type["ScrutinyGUIBaseComponent"], type_id: str) -> Optional[Type["ScrutinyGUIBaseComponent"]]:
+        def find_recursive(parent_class: Type["ScrutinyGUIBaseComponent"], type_id: str) -> Optional[Type["ScrutinyGUIBaseComponent"]]:
             for subclass in parent_class.__subclasses__():
                 if hasattr(subclass, '_TYPE_ID'):
                     if subclass.get_type_id() == type_id:
@@ -58,16 +59,16 @@ class ScrutinyGUIBaseComponent(QWidget):
     def get_icon(cls) -> QIcon:
         if not hasattr(cls, '_ICON'):
             raise RuntimeError(f"Class {cls.__name__} require the _ICON to be set")
-        return  QIcon(str(getattr(cls, '_ICON')))
+        return QIcon(str(getattr(cls, '_ICON')))
 
     @classmethod
-    def get_name(cls) -> str: 
+    def get_name(cls) -> str:
         if not hasattr(cls, '_NAME'):
             raise RuntimeError(f"Class {cls.__name__} require the _NAME to be set")
         return cast(str, getattr(cls, '_NAME'))
 
     @classmethod
-    def get_type_id(cls) -> str: 
+    def get_type_id(cls) -> str:
         if not hasattr(cls, '_TYPE_ID'):
             raise RuntimeError(f"Class {cls.__name__} require the _TYPE_ID to be set")
         return cast(str, getattr(cls, '_TYPE_ID'))
@@ -82,8 +83,8 @@ class ScrutinyGUIBaseComponent(QWidget):
     @abstractmethod
     def teardown(self) -> None:
         pass
-    
-    def visibilityChanged(self, visible:bool) -> None:
+
+    def visibilityChanged(self, visible: bool) -> None:
         pass
 
     @abstractmethod
@@ -91,5 +92,5 @@ class ScrutinyGUIBaseComponent(QWidget):
         pass
 
     @abstractmethod
-    def load_state(self, state:Dict[Any, Any]) -> bool:
+    def load_state(self, state: Dict[Any, Any]) -> bool:
         pass

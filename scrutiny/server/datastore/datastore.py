@@ -20,6 +20,7 @@ from scrutiny.tools.typing import *
 
 WatchCallback = Callable[[str], None]
 
+
 class Datastore:
     """
     Class at the center of the server. It contains the value of all watched items.

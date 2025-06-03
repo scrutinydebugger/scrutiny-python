@@ -10,5 +10,6 @@ __all__ = ['ScrutinyGUIBaseLocalComponent']
 
 from scrutiny.gui.components.base_component import ScrutinyGUIBaseComponent
 
+
 class ScrutinyGUIBaseLocalComponent(ScrutinyGUIBaseComponent):
     pass

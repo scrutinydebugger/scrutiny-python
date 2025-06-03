@@ -25,11 +25,12 @@ from scrutiny.gui.core.persistent_data import gui_persistent_data
 
 from scrutiny.tools.typing import *
 
+
 def make_csv_headers(
-        device:Optional[sdk.DeviceInfo] = None, 
-        sfd:Optional[sdk.SFDInfo] = None,
-        datetime_format:Optional[str] = None
-        ) -> List[List[str]]:
+        device: Optional[sdk.DeviceInfo] = None,
+        sfd: Optional[sdk.SFDInfo] = None,
+        datetime_format: Optional[str] = None
+) -> List[List[str]]:
     """Helper to make a graph export CSV file header. Contains metadata about the acquisition
     :param device: Info about the device connected when the graph was acquired
     :param sfd: The Scrutiny Firmware Description loaded when the graph was acquired
@@ -62,14 +63,14 @@ def make_csv_headers(
 
 
 def export_chart_csv_threaded(
-        filename:Union[str, Path], 
-        signals:List[AxisContent], 
-        finished_callback:Callable[[Optional[Exception]],None],
-        device:Optional[sdk.DeviceInfo] = None,
-        sfd:Optional[sdk.SFDInfo] = None,
-        x_axis_name:str = 'Time [s]',
-        datetime_zero_sec:Optional[datetime]=None
-        ) -> None:
+        filename: Union[str, Path],
+        signals: List[AxisContent],
+        finished_callback: Callable[[Optional[Exception]], None],
+        device: Optional[sdk.DeviceInfo] = None,
+        sfd: Optional[sdk.SFDInfo] = None,
+        x_axis_name: str = 'Time [s]',
+        datetime_zero_sec: Optional[datetime] = None
+) -> None:
     """Helper function that export a Scrutiny graph content to a CSV file.
     The function works in a different thread and calls a callback when finished
 
@@ -81,25 +82,24 @@ def export_chart_csv_threaded(
     :param x_axis_name: Name of the X axis
     :param datetime_zero_sec: The datetime associated with time 0. When provided, adds an absolute time column shown as datetime.
     """
-    
-    DATETIME_HEADER='Datetime'
 
-    series_fqn:List[str] = []
-    series_list:List[QLineSeries] = []
-    
+    DATETIME_HEADER = 'Datetime'
+
+    series_fqn: List[str] = []
+    series_list: List[QLineSeries] = []
+
     for axis in signals:
         series_fqn.extend([item.fqn for item in axis.signal_items])
         series_list.extend([item.series() for item in axis.signal_items])
-    
 
     file_headers = make_csv_headers(device, sfd)
     series_index = [0 for i in range(len(series_list))]
     series_points = [series.points() for series in series_list]
-    actual_vals:List[Optional[float]] = [None] * len(series_list)
+    actual_vals: List[Optional[float]] = [None] * len(series_list)
     datetime_format = gui_persistent_data.global_namespace().long_datetime_format()
 
     def save_method() -> None:
-        error:Optional[Exception] = None
+        error: Optional[Exception] = None
         try:
             with open(filename, 'w', encoding='utf8', newline='\n') as f:
                 writer = csv.writer(f, delimiter=',', quotechar='"', escapechar='\\', quoting=csv.QUOTE_NONNUMERIC)
@@ -108,23 +108,23 @@ def export_chart_csv_threaded(
                     writer.writerow(file_header)
 
                 if len(file_headers) > 0:
-                    writer.writerow([])            
+                    writer.writerow([])
                 done = False
-                headers:List[str] = []
-                watchable_paths:List[str] = []
+                headers: List[str] = []
+                watchable_paths: List[str] = []
 
-                #Make the table headers
+                # Make the table headers
                 if datetime_zero_sec is not None:
                     headers.append(DATETIME_HEADER)
                     watchable_paths.append("")
                 headers.extend([x_axis_name] + [series.name() for series in series_list] + ["New Values"])
                 watchable_paths.extend([""] + series_fqn + [""])
-                
+
                 writer.writerow(watchable_paths)    # Full path to the watchable
                 writer.writerow(headers)            # Nice name for the watchable
-                while True:     #  Will break when all series are dumped. they might not have the same number of points
-                    x:Optional[float] = None 
-                    done = True 
+                while True:  # Will break when all series are dumped. they might not have the same number of points
+                    x: Optional[float] = None
+                    done = True
                     for i in range(len(series_list)):
                         if series_index[i] < len(series_points[i]):
                             done = False
@@ -136,8 +136,8 @@ def export_chart_csv_threaded(
                         break
                     assert x is not None
 
-                    new_points_indicator:List[str] = []
-                    row:List[Optional[Union[float,str]]] = []
+                    new_points_indicator: List[str] = []
+                    row: List[Optional[Union[float, str]]] = []
                     if datetime_zero_sec is not None:
                         abs_time = datetime_zero_sec + timedelta(seconds=x)
                         row.append(abs_time.strftime(datetime_format))
@@ -148,15 +148,15 @@ def export_chart_csv_threaded(
                             point = series_points[i][series_index[i]]
                             if point.x() == x:
                                 val = point.y()
-                                series_index[i]+=1
+                                series_index[i] += 1
                         if val is None:
                             val = actual_vals[i]
                             new_points_indicator.append('0')
                         else:
-                            actual_vals[i]=val
+                            actual_vals[i] = val
                             new_points_indicator.append('1')
                         row.append(val)
-                    
+
                     row.append(','.join(new_points_indicator))
 
                     writer.writerow(row)
@@ -165,6 +165,5 @@ def export_chart_csv_threaded(
         finally:
             if finished_callback is not None:
                 finished_callback(error)
-    
-    
+
     tools.run_in_thread(save_method)

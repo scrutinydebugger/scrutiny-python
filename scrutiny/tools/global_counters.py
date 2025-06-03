@@ -12,6 +12,7 @@ import threading
 int64 = 0
 int64_lock = threading.Lock()
 
+
 def global_i64_counter() -> int:
     """Provide a unique 64bits integer atomically. Uniqueness is guaranteed for the lifetime of the process"""
     global int64

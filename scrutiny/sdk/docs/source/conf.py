@@ -59,4 +59,4 @@ html_theme_options = {
 }
 
 autoclass_content = 'class'
-autodoc_class_signature='separated'
+autodoc_class_signature = 'separated'

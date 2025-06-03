@@ -478,9 +478,9 @@ class EmulatedDevice:
     failed_read_request_list: List[Request]
     failed_write_request_list: List[Request]
     ignore_user_command: bool
-    wake_event:threading.Event
+    wake_event: threading.Event
 
-    def __init__(self, link:DummyLink) -> None:
+    def __init__(self, link: DummyLink) -> None:
         if not isinstance(link, DummyLink):
             raise ValueError('EmulatedDevice expects a DummyLink object')
         self.logger = logging.getLogger(self.__class__.__name__)
@@ -579,7 +579,7 @@ class EmulatedDevice:
             with self.additional_tasks_lock:
                 for task in self.additional_tasks:
                     task()
-                    
+
             self.wake_event.wait(0.01)
             self.wake_event.clear()
 

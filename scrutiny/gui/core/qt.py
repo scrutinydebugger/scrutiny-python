@@ -15,7 +15,8 @@ from scrutiny.tools.thread_enforcer import register_thread
 from scrutiny.gui.tools.invoker import CrossThreadInvoker
 from scrutiny.tools.typing import *
 
-def make_qt_app(args:List[str]) -> QApplication:
+
+def make_qt_app(args: List[str]) -> QApplication:
     register_thread(QT_THREAD_NAME)
     app = QApplication(args)
     CrossThreadInvoker.init()

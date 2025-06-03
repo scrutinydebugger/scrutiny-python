@@ -19,6 +19,7 @@ from scrutiny.core.alias import Alias
 from scrutiny.server.datalogging.datalogging_manager import DataloggingManager
 from scrutiny.tools.typing import *
 
+
 class TestDataloggingManager(ScrutinyUnitTest):
 
     def make_var_entry(self, path: str, address: int, datatype: EmbeddedDataType, endianness: Endianness = Endianness.Little) -> DatastoreVariableEntry:
@@ -165,9 +166,8 @@ class TestDataloggingManager(ScrutinyUnitTest):
             operand1 = config.trigger_condition.get_operands()[0]
             operand2 = config.trigger_condition.get_operands()[1]
             assert isinstance(operand2, device_datalogging.LiteralOperand)
-            
 
-            literal_expected_value=100
+            literal_expected_value = 100
             if isinstance(req.trigger_condition.operands[0].value, DatastoreAliasEntry):
                 # When we compare a literal with a scaled alias, we scale the literal to math the underlying variable.
                 literal_expected_value -= req.trigger_condition.operands[0].value.aliasdef.get_offset()

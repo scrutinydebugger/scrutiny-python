@@ -28,6 +28,7 @@ from scrutiny.core.basic_types import *
 from scrutiny.tools.typing import *
 from scrutiny.tools import validation
 
+
 class GenerationInfoTypedDict(TypedDict, total=False):
     """
     Metadata about the environment of the file creator
@@ -36,6 +37,7 @@ class GenerationInfoTypedDict(TypedDict, total=False):
     python_version: Optional[str]
     scrutiny_version: Optional[str]
     system_type: Optional[str]
+
 
 class MetadataTypedDict(TypedDict, total=False):
     """
@@ -71,11 +73,12 @@ class SFDGenerationInfo:
         if self.timestamp is not None:
             timestamp = int(self.timestamp.timestamp())
         return {
-            'python_version' : self.python_version,
-            'scrutiny_version' : self.scrutiny_version,
-            'system_type' : self.system_type,
-            'time' : timestamp
+            'python_version': self.python_version,
+            'scrutiny_version': self.scrutiny_version,
+            'system_type': self.system_type,
+            'time': timestamp
         }
+
 
 @dataclass(frozen=True)
 class SFDMetadata:
@@ -95,14 +98,15 @@ class SFDMetadata:
         validation.assert_type_or_none(self.author, 'author', str)
         validation.assert_type_or_none(self.version, 'version', str)
         validation.assert_type(self.generation_info, 'generation_info', SFDGenerationInfo)
-    
+
     def to_dict(self) -> MetadataTypedDict:
         return {
             'project_name': self.project_name,
-            'author' : self.author,
-            'version' : self.version,
-            'generation_info' : self.generation_info.to_dict()
+            'author': self.author,
+            'version': self.version,
+            'generation_info': self.generation_info.to_dict()
         }
+
 
 class FirmwareDescription:
     """
@@ -170,7 +174,7 @@ class FirmwareDescription:
         with zipfile.ZipFile(filename, mode='r', compression=cls.COMPRESSION_TYPE) as sfd:
             with sfd.open(cls.metadata_filename) as f:
                 metadata = cls.read_metadata(f)
-            
+
         return metadata
 
     def load_from_file(self, filename: str) -> None:
@@ -196,19 +200,19 @@ class FirmwareDescription:
 
     @classmethod
     def read_metadata(cls, f: IO[bytes]) -> SFDMetadata:
-        FIELDS_TYPE:TypeAlias = List[Tuple[str, Type[Any]]]
+        FIELDS_TYPE: TypeAlias = List[Tuple[str, Type[Any]]]
 
         metadata_dict = cast(MetadataTypedDict, json.loads(f.read().decode('utf8')))
         if not isinstance(metadata_dict, dict):
             return {}
 
-        def remove_bad_fields(obj:Any, fields:FIELDS_TYPE) -> None:
+        def remove_bad_fields(obj: Any, fields: FIELDS_TYPE) -> None:
             obj2 = cast(Dict[str, Any], obj)
             for field in fields:
                 if field[0] in obj2 and not isinstance(obj2[field[0]], field[1]):
                     del obj2[field[0]]
 
-        fields1:FIELDS_TYPE = [
+        fields1: FIELDS_TYPE = [
             ('project_name', str),
             ('author', str),
             ('version', str),
@@ -218,19 +222,19 @@ class FirmwareDescription:
         remove_bad_fields(metadata_dict, fields1)
 
         if 'generation_info' in metadata_dict:
-            fields2:FIELDS_TYPE = [
+            fields2: FIELDS_TYPE = [
                 ('python_version', str),
                 ('scrutiny_version', str),
                 ('system_type', str),
                 ('time', int)
             ]
             remove_bad_fields(metadata_dict['generation_info'], fields2)
-        
+
         generation_timestamp = None
         generation_info = metadata_dict.get('generation_info', {})
         if generation_info is None:
             generation_info = cast(GenerationInfoTypedDict, {})
-        
+
         generation_timestamp = generation_info.get('time', None)
 
         return SFDMetadata(
@@ -244,7 +248,6 @@ class FirmwareDescription:
                 timestamp=None if generation_timestamp is None else datetime.fromtimestamp(generation_timestamp),
             )
         )
-            
 
     @classmethod
     def read_aliases(cls, f: IO[bytes], varmap: VarMap) -> Dict[str, Alias]:

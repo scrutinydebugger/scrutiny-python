@@ -30,6 +30,7 @@ from scrutiny.tools.typing import *
 
 from scrutiny import tools
 
+
 class BadVersionError(Exception):
     hash: str
 
@@ -383,25 +384,24 @@ class DataloggingStorageManager:
 
         return nout
 
-    def list(self, 
-             firmware_id: Optional[str] = None, 
-             before_datetime:Optional[datetime]=None, 
-             count:Optional[int]=None ) -> List[str]:
+    def list(self,
+             firmware_id: Optional[str] = None,
+             before_datetime: Optional[datetime] = None,
+             count: Optional[int] = None) -> List[str]:
         """Return the list of acquisitions available in the storage"""
-        
+
         if count is not None:
             assert isinstance(count, int)
-            if count<0:
+            if count < 0:
                 raise ValueError("Invalid count")
 
         limit_statement = ''
         if count is not None:
             limit_statement = f'LIMIT {count}'
-        
-        date_statement="(1=1)"
+
+        date_statement = "(1=1)"
         if before_datetime is not None:
             date_statement = "`timestamp` < %d" % before_datetime.timestamp()   # sqlite seems to use floored integer
-
 
         with self.get_session() as conn:
             cursor = conn.cursor()
@@ -482,13 +482,12 @@ class DataloggingStorageManager:
         yaxis_id_to_def_map: Dict[int, AxisDefinition] = {}
 
         for row in rows:
-            logged_watchable:Optional[LoggedWatchable] = None
+            logged_watchable: Optional[LoggedWatchable] = None
             if row[colmap['logged_watchable']] is not None and row[colmap['logged_watchable_type']] is not None:
                 logged_watchable = LoggedWatchable(
                     path=row[colmap['logged_watchable']],
                     type=WatchableType(row[colmap['logged_watchable_type']])
                 )
-
 
             name = row[colmap['dataseries_name']]
             logged_watchable = logged_watchable

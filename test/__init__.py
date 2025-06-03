@@ -24,10 +24,10 @@ class ScrutinyTestResult(unittest.TextTestResult):
             self._newline = False
 
         setattr(test, '_scrutiny_test_start_time', time.perf_counter())
-    
+
     def getDescription(self, test):
         return str(test)
-    
+
     def addSubTest(self, test, subtest, err):
         if err is not None:
             if self.showAll:
@@ -62,7 +62,7 @@ class ScrutinyTestResult(unittest.TextTestResult):
         self.stream.write(status)
         if duration is not None:
             if duration < 1:
-                duration_str = format_eng_unit(duration, decimal=1, unit="s", binary=False) # handle ms, us, ns
+                duration_str = format_eng_unit(duration, decimal=1, unit="s", binary=False)  # handle ms, us, ns
             else:
                 duration_str = f"{duration:0.1f}s"
             self.stream.write(f" ({duration_str})")
@@ -120,8 +120,10 @@ class ScrutinyTestResult(unittest.TextTestResult):
             self.stream.write("u")
             self.stream.flush()
 
+
 class ScrutinyRunner(unittest.TextTestRunner):
-    resultclass = ScrutinyTestResult 
+    resultclass = ScrutinyTestResult
+
 
 class SkipOnException:
     def __init__(self, exception, msg=""):

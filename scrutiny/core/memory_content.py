@@ -15,6 +15,7 @@ import copy
 
 from scrutiny.tools.typing import *
 
+
 class Cluster:
     """
     Represent a chunk of data with a location in memory.
@@ -48,8 +49,8 @@ class Cluster:
 
         if offset + size > self.size:
             raise IndexError('Index out of range 0x%x to 0x%x' % (offset, offset + size))
-        
-        data_out:bytes
+
+        data_out: bytes
         if self.has_data:
             assert self.internal_data is not None
             chunk = self.internal_data[offset:offset + size]

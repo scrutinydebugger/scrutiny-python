@@ -32,6 +32,7 @@ from scrutiny.tools.typing import *
 
 RawMemoryWriteRequestCompletionCallback = Callable[["RawMemoryWriteRequest", bool, float, str], None]
 
+
 class RawMemoryWriteRequest:
     address: int
     data: bytes
@@ -287,11 +288,11 @@ class MemoryWriter:
                             break
 
                     if not allowed:
-                        if self.logger.isEnabledFor(logging.DEBUG): # pragma: no cover
+                        if self.logger.isEnabledFor(logging.DEBUG):  # pragma: no cover
                             self.logger.debug("Refusing write request %s accessing address 0x%08x with size %d" %
-                                            (update_request.entry.display_path, 
-                                            update_request.entry.get_address(), 
-                                            update_request.entry.get_size()))
+                                              (update_request.entry.display_path,
+                                               update_request.entry.get_address(),
+                                               update_request.entry.get_size()))
                 if allowed:
                     self.target_update_request_being_processed = update_request
                     self.entry_being_updated = update_request.entry
@@ -343,7 +344,7 @@ class MemoryWriter:
 
     def success_callback(self, request: Request, response: Response, params: Any = None) -> None:
         """Called when a request completes and succeeds"""
-        if self.logger.isEnabledFor(logging.DEBUG): # pragma: no cover
+        if self.logger.isEnabledFor(logging.DEBUG):  # pragma: no cover
             self.logger.debug("Success callback. Response=%s, Params=%s" % (response, params))
         assert request == self.pending_request, "Processing a request that we are not supposed to. This should not happen"
 
@@ -460,7 +461,7 @@ class MemoryWriter:
 
     def failure_callback(self, request: Request, params: Any = None) -> None:
         """Callback called by the request dispatcher when a request fails to complete"""
-        if self.logger.isEnabledFor(logging.DEBUG): # pragma: no cover
+        if self.logger.isEnabledFor(logging.DEBUG):  # pragma: no cover
             self.logger.debug("Failure callback. Request=%s. Params=%s" % (request, params))
 
         subfn = cmd.MemoryControl.Subfunction(request.subfn)
@@ -487,7 +488,7 @@ class MemoryWriter:
 
     def dispatch(self, request: Request) -> None:
         """Sends a request to the request dispatcher and assign the corrects completion callbacks"""
-        if self.logger.isEnabledFor(logging.DEBUG): # pragma: no cover
+        if self.logger.isEnabledFor(logging.DEBUG):  # pragma: no cover
             self.logger.debug('Registering a MemoryWrite request. %s' % (request))
         self.dispatcher.register_request(
             request=request,

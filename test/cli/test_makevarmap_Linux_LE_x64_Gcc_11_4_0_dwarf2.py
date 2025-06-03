@@ -28,6 +28,7 @@ class TestMakeVarMap_C_LinuxLEx64_Gcc11_4_0_Dwarf2(BaseCTestAppMakeVarmapTest, S
     def test_dwarf_version(self):
         self.assert_dwarf_version(self.bin_filename, 2)
 
+
 if __name__ == '__main__':
     import unittest
     unittest.main()

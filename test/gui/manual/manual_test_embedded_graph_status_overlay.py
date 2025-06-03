@@ -7,25 +7,28 @@
 #
 #   Copyright (c) 2025 Scrutiny Debugger
 
-if __name__ != '__main__' : 
+if __name__ != '__main__':
     raise RuntimeError("This script is expected to run from the command line")
 
-import sys, os
+import sys
+import os
 sys.path.insert(0, os.path.dirname(__file__))
 from manual_test_base import make_manual_test_app
 app = make_manual_test_app()
 
-from PySide6.QtWidgets import QMainWindow, QWidget,  QVBoxLayout, QHBoxLayout, QGraphicsScene, QGraphicsRectItem, QGraphicsView, QPushButton, QLineEdit, QComboBox
+from PySide6.QtWidgets import QMainWindow, QWidget, QVBoxLayout, QHBoxLayout, QGraphicsScene, QGraphicsRectItem, QGraphicsView, QPushButton, QLineEdit, QComboBox
 from PySide6.QtCore import QRect, QObject, Signal, QPoint
 from scrutiny.gui.components.locals.embedded_graph.chart_status_overlay import ChartStatusOverlay
 from scrutiny.gui import assets
+
 
 class WindowWithResizeSignal(QMainWindow):
 
     class _Signals(QObject):
         resized = Signal()
 
-    signals:_Signals
+    signals: _Signals
+
     def __init__(self, *args, **kwargs):
         super().__init__(*args, **kwargs)
         self.signals = self._Signals()
@@ -34,17 +37,18 @@ class WindowWithResizeSignal(QMainWindow):
         self.signals.resized.emit()
         return super().resizeEvent(event)
 
+
 window = WindowWithResizeSignal()
 central_widget = QWidget()
 window.setCentralWidget(central_widget)
 
 scene = QGraphicsScene()
 view = QGraphicsView(scene)
-container = QGraphicsRectItem(QRect(0,0,800,600))
+container = QGraphicsRectItem(QRect(0, 0, 800, 600))
 overlay = ChartStatusOverlay(container)
 
 scene.addItem(container)
-view.setContentsMargins(0,0,0,0)
+view.setContentsMargins(0, 0, 0, 0)
 view.show()
 
 btn_apply = QPushButton("Apply")
@@ -60,9 +64,13 @@ widget_line_layout = QHBoxLayout(widget_line)
 widget_line_layout.addWidget(txt_text)
 widget_line_layout.addWidget(cmb_icon)
 widget_line_layout.addWidget(btn_apply)
+
+
 def apply():
     icon = cmb_icon.currentData()
     overlay.set(icon, txt_text.text())
+
+
 btn_apply.clicked.connect(apply)
 
 layout = QVBoxLayout(central_widget)
@@ -71,10 +79,12 @@ layout.addWidget(view)
 
 window.show()
 
+
 def handle_resize():
     container.prepareGeometryChange()
-    container.setRect(QRect(QPoint(0,0), view.size()*0.8))
+    container.setRect(QRect(QPoint(0, 0), view.size() * 0.8))
     container.update()
+
 
 handle_resize()
 window.signals.resized.connect(handle_resize)

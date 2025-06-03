@@ -37,9 +37,9 @@ from scrutiny.server.protocol.comm_handler import CommHandler
 import scrutiny.server.datastore.datastore as datastore
 from scrutiny.server.api.tcp_client_handler import TCPClientHandler
 from scrutiny.server.device.device_handler import (
-    DeviceHandler, DeviceStateChangedCallback,  RawMemoryReadRequest, 
+    DeviceHandler, DeviceStateChangedCallback, RawMemoryReadRequest,
     RawMemoryWriteRequest, UserCommandCallback, DataloggerStateChangedCallback
-    )
+)
 from scrutiny.server.device.submodules.memory_writer import RawMemoryWriteRequestCompletionCallback
 from scrutiny.server.device.submodules.memory_reader import RawMemoryReadRequestCompletionCallback
 from scrutiny.server.device.links.udp_link import UdpLink
@@ -203,8 +203,8 @@ class FakeDeviceHandler:
     def get_device_info(self):
         device_info = copy.copy(self.device_info)
         if self.emulate_no_datalogging:
-            device_info.datalogging_setup  = None
-            device_info.supported_feature_map['datalogging']  = False
+            device_info.datalogging_setup = None
+            device_info.supported_feature_map['datalogging'] = False
         return device_info
 
     def get_datalogger_state(self):
@@ -212,8 +212,8 @@ class FakeDeviceHandler:
 
     def get_connection_status(self):
         return self.device_conn_status
-    
-    def set_datalogger_state(self, state:Optional[device_datalogging.DataloggerState], ratio:Optional[float]):
+
+    def set_datalogger_state(self, state: Optional[device_datalogging.DataloggerState], ratio: Optional[float]):
         old_state = self.datalogger_state
         old_ratio = self.datalogging_completion_ratio
         self.datalogger_state = state
@@ -221,10 +221,9 @@ class FakeDeviceHandler:
         if ratio is not None:
             assert self.datalogger_state in [device_datalogging.DataloggerState.TRIGGERED, device_datalogging.DataloggerState.ACQUISITION_COMPLETED]
 
-        if state is not None and (old_state!=state or old_ratio != ratio):
+        if state is not None and (old_state != state or old_ratio != ratio):
             for callback in self.datalogger_state_change_callbacks:
                 callback(self.datalogger_state, self.datalogging_completion_ratio)
-    
 
     def set_connection_status(self, status: DeviceHandler.ConnectionStatus):
         previous_state = self.device_conn_status
@@ -460,11 +459,12 @@ class FakeActiveSFDHandler:
     def get_loaded_sfd(self) -> Optional[FirmwareDescription]:
         return self.loaded_sfd
 
+
 @dataclass
 class FakeServer:
     datastore: "datastore.Datastore"
     device_handler: FakeDeviceHandler
-    datalogging_manager : FakeDataloggingManager
+    datalogging_manager: FakeDataloggingManager
     sfd_handler: FakeActiveSFDHandler
 
     def get_stats(self) -> ScrutinyServer.Statistics:
@@ -505,7 +505,7 @@ class TestClient(ScrutinyUnitTest):
     sync_complete: threading.Event
     require_sync: threading.Event
     thread: threading.Thread
-    
+
     def setUp(self) -> None:
         self.setup_failed = False
         self.func_queue = queue.Queue()
@@ -526,7 +526,7 @@ class TestClient(ScrutinyUnitTest):
             datalogging_manager=self.datalogging_manager,
             device_handler=self.device_handler,
             sfd_handler=self.sfd_handler
-            )
+        )
         self.api = API(
             api_config,
             server=self.fake_server,
@@ -555,7 +555,6 @@ class TestClient(ScrutinyUnitTest):
         except sdk.exceptions.ScrutinySDKException:
             self.setup_failed = True
 
-    
     def tearDown(self) -> None:
         self.client.disconnect()
         self.server_exit_requested.set()
@@ -567,52 +566,51 @@ class TestClient(ScrutinyUnitTest):
     def log_rx_request(self, client, o):
         self.rx_rquest_log.append(o)
 
-
     def fill_datastore(self):
         rpv1000 = datastore.DatastoreRPVEntry('/rpv/x1000', RuntimePublishedValue(0x1000, EmbeddedDataType.float32))
-        var1 = datastore.DatastoreVariableEntry('/a/b/var1', 
-            core_Variable('var1', 
-                vartype=EmbeddedDataType.uint32,
-                path_segments=['a', 'b'], 
-                location=0x1234, 
-                endianness=Endianness.Little
-            )
-        )
+        var1 = datastore.DatastoreVariableEntry('/a/b/var1',
+                                                core_Variable('var1',
+                                                              vartype=EmbeddedDataType.uint32,
+                                                              path_segments=['a', 'b'],
+                                                              location=0x1234,
+                                                              endianness=Endianness.Little
+                                                              )
+                                                )
 
-        var2 = datastore.DatastoreVariableEntry('/a/b/var2', 
-            core_Variable('var2', 
-                vartype=EmbeddedDataType.boolean,
-                path_segments=['a', 'b'], 
-                location=0x4568, 
-                endianness=Endianness.Little,
-            )
-        )
+        var2 = datastore.DatastoreVariableEntry('/a/b/var2',
+                                                core_Variable('var2',
+                                                              vartype=EmbeddedDataType.boolean,
+                                                              path_segments=['a', 'b'],
+                                                              location=0x4568,
+                                                              endianness=Endianness.Little,
+                                                              )
+                                                )
 
-        var3_enum= EmbeddedEnum('var3_enum', vals={
-            'aaa' : 1, 
-            'bbb' : 2,
-            'ccc' : 3
+        var3_enum = EmbeddedEnum('var3_enum', vals={
+            'aaa': 1,
+            'bbb': 2,
+            'ccc': 3
         })
-        var3 = datastore.DatastoreVariableEntry('/a/b/var3', 
-            core_Variable('var3', 
-                vartype=EmbeddedDataType.uint8,
-                path_segments=['a', 'b'], 
-                location=0xAAAA, 
-                endianness=Endianness.Little,
-                enum=var3_enum
-            )
-        )
+        var3 = datastore.DatastoreVariableEntry('/a/b/var3',
+                                                core_Variable('var3',
+                                                              vartype=EmbeddedDataType.uint8,
+                                                              path_segments=['a', 'b'],
+                                                              location=0xAAAA,
+                                                              endianness=Endianness.Little,
+                                                              enum=var3_enum
+                                                              )
+                                                )
 
         alias_var1 = datastore.DatastoreAliasEntry(
-            aliasdef=core_Alias('/a/b/alias_var1', var1.display_path, var1.get_type()), 
+            aliasdef=core_Alias('/a/b/alias_var1', var1.display_path, var1.get_type()),
             refentry=var1
         )
 
         alias_rpv1000 = datastore.DatastoreAliasEntry(
-            aliasdef=core_Alias('/a/b/alias_rpv1000', rpv1000.display_path, rpv1000.get_type()), 
+            aliasdef=core_Alias('/a/b/alias_rpv1000', rpv1000.display_path, rpv1000.get_type()),
             refentry=rpv1000
         )
-        
+
         self.datastore.add_entry(rpv1000)
         self.datastore.add_entry(var1)
         self.datastore.add_entry(var2)
@@ -628,7 +626,7 @@ class TestClient(ScrutinyUnitTest):
             self.sync_complete.wait(timeout=timeout)
             self.assertFalse(self.require_sync.is_set())
 
-    def wait_true(self, func, timeout:float=2, error_str:Optional[str]=None):
+    def wait_true(self, func, timeout: float = 2, error_str: Optional[str] = None):
         success = False
         t = time.perf_counter()
         while time.perf_counter() - t < timeout:
@@ -706,7 +704,7 @@ class TestClient(ScrutinyUnitTest):
         self.assertIsNotNone(server_info.device_session_id)
 
         assert server_info is not None
-        
+
         self.assertEqual(server_info.device_link.type, sdk.DeviceLinkType.UDP)
         self.assertIsInstance(server_info.device_link.config, sdk.UDPLinkConfig)
         assert isinstance(server_info.device_link.config, sdk.UDPLinkConfig)
@@ -725,7 +723,7 @@ class TestClient(ScrutinyUnitTest):
             server_info.datalogging.state = None
 
         status = self.client.request_server_status_update(wait=True)
-        
+
         self.assertIsNot(status, server_info)   # Make sure we have a new object with a new reference.
 
     def test_get_loaded_sfd(self):
@@ -743,7 +741,7 @@ class TestClient(ScrutinyUnitTest):
         # Make sure we can read the status of the server correctly
         self.client.wait_server_status_update()
         self.assertEqual(self.client.server_state, sdk.ServerState.Connected)
-        
+
         device_info = self.client.get_device_info()
         self.assertIsNotNone(device_info)
         assert device_info is not None
@@ -780,39 +778,38 @@ class TestClient(ScrutinyUnitTest):
         self.assertEqual(device_info.readonly_memory_regions[1].end, 0x400000 + 256 - 1)
         self.assertEqual(device_info.readonly_memory_regions[1].size, 256)
 
-
     def test_read_datalogging_capabilities(self):
-       device_info = self.client.get_device_info()
-       capabilities = device_info.datalogging_capabilities
-       assert capabilities is not None
+        device_info = self.client.get_device_info()
+        capabilities = device_info.datalogging_capabilities
+        assert capabilities is not None
 
-       self.assertEqual(capabilities.buffer_size, 4096)
-       self.assertEqual(capabilities.max_nb_signal, 32)
-       self.assertEqual(capabilities.encoding, sdk.datalogging.DataloggingEncoding.RAW)
-       self.assertEqual(len(capabilities.sampling_rates), 3)
+        self.assertEqual(capabilities.buffer_size, 4096)
+        self.assertEqual(capabilities.max_nb_signal, 32)
+        self.assertEqual(capabilities.encoding, sdk.datalogging.DataloggingEncoding.RAW)
+        self.assertEqual(len(capabilities.sampling_rates), 3)
 
-       self.assertIsInstance(capabilities.sampling_rates[0], sdk.datalogging.FixedFreqSamplingRate)
-       assert isinstance(capabilities.sampling_rates[0], sdk.datalogging.FixedFreqSamplingRate)
-       self.assertEqual(capabilities.sampling_rates[0].identifier, 0)
-       self.assertEqual(capabilities.sampling_rates[0].name, 'ffloop0')
-       self.assertEqual(capabilities.sampling_rates[0].frequency, 1000)
+        self.assertIsInstance(capabilities.sampling_rates[0], sdk.datalogging.FixedFreqSamplingRate)
+        assert isinstance(capabilities.sampling_rates[0], sdk.datalogging.FixedFreqSamplingRate)
+        self.assertEqual(capabilities.sampling_rates[0].identifier, 0)
+        self.assertEqual(capabilities.sampling_rates[0].name, 'ffloop0')
+        self.assertEqual(capabilities.sampling_rates[0].frequency, 1000)
 
-       self.assertIsInstance(capabilities.sampling_rates[1], sdk.datalogging.FixedFreqSamplingRate)
-       assert isinstance(capabilities.sampling_rates[1], sdk.datalogging.FixedFreqSamplingRate)
-       self.assertEqual(capabilities.sampling_rates[1].identifier, 1)
-       self.assertEqual(capabilities.sampling_rates[1].name, 'ffloop1')
-       self.assertEqual(capabilities.sampling_rates[1].frequency, 9999)
+        self.assertIsInstance(capabilities.sampling_rates[1], sdk.datalogging.FixedFreqSamplingRate)
+        assert isinstance(capabilities.sampling_rates[1], sdk.datalogging.FixedFreqSamplingRate)
+        self.assertEqual(capabilities.sampling_rates[1].identifier, 1)
+        self.assertEqual(capabilities.sampling_rates[1].name, 'ffloop1')
+        self.assertEqual(capabilities.sampling_rates[1].frequency, 9999)
 
-       self.assertIsInstance(capabilities.sampling_rates[2], sdk.datalogging.VariableFreqSamplingRate)
-       assert isinstance(capabilities.sampling_rates[2], sdk.datalogging.VariableFreqSamplingRate)
-       self.assertEqual(capabilities.sampling_rates[2].identifier, 2)
-       self.assertEqual(capabilities.sampling_rates[2].name, 'vfloop0')
+        self.assertIsInstance(capabilities.sampling_rates[2], sdk.datalogging.VariableFreqSamplingRate)
+        assert isinstance(capabilities.sampling_rates[2], sdk.datalogging.VariableFreqSamplingRate)
+        self.assertEqual(capabilities.sampling_rates[2].identifier, 2)
+        self.assertEqual(capabilities.sampling_rates[2].name, 'vfloop0')
 
     def test_read_datalogging_capabilities_not_available(self):
-       self.device_handler.set_no_datalogging()
+        self.device_handler.set_no_datalogging()
 
-       device_info = self.client.get_device_info()
-       self.assertIsNone(device_info.datalogging_capabilities)
+        device_info = self.client.get_device_info()
+        self.assertIsNone(device_info.datalogging_capabilities)
 
     def test_request_mechanism(self):
         class Obj:
@@ -869,31 +866,30 @@ class TestClient(ScrutinyUnitTest):
 
     def test_wait_device_ready(self):
         self.device_handler.set_connection_status(DeviceHandler.ConnectionStatus.DISCONNECTED)
-        def is_disconnected(client:ScrutinyClient):
+
+        def is_disconnected(client: ScrutinyClient):
             server_info = client.get_latest_server_status()
             return server_info.device_comm_state == sdk.DeviceCommState.Disconnected
-        
+
         self.wait_true(partial(is_disconnected, self.client))
         self.assertEqual(self.client.get_latest_server_status().device_comm_state, sdk.DeviceCommState.Disconnected)
 
-        timeout = 3*ScrutinyClient._UPDATE_SERVER_STATUS_INTERVAL
+        timeout = 3 * ScrutinyClient._UPDATE_SERVER_STATUS_INTERVAL
         t1 = time.perf_counter()
         with self.assertRaises(sdk.exceptions.TimeoutException):
             self.client.wait_device_ready(timeout=timeout)
         t2 = time.perf_counter()
-        self.assertGreater(t2-t1, timeout)
+        self.assertGreater(t2 - t1, timeout)
 
-        def set_ready(device_handler:FakeDeviceHandler):
+        def set_ready(device_handler: FakeDeviceHandler):
             device_handler.set_connection_status(DeviceHandler.ConnectionStatus.CONNECTED_READY)
         self.execute_in_server_thread(partial(set_ready, self.device_handler), wait=True, delay=0.1)
         t1 = time.perf_counter()
         self.client.wait_device_ready(timeout=timeout)
         t2 = time.perf_counter()
-        self.assertLessEqual(t2-t1, timeout)
+        self.assertLessEqual(t2 - t1, timeout)
         self.assertEqual(self.client.get_latest_server_status().device_comm_state, sdk.DeviceCommState.ConnectedReady)
 
-
-    
     def test_fetch_watchable_info(self):
         # Make sure we can correctly read the information about a watchables
         rpv1000 = self.client.watch('/rpv/x1000')
@@ -969,7 +965,7 @@ class TestClient(ScrutinyUnitTest):
             self.execute_in_server_thread(partial(self.set_entry_val, '/rpv/x1000', val), wait=False, delay=0.02)
             rpv1000.wait_value(val, 2)
             self.assertEqual(rpv1000.value, val)
-    
+
     def test_read_single_val_enum(self):
         # Make sure we can read the value of a single watchable
         var2 = self.client.watch('/a/b/var2')
@@ -989,7 +985,7 @@ class TestClient(ScrutinyUnitTest):
 
         # Test with wait_update
         for i in range(4):
-            val = int(i+1)
+            val = int(i + 1)
             self.execute_in_server_thread(partial(self.set_entry_val, '/a/b/var3', val), wait=False, delay=0.02)
             var3.wait_update(2)
             self.assertEqual(var3.value, val)
@@ -1001,20 +997,19 @@ class TestClient(ScrutinyUnitTest):
 
         # Test with wait_value
         for i in range(3):
-            val = int(i+1)
+            val = int(i + 1)
             self.execute_in_server_thread(partial(self.set_entry_val, '/a/b/var3', val), wait=False, delay=0.02)
             var3.wait_value(expected_enum_val[val], 2)
             if val < 4:
                 self.assertEqual(var3.value_enum, expected_enum_val[val])
             else:
                 with self.assertRaises(sdk.exceptions.InvalidValueError):
-                     x = var3.value_enum
-                    
+                    x = var3.value_enum
 
     def test_read_multiple_val(self) -> None:
 
         class TestListener(listeners.BaseListener):
-            def receive(self, updates:List[listeners.ValueUpdate])->None:
+            def receive(self, updates: List[listeners.ValueUpdate]) -> None:
                 pass
 
         # Make sure we can read multiple watchables of different types
@@ -1023,11 +1018,11 @@ class TestClient(ScrutinyUnitTest):
         var2 = self.client.watch('/a/b/var2')
         alias_var1 = self.client.watch('/a/b/alias_var1')
         alias_rpv1000 = self.client.watch('/a/b/alias_rpv1000')
-        
+
         listener1 = TestListener(name="listener1")
         listener2 = TestListener(name="listener2")
-        listener1.subscribe([rpv1000,var1,var2,alias_var1,alias_rpv1000])
-        listener2.subscribe([rpv1000,var2,alias_rpv1000])
+        listener1.subscribe([rpv1000, var1, var2, alias_var1, alias_rpv1000])
+        listener2.subscribe([rpv1000, var2, alias_rpv1000])
         self.client.register_listener(listener1)
         self.client.register_listener(listener2)
 
@@ -1048,7 +1043,7 @@ class TestClient(ScrutinyUnitTest):
                     self.assertEqual(var2.value, vals[2])
                     self.assertEqual(alias_var1.value, vals[1])
                     self.assertEqual(alias_rpv1000.value, vals[0])
-        
+
         self.assertGreaterEqual(listener1.update_count, count)
         self.assertGreaterEqual(listener2.update_count, count)
         self.assertGreaterEqual(listener1.update_count, listener2.update_count)
@@ -1077,9 +1072,9 @@ class TestClient(ScrutinyUnitTest):
         var2 = self.client.watch('/a/b/var2')
         var3 = self.client.watch('/a/b/var3')
         self.assertFalse(var2.has_enum())
-        
+
         with self.assertRaises(sdk.exceptions.ScrutinySDKException):
-            var2.value = 'bbb'   # No enum 
+            var2.value = 'bbb'   # No enum
 
         self.assertTrue(var3.has_enum())
         counter = var3.update_counter
@@ -1348,15 +1343,14 @@ class TestClient(ScrutinyUnitTest):
 
         # Attempt to unwatch will fail. The handle must stay valid and keep accept updates.
         # We want to avoid receiving updates from the server without the sdk knowing why
-        self.client._force_fail_request=True
+        self.client._force_fail_request = True
         with self.assertRaises(sdk.exceptions.ScrutinySDKException):
             var1.unwatch()
-        self.client._force_fail_request=False
+        self.client._force_fail_request = False
 
         self.execute_in_server_thread(partial(self.set_entry_val, var1.display_path, 0xabcd1234))
         time.sleep(0.5)
         self.assertEqual(var1.value, 0xabcd1234)
-
 
     def test_handle_cannot_be_reused_after_unwatch(self):
         var1 = self.client.watch('/a/b/var1')
@@ -1396,10 +1390,9 @@ class TestClient(ScrutinyUnitTest):
 
             self.assertEqual(installed1.firmware_id, sfd1.get_firmware_id_ascii())
             self.assertEqual(installed1.metadata, sfd1.get_metadata())
-          
+
             self.assertEqual(installed2.firmware_id, sfd2.get_firmware_id_ascii())
             self.assertEqual(installed2.metadata, sfd2.get_metadata())
-           
 
     def test_simple_request_response_timeout(self):
         with SFDStorage.use_temp_folder():
@@ -1487,8 +1480,6 @@ class TestClient(ScrutinyUnitTest):
         self.wait_true(is_cleared, 2)
         self.assertEqual(len(self.client._pending_api_batch_writes), 0)
 
-
-
     def test_read_datalogging_acquisition(self):
         with DataloggingStorage.use_temp_storage():
             reference_id = 'foo.bar.baz'
@@ -1502,25 +1493,25 @@ class TestClient(ScrutinyUnitTest):
             axis2 = sdk.datalogging.AxisDefinition("Axis2", 1)
 
             xdata = sdk.datalogging.DataSeries(
-                data=[0, 10, 20, 30, 40, 50], 
-                name="x-axis", 
+                data=[0, 10, 20, 30, 40, 50],
+                name="x-axis",
                 logged_watchable=LoggedWatchable("my/xaxis", WatchableType.Variable)
-                )
+            )
             ds1 = sdk.datalogging.DataSeries(
-                data=[-1, -0.5, 0, 0.5, 1], 
-                name="data1", 
+                data=[-1, -0.5, 0, 0.5, 1],
+                name="data1",
                 logged_watchable=LoggedWatchable("path/to/data1", WatchableType.Variable)
-                )
+            )
             ds2 = sdk.datalogging.DataSeries(
-                data=[-10, -5, 0, 5, 10], 
-                name="data2", 
+                data=[-10, -5, 0, 5, 10],
+                name="data2",
                 logged_watchable=LoggedWatchable("path/to/data2", WatchableType.Variable)
-                )
+            )
             ds3 = sdk.datalogging.DataSeries(
-                data=[0.1, 0.2, 0.3, 0.1, 0.2], 
-                name="data3", 
+                data=[0.1, 0.2, 0.3, 0.1, 0.2],
+                name="data3",
                 logged_watchable=LoggedWatchable("path/to/data3", WatchableType.Variable)
-                )
+            )
             acq.set_xdata(xdata)
             acq.add_data(ds1, axis1)
             acq.add_data(ds2, axis1)
@@ -1541,7 +1532,6 @@ class TestClient(ScrutinyUnitTest):
 
             self.assert_dataseries_identical(acq2.xdata, acq.xdata)
 
-
             data2 = acq2.get_data()
             data1 = acq.get_data()
 
@@ -1555,7 +1545,6 @@ class TestClient(ScrutinyUnitTest):
                 self.assertEqual(data1[i].axis.axis_id, data2[i].axis.axis_id)
 
                 self.assert_dataseries_identical(data1[i].series, data2[i].series)
-
 
     def test_request_datalogging_acquisition(self):
         var1 = self.client.watch('/a/b/var1')
@@ -1634,25 +1623,25 @@ class TestClient(ScrutinyUnitTest):
                 data=[random.random() for x in range(10)],
                 name=server_request.signals[0].name,
                 logged_watchable=sdk.datalogging.LoggedWatchable(
-                    path = server_request.signals[0].entry.get_display_path(),
-                    type = server_request.signals[0].entry.get_type()
-                    )
+                    path=server_request.signals[0].entry.get_display_path(),
+                    type=server_request.signals[0].entry.get_type()
+                )
             )
             ds2 = sdk.datalogging.DataSeries(
                 data=[random.random() for x in range(10)],
                 name=server_request.signals[1].name,
                 logged_watchable=sdk.datalogging.LoggedWatchable(
-                    path = server_request.signals[1].entry.get_display_path(),
-                    type = server_request.signals[1].entry.get_type()
-                    )
+                    path=server_request.signals[1].entry.get_display_path(),
+                    type=server_request.signals[1].entry.get_type()
+                )
             )
             ds3 = sdk.datalogging.DataSeries(
                 data=[random.random() for x in range(10)],
                 name=server_request.signals[2].name,
                 logged_watchable=sdk.datalogging.LoggedWatchable(
-                    path = server_request.signals[2].entry.get_display_path(),
-                    type = server_request.signals[2].entry.get_type()
-                    )
+                    path=server_request.signals[2].entry.get_display_path(),
+                    type=server_request.signals[2].entry.get_type()
+                )
             )
             acquisition.add_data(ds1, axis1)
             acquisition.add_data(ds2, axis1)
@@ -1735,17 +1724,17 @@ class TestClient(ScrutinyUnitTest):
                     logged_watchable=scrutiny.sdk.datalogging.LoggedWatchable(
                         path='/a/b/c',
                         type=WatchableType.Variable
-                        )
+                    )
                 )
                 acquisition.add_data(ds1, axis1)
                 acquisition.set_xdata(sdk.datalogging.DataSeries(
-                    [x for x in range(10)], 
-                    name="time", 
+                    [x for x in range(10)],
+                    name="time",
                     logged_watchable=scrutiny.sdk.datalogging.LoggedWatchable(
-                            path='/d/e/f',
-                            type=WatchableType.Alias
-                        )
+                        path='/d/e/f',
+                        type=WatchableType.Alias
                     )
+                )
                 )
                 acquisition.set_trigger_index(4)
 
@@ -1761,12 +1750,12 @@ class TestClient(ScrutinyUnitTest):
                     logged_watchable=scrutiny.sdk.datalogging.LoggedWatchable(
                         path='/a/b/c',
                         type=WatchableType.Variable
-                        )
+                    )
                 )
                 acquisition2.add_data(ds1, axis1)
                 acquisition2.set_xdata(sdk.datalogging.DataSeries(
-                    [x for x in range(10)], 
-                    name="time", 
+                    [x for x in range(10)],
+                    name="time",
                     logged_watchable=None
                 ))
                 acquisition2.set_trigger_index(4)
@@ -1793,7 +1782,6 @@ class TestClient(ScrutinyUnitTest):
                 data = self.client.read_datalogging_acquisitions_metadata('idontexist')
                 self.assertIsNone(data)
 
-
     def test_datalog_fails_on_server_disconnect(self):
         var1 = self.client.watch('/a/b/var1')
         var2 = self.client.watch('/a/b/var2')
@@ -1808,12 +1796,12 @@ class TestClient(ScrutinyUnitTest):
         config.add_signal('/a/b/alias_rpv1000', axis2, name="MyAliasRPV1000")
 
         request = self.client.start_datalog(config)
-        
+
         self.execute_in_server_thread(self.api.close, wait=False, delay=0.5)
 
         with self.assertRaises(sdk.exceptions.OperationFailure):
             request.wait_for_completion(3)
-        
+
         self.assertTrue(request.completed)
         self.assertFalse(request.is_success)
 
@@ -1857,7 +1845,7 @@ class TestClient(ScrutinyUnitTest):
             parity=sdk.SerialLinkConfig.Parity.EVEN,
             start_delay=0.5
         )
-        
+
         self.client.configure_device_link(sdk.DeviceLinkType.Serial, configin)
         self.assertFalse(self.device_handler.comm_configure_queue.empty())
         link_type, configout = self.device_handler.comm_configure_queue.get(block=False)
@@ -1923,7 +1911,6 @@ class TestClient(ScrutinyUnitTest):
 
             self.client.configure_device_link(sdk.DeviceLinkType.Serial, configin)
 
-
     def test_configure_device_link_rtt(self):
         configin = sdk.RTTLinkConfig(
             target_device="CORTEX-M0",
@@ -1962,7 +1949,7 @@ class TestClient(ScrutinyUnitTest):
                 target_device=123,
                 jlink_interface=sdk.RTTLinkConfig.JLinkInterface.SWD
             )
-        
+
         with self.assertRaises(TypeError):
             sdk.RTTLinkConfig(
                 target_device="CORTEX-M0",
@@ -2002,11 +1989,11 @@ class TestClient(ScrutinyUnitTest):
         self.assertEqual(count[sdk.WatchableType.Variable], 3)
         self.assertEqual(count[sdk.WatchableType.Alias], 2)
         self.assertEqual(count[sdk.WatchableType.RuntimePublishedValue], 1)
-    
+
     def test_download_watchable_list(self):
         req = self.client.download_watchable_list()
         req.wait_for_completion(2)
-        
+
         self.assertTrue(req.completed)
         self.assertTrue(req.is_success)
 
@@ -2019,30 +2006,30 @@ class TestClient(ScrutinyUnitTest):
         self.assertEqual(len(watchables[sdk.WatchableType.Variable]), 3)
         self.assertEqual(len(watchables[sdk.WatchableType.Alias]), 2)
         self.assertEqual(len(watchables[sdk.WatchableType.RuntimePublishedValue]), 1)
-        
-        for path in ["/a/b/var1","/a/b/var2","/a/b/var3"]:
+
+        for path in ["/a/b/var1", "/a/b/var2", "/a/b/var3"]:
             self.assertIn(path, watchables[sdk.WatchableType.Variable])
             self.assertEqual(watchables[sdk.WatchableType.Variable][path].server_id, self.datastore.get_entry_by_display_path(path).get_id())
-        
-        for path in ["/a/b/alias_var1","/a/b/alias_rpv1000"]:
+
+        for path in ["/a/b/alias_var1", "/a/b/alias_rpv1000"]:
             self.assertIn(path, watchables[sdk.WatchableType.Alias])
             self.assertEqual(watchables[sdk.WatchableType.Alias][path].server_id, self.datastore.get_entry_by_display_path(path).get_id())
-        
+
         for path in ["/rpv/x1000"]:
             self.assertIn(path, watchables[sdk.WatchableType.RuntimePublishedValue])
-            self.assertEqual(watchables[sdk.WatchableType.RuntimePublishedValue][path].server_id, self.datastore.get_entry_by_display_path(path).get_id())
-
+            self.assertEqual(watchables[sdk.WatchableType.RuntimePublishedValue][path].server_id,
+                             self.datastore.get_entry_by_display_path(path).get_id())
 
         nb_response_msg = 0
         for object in self.rx_rquest_log:
             if 'cmd' in object and object['cmd'] == API.Command.Api2Client.GET_WATCHABLE_LIST_RESPONSE:
-                nb_response_msg+=1
+                nb_response_msg += 1
         self.assertEqual(nb_response_msg, 1)
 
     def test_download_watchable_list_type_filter(self):
         req = self.client.download_watchable_list(types=[sdk.WatchableType.Alias, sdk.WatchableType.RuntimePublishedValue])
         req.wait_for_completion(2)
-        
+
         self.assertTrue(req.completed)
         self.assertTrue(req.is_success)
 
@@ -2052,22 +2039,23 @@ class TestClient(ScrutinyUnitTest):
         self.assertIn(sdk.WatchableType.Alias, watchables)
         self.assertIn(sdk.WatchableType.RuntimePublishedValue, watchables)
 
-        self.assertEqual(len(watchables[sdk.WatchableType.Variable]), 0)    #0 isntead of 3
+        self.assertEqual(len(watchables[sdk.WatchableType.Variable]), 0)  # 0 isntead of 3
         self.assertEqual(len(watchables[sdk.WatchableType.Alias]), 2)
         self.assertEqual(len(watchables[sdk.WatchableType.RuntimePublishedValue]), 1)
-        
-        for path in ["/a/b/alias_var1","/a/b/alias_rpv1000"]:
+
+        for path in ["/a/b/alias_var1", "/a/b/alias_rpv1000"]:
             self.assertIn(path, watchables[sdk.WatchableType.Alias])
             self.assertEqual(watchables[sdk.WatchableType.Alias][path].server_id, self.datastore.get_entry_by_display_path(path).get_id())
-        
+
         for path in ["/rpv/x1000"]:
             self.assertIn(path, watchables[sdk.WatchableType.RuntimePublishedValue])
-            self.assertEqual(watchables[sdk.WatchableType.RuntimePublishedValue][path].server_id, self.datastore.get_entry_by_display_path(path).get_id())
-    
+            self.assertEqual(watchables[sdk.WatchableType.RuntimePublishedValue][path].server_id,
+                             self.datastore.get_entry_by_display_path(path).get_id())
+
     def test_download_watchable_list_name_filter(self):
         req = self.client.download_watchable_list(name_patterns=["*alias_var*", "/rpv/*"])
         req.wait_for_completion(2)
-        
+
         self.assertTrue(req.completed)
         self.assertTrue(req.is_success)
 
@@ -2080,19 +2068,20 @@ class TestClient(ScrutinyUnitTest):
         self.assertEqual(len(watchables[sdk.WatchableType.Variable]), 0)    # 0 isntead of 3
         self.assertEqual(len(watchables[sdk.WatchableType.Alias]), 1)       # 1 instead of 2
         self.assertEqual(len(watchables[sdk.WatchableType.RuntimePublishedValue]), 1)
-        
+
         for path in ["/a/b/alias_var1"]:
             self.assertIn(path, watchables[sdk.WatchableType.Alias])
             self.assertEqual(watchables[sdk.WatchableType.Alias][path].server_id, self.datastore.get_entry_by_display_path(path).get_id())
-        
+
         for path in ["/rpv/x1000"]:
             self.assertIn(path, watchables[sdk.WatchableType.RuntimePublishedValue])
-            self.assertEqual(watchables[sdk.WatchableType.RuntimePublishedValue][path].server_id, self.datastore.get_entry_by_display_path(path).get_id())
+            self.assertEqual(watchables[sdk.WatchableType.RuntimePublishedValue][path].server_id,
+                             self.datastore.get_entry_by_display_path(path).get_id())
 
     def test_download_watchable_list_multi_chunk(self):
         req = self.client.download_watchable_list(max_per_response=1)
         req.wait_for_completion(2)
-        
+
         self.assertTrue(req.completed)
         self.assertTrue(req.is_success)
 
@@ -2110,9 +2099,10 @@ class TestClient(ScrutinyUnitTest):
         nb_response_msg = 0
         for object in self.rx_rquest_log:
             if 'cmd' in object and object['cmd'] == API.Command.Api2Client.GET_WATCHABLE_LIST_RESPONSE:
-                nb_response_msg+=1
-        expected_response_count = len(watchables[sdk.WatchableType.Variable]) + len(watchables[sdk.WatchableType.Alias]) + len(watchables[sdk.WatchableType.RuntimePublishedValue])
-        
+                nb_response_msg += 1
+        expected_response_count = len(watchables[sdk.WatchableType.Variable]) + \
+            len(watchables[sdk.WatchableType.Alias]) + len(watchables[sdk.WatchableType.RuntimePublishedValue])
+
         self.assertEqual(nb_response_msg, expected_response_count)
 
     def test_download_watchable_list_fail_on_disconnect(self):
@@ -2122,42 +2112,41 @@ class TestClient(ScrutinyUnitTest):
 
         with self.assertRaises(sdk.exceptions.OperationFailure):
             req.wait_for_completion(3)
-        
+
         self.assertTrue(req.completed)
         self.assertFalse(req.is_success)
         self.assertGreater(len(req.failure_reason), 0)  # Not empty
-    
+
     def test_download_watchable_list_user_cancel(self):
         req = self.client.download_watchable_list()
 
         req.cancel()
-        
+
         self.assertTrue(req.completed)
         self.assertFalse(req.is_success)
         self.assertGreater(len(req.failure_reason), 0)  # Not empty
 
-    
     def test_download_watchable_list_callback(self):
 
         callback_history = []
-        def callback(data, finished):
-            callback_history.append( (data, finished) )
 
+        def callback(data, finished):
+            callback_history.append((data, finished))
 
         req = self.client.download_watchable_list(max_per_response=1, partial_reception_callback=callback)
         req.wait_for_completion(2)
-        
+
         self.assertTrue(req.completed)
         self.assertTrue(req.is_success)
-        
+
         nb_entries = self.datastore.get_entries_count()
         self.assertEqual(len(callback_history), nb_entries)
-        received_path  =set()
+        received_path = set()
         for i in range(len(callback_history)):
             data = cast(Dict[sdk.WatchableType, Dict[str, sdk.WatchableConfiguration]], callback_history[i][0])
             last_segment = callback_history[i][1]
 
-            if i < len(callback_history)-1:
+            if i < len(callback_history) - 1:
                 self.assertFalse(last_segment)
             else:
                 self.assertTrue(last_segment)
@@ -2166,7 +2155,7 @@ class TestClient(ScrutinyUnitTest):
                 self.assertIsInstance(key, sdk.WatchableType)
                 for path in data[key].keys():
                     self.assertIsInstance(path, str)
-                    obj =  data[key][path]
+                    obj = data[key][path]
                     self.assertIsInstance(obj, sdk.WatchableConfiguration)
 
                     self.datastore.get_entry_by_display_path(path)  # Check that this entry exist
@@ -2179,7 +2168,7 @@ class TestClient(ScrutinyUnitTest):
 
         # This timer is too small to be reliable when relying on the client polling loop
         # It also ensure that the server sends a status update for data changes that can trigger an event.
-        EVENT_READ_TIMEOUT = 1 
+        EVENT_READ_TIMEOUT = 1
 
         evt = self.client.read_event(timeout=EVENT_READ_TIMEOUT)
         self.assertIsInstance(evt, ScrutinyClient.Events.ConnectedEvent)
@@ -2199,7 +2188,7 @@ class TestClient(ScrutinyUnitTest):
         sfd_firmware_id = self.client.get_latest_server_status().sfd_firmware_id
         self.assertEqual(evt.firmware_id, sfd_firmware_id)
 
-        self.assertFalse(self.client.has_event_pending()) 
+        self.assertFalse(self.client.has_event_pending())
 
         self.device_handler.set_connection_status(DeviceHandler.ConnectionStatus.DISCONNECTED)
 
@@ -2236,7 +2225,7 @@ class TestClient(ScrutinyUnitTest):
         assert isinstance(evt, ScrutinyClient.Events.DataloggerStateChanged)
         self.assertEqual(evt.details.state, sdk.DataloggerState.Acquiring)
         self.assertEqual(evt.details.completion_ratio, 0.5)
-        
+
         self.device_handler.set_datalogger_state(device_datalogging.DataloggerState.TRIGGERED, 0.75)
         evt = self.client.read_event(timeout=EVENT_READ_TIMEOUT)
         self.assertIsInstance(evt, ScrutinyClient.Events.DataloggerStateChanged)
@@ -2366,8 +2355,7 @@ class TestClient(ScrutinyUnitTest):
             acq1 = DataloggingStorage.read('acq1')
             self.assertEqual(acq1.name, 'potato')
             DataloggingStorage.read('acq2')
-            
-        
+
 
 if __name__ == '__main__':
     unittest.main()

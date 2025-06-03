@@ -19,7 +19,6 @@ from pathlib import Path
 from scrutiny.tools.typing import *
 
 
-
 class MenuBar(QMenuBar):
     class _Signals(QObject):
         dashboard_open_click = Signal()
@@ -30,7 +29,7 @@ class MenuBar(QMenuBar):
 
         device_configure_click = Signal()
         info_about_click = Signal()
-        
+
     _signals: _Signals
     _action_dashboard_open: QAction
     _action_dashboard_save: QAction
@@ -39,12 +38,11 @@ class MenuBar(QMenuBar):
     _action_server_launch_local: QAction
     _action_device_configure: QAction
     _action_info_about: QAction
-    _recent_action:QAction
+    _recent_action: QAction
 
-    
     def __init__(self, ) -> None:
-        super().__init__()   
-        self._signals = self._Signals()    
+        super().__init__()
+        self._signals = self._Signals()
         dashboard_menu = self.addMenu('Dashboard')
         self._action_dashboard_open = dashboard_menu.addAction("Open", QKeySequence.StandardKey.Open)
         self._action_dashboard_open.triggered.connect(self._signals.dashboard_open_click)
@@ -61,7 +59,7 @@ class MenuBar(QMenuBar):
         dashboard_menu.addSeparator()
         self._recent_action = dashboard_menu.addAction("Recent")
 
-        info_menu =  self.addMenu("Info")
+        info_menu = self.addMenu("Info")
         self._action_info_about = info_menu.addAction("About this software")
         self._action_info_about.triggered.connect(self._signals.info_about_click)
 
@@ -69,19 +67,19 @@ class MenuBar(QMenuBar):
     def signals(self) -> _Signals:
         return self._signals
 
-    def set_dashboard_recents(self, history:List[Path]) -> None:
+    def set_dashboard_recents(self, history: List[Path]) -> None:
         """Add the list of recent loaded dashboard to Dashboard-->Recent"""
         menu = QMenu()
         count = 0
 
-        def emit_recent_clicked(file:str) -> None:
+        def emit_recent_clicked(file: str) -> None:
             self._signals.dashboard_recent_open.emit(file)
 
         for path in history:
             if os.path.isfile(path):
                 action = menu.addAction(str(path))
                 action.triggered.connect(functools.partial(emit_recent_clicked, str(path)))
-                count +=1
+                count += 1
 
         self._recent_action.setMenu(menu)
         self._recent_action.setEnabled(count > 0)

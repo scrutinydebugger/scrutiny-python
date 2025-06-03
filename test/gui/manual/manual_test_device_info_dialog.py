@@ -6,10 +6,11 @@
 #
 #   Copyright (c) 2024 Scrutiny Debugger
 
-if __name__ != '__main__' : 
+if __name__ != '__main__':
     raise RuntimeError("This script is expected to run from the command line")
 
-import sys, os
+import sys
+import os
 sys.path.insert(0, os.path.dirname(__file__))
 from manual_test_base import make_manual_test_app
 app = make_manual_test_app()
@@ -21,19 +22,21 @@ from dataclasses import dataclass
 
 from scrutiny.tools.typing import *
 
+
 @dataclass
 class Config:
-    add_ro_mem:bool = False
-    add_forbidden_mem:bool = False
-    add_datalogging:bool = False
-    add_sampling_rates:bool = False
+    add_ro_mem: bool = False
+    add_forbidden_mem: bool = False
+    add_datalogging: bool = False
+    add_sampling_rates: bool = False
 
-def make_device_info(config:Config) -> DeviceInfo:
-    
-    ro_mem:List[MemoryRegion] = []
-    forbidden_mem:List[MemoryRegion] = []
-    datalogging:Optional[List[DataloggingCapabilities]] = None
-    sampling_rates:List[SamplingRate] = []
+
+def make_device_info(config: Config) -> DeviceInfo:
+
+    ro_mem: List[MemoryRegion] = []
+    forbidden_mem: List[MemoryRegion] = []
+    datalogging: Optional[List[DataloggingCapabilities]] = None
+    sampling_rates: List[SamplingRate] = []
     supported_features = SupportedFeatureMap(
         datalogging=config.add_datalogging,
         memory_write=True,
@@ -42,11 +45,11 @@ def make_device_info(config:Config) -> DeviceInfo:
     )
 
     if config.add_ro_mem:
-        ro_mem = [MemoryRegion(start = 0x10000000, size= 0x100), MemoryRegion(start = 0x20000000, size= 0x100)]
-    
+        ro_mem = [MemoryRegion(start=0x10000000, size=0x100), MemoryRegion(start=0x20000000, size=0x100)]
+
     if config.add_forbidden_mem:
-        forbidden_mem = [MemoryRegion(start = 0x30000000, size= 0x100), MemoryRegion(start = 0x40000000, size= 0x100)]
-    
+        forbidden_mem = [MemoryRegion(start=0x30000000, size=0x100), MemoryRegion(start=0x40000000, size=0x100)]
+
     if config.add_sampling_rates:
         sampling_rates = [FixedFreqSamplingRate(0, "Loop1", 10000.0), VariableFreqSamplingRate(1, "Loop2")]
 
@@ -55,7 +58,7 @@ def make_device_info(config:Config) -> DeviceInfo:
             buffer_size=4096,
             encoding=DataloggingEncoding.RAW,
             max_nb_signal=32,
-            sampling_rates= sampling_rates
+            sampling_rates=sampling_rates
         )
 
     return DeviceInfo(
@@ -76,6 +79,7 @@ def make_device_info(config:Config) -> DeviceInfo:
         forbidden_memory_regions=forbidden_mem
     )
 
+
 dialogs = []
 
 window = QMainWindow()
@@ -89,6 +93,7 @@ layout = QVBoxLayout(central_widget)
 layout.addWidget(btn_everything)
 layout.addWidget(btn_nothing)
 layout.addWidget(btn_no_sampling_rate)
+
 
 def show_window(config):
     for dialog in dialogs:
@@ -107,6 +112,7 @@ def everything_button():
     )
     show_window(config)
 
+
 def nothing_button():
     config = Config(
         add_datalogging=False,
@@ -115,6 +121,7 @@ def nothing_button():
         add_sampling_rates=False
     )
     show_window(config)
+
 
 def no_sampling_rate_button():
     config = Config(
@@ -125,7 +132,6 @@ def no_sampling_rate_button():
     )
     show_window(config)
 
-    
 
 btn_everything.clicked.connect(everything_button)
 btn_nothing.clicked.connect(nothing_button)

@@ -12,7 +12,7 @@ __all__ = ['DeviceConfigDialog']
 import logging
 import traceback
 
-from PySide6.QtWidgets import QDialog, QWidget, QComboBox, QVBoxLayout, QDialogButtonBox,QFormLayout, QLabel, QPushButton
+from PySide6.QtWidgets import QDialog, QWidget, QComboBox, QVBoxLayout, QDialogButtonBox, QFormLayout, QLabel, QPushButton
 from PySide6.QtGui import QIntValidator, QDoubleValidator
 from PySide6.QtCore import Qt
 
@@ -23,18 +23,19 @@ from scrutiny.gui.tools.validators import IpPortValidator, NotEmptyValidator
 from scrutiny.gui.core.persistent_data import gui_persistent_data, AppPersistentData
 from scrutiny.tools.typing import *
 
+
 class BaseConfigPane(QWidget):
     def get_config(self) -> Optional[sdk.BaseLinkConfig]:
         raise NotImplementedError("abstract method")
 
-    def load_config(self, config:Optional[sdk.BaseLinkConfig]) -> None:
+    def load_config(self, config: Optional[sdk.BaseLinkConfig]) -> None:
         raise NotImplementedError("abstract method")
-    
+
     def visual_validation(self) -> None:
         pass
-    
+
     @classmethod
-    def make_config_valid(self, config:Optional[sdk.BaseLinkConfig]) -> sdk.BaseLinkConfig:
+    def make_config_valid(self, config: Optional[sdk.BaseLinkConfig]) -> sdk.BaseLinkConfig:
         assert config is not None
         return config
 
@@ -43,15 +44,15 @@ class NoConfigPane(BaseConfigPane):
     def get_config(self) -> Optional[sdk.BaseLinkConfig]:
         return sdk.NoneLinkConfig()
 
-    def load_config(self, config:Optional[sdk.BaseLinkConfig]) -> None:
+    def load_config(self, config: Optional[sdk.BaseLinkConfig]) -> None:
         self.make_config_valid(config)
-        
+
 
 class IPConfigPane(BaseConfigPane):
     _hostname_textbox: ValidableLineEdit
     _port_textbox: ValidableLineEdit
 
-    def __init__(self, parent:Optional[QWidget]=None) -> None:
+    def __init__(self, parent: Optional[QWidget] = None) -> None:
         super().__init__(parent)
 
         form_layout = QFormLayout(self)
@@ -60,40 +61,40 @@ class IPConfigPane(BaseConfigPane):
         hostname_label = QLabel("Hostname: ")
         port_label = QLabel("Port: ")
         self._hostname_textbox = ValidableLineEdit(soft_validator=NotEmptyValidator())
-        self._port_textbox = ValidableLineEdit(hard_validator=QIntValidator(0,0xFFFF), soft_validator=IpPortValidator())
+        self._port_textbox = ValidableLineEdit(hard_validator=QIntValidator(0, 0xFFFF), soft_validator=IpPortValidator())
 
         # Make sure the red background disappear when we type (fixing the invalid content)
         self._hostname_textbox.textChanged.connect(self._hostname_textbox.validate_expect_not_wrong_default_slot)
         self._port_textbox.textChanged.connect(self._port_textbox.validate_expect_not_wrong_default_slot)
-        
+
         form_layout.addRow(hostname_label, self._hostname_textbox)
         form_layout.addRow(port_label, self._port_textbox)
-    
+
     def get_port(self) -> Optional[int]:
         port_txt = self._port_textbox.text()
         state, _, _ = IpPortValidator().validate(port_txt, 0)
         if state == IpPortValidator.State.Acceptable:
             return int(port_txt)    # Should not fail
         return None
-    
-    def set_port(self, port:int) -> None:
+
+    def set_port(self, port: int) -> None:
         port_txt = str(port)
         state, _, _ = IpPortValidator().validate(port_txt, 0)
         if state != IpPortValidator.State.Acceptable:
             raise ValueError(f"Invalid port number: {port}")
         self._port_textbox.setText(port_txt)
 
-
     def get_hostname(self) -> str:
         return self._hostname_textbox.text()
-    
-    def set_hostname(self, hostname:str) -> None:
+
+    def set_hostname(self, hostname: str) -> None:
         self._hostname_textbox.setText(hostname)
 
     def visual_validation(self) -> None:
-        #Called when OK is clicked
+        # Called when OK is clicked
         self._port_textbox.validate_expect_valid()
         self._hostname_textbox.validate_expect_valid()
+
 
 class TCPConfigPane(IPConfigPane):
     def get_config(self) -> Optional[sdk.TCPLinkConfig]:
@@ -102,76 +103,76 @@ class TCPConfigPane(IPConfigPane):
             return None
 
         return sdk.TCPLinkConfig(
-            host = self.get_hostname(),
-            port = port,
+            host=self.get_hostname(),
+            port=port,
         )
 
-    def load_config(self, config:Optional[sdk.BaseLinkConfig]) -> None:
+    def load_config(self, config: Optional[sdk.BaseLinkConfig]) -> None:
         config = self.make_config_valid(config)
         assert isinstance(config, sdk.TCPLinkConfig)
         self.set_hostname(config.host)
         self.set_port(config.port)
 
     @classmethod
-    def make_config_valid(self, config:Optional[sdk.BaseLinkConfig]) -> sdk.BaseLinkConfig:
-        assert isinstance(config, sdk.TCPLinkConfig) 
+    def make_config_valid(self, config: Optional[sdk.BaseLinkConfig]) -> sdk.BaseLinkConfig:
+        assert isinstance(config, sdk.TCPLinkConfig)
         port = max(min(config.port, 0xFFFF), 0)
         hostname = config.host
         if len(hostname) == 0:
             hostname = 'localhost'
-        
+
         return sdk.TCPLinkConfig(
-            host = hostname,
+            host=hostname,
             port=port
         )
+
 
 class UDPConfigPane(IPConfigPane):
     def get_config(self) -> Optional[sdk.UDPLinkConfig]:
         port = self.get_port()
         if port is None:
             return None
-        
+
         return sdk.UDPLinkConfig(
-            host = self.get_hostname(),
-            port = port,
+            host=self.get_hostname(),
+            port=port,
         )
 
-    def load_config(self, config:Optional[sdk.BaseLinkConfig]) -> None:
+    def load_config(self, config: Optional[sdk.BaseLinkConfig]) -> None:
         config = self.make_config_valid(config)
         assert isinstance(config, sdk.UDPLinkConfig)
         self.set_hostname(config.host)
         self.set_port(config.port)
 
     @classmethod
-    def make_config_valid(self, config:Optional[sdk.BaseLinkConfig]) -> sdk.BaseLinkConfig:
-        assert isinstance(config, sdk.UDPLinkConfig) 
+    def make_config_valid(self, config: Optional[sdk.BaseLinkConfig]) -> sdk.BaseLinkConfig:
+        assert isinstance(config, sdk.UDPLinkConfig)
         port = max(min(config.port, 0xFFFF), 0)
         hostname = config.host
         if len(hostname) == 0:
             hostname = 'localhost'
-        
+
         return sdk.UDPLinkConfig(
-            host = hostname,
+            host=hostname,
             port=port
         )
 
 
 class SerialConfigPane(BaseConfigPane):
-    _port_name_textbox:ValidableLineEdit
-    _baudrate_textbox:ValidableLineEdit
-    _stopbits_combo_box:QComboBox
-    _databits_combo_box:QComboBox
-    _parity_combo_box:QComboBox
-    _start_delay_textbox:ValidableLineEdit
+    _port_name_textbox: ValidableLineEdit
+    _baudrate_textbox: ValidableLineEdit
+    _stopbits_combo_box: QComboBox
+    _databits_combo_box: QComboBox
+    _parity_combo_box: QComboBox
+    _start_delay_textbox: ValidableLineEdit
 
-
-    def __init__(self, parent:Optional[QWidget]=None) -> None:
+    def __init__(self, parent: Optional[QWidget] = None) -> None:
         super().__init__(parent)
 
         layout = QFormLayout(self)
         self._port_name_textbox = ValidableLineEdit(soft_validator=NotEmptyValidator())
         self._baudrate_textbox = ValidableLineEdit(
-            hard_validator=QIntValidator(0,0x7FFFFFFF),
+            hard_validator=QIntValidator(0, 0x7FFFFFFF),
             soft_validator=NotEmptyValidator()
         )
         self._start_delay_textbox = ValidableLineEdit(
@@ -211,7 +212,6 @@ class SerialConfigPane(BaseConfigPane):
         self._baudrate_textbox.textChanged.connect(self._baudrate_textbox.validate_expect_not_wrong_default_slot)
         self._start_delay_textbox.textChanged.connect(self._baudrate_textbox.validate_expect_not_wrong_default_slot)
 
-
     def get_config(self) -> Optional[sdk.SerialLinkConfig]:
         port = self._port_name_textbox.text()
         baudrate_str = self._baudrate_textbox.text()
@@ -222,28 +222,28 @@ class SerialConfigPane(BaseConfigPane):
             start_delay = float(self._start_delay_textbox.text())
         except Exception:
             return None
-        
+
         if len(port) == 0:
             return None
-        
-        try : 
+
+        try:
             baudrate = int(baudrate_str)
         except Exception:
             return None
-        
+
         if baudrate < 0:
             return None
 
         return sdk.SerialLinkConfig(
-            port = port,
-            baudrate = baudrate,
-            stopbits = stopbits,
-            databits = databits,
-            parity = parity,
-            start_delay = start_delay
+            port=port,
+            baudrate=baudrate,
+            stopbits=stopbits,
+            databits=databits,
+            parity=parity,
+            start_delay=start_delay
         )
 
-    def load_config(self, config:Optional[sdk.BaseLinkConfig]) -> None:
+    def load_config(self, config: Optional[sdk.BaseLinkConfig]) -> None:
         config = self.make_config_valid(config)
         assert isinstance(config, sdk.SerialLinkConfig)
 
@@ -253,34 +253,35 @@ class SerialConfigPane(BaseConfigPane):
         self._databits_combo_box.setCurrentIndex(self._databits_combo_box.findData(config.databits))
         self._parity_combo_box.setCurrentIndex(self._parity_combo_box.findData(config.parity))
         self._start_delay_textbox.setText(str(config.start_delay))
-        
+
     @classmethod
-    def make_config_valid(self, config:Optional[sdk.BaseLinkConfig]) -> sdk.BaseLinkConfig:
+    def make_config_valid(self, config: Optional[sdk.BaseLinkConfig]) -> sdk.BaseLinkConfig:
         assert isinstance(config, sdk.SerialLinkConfig)
         return sdk.SerialLinkConfig(
-            port = "<port>" if len(config.port) == 0 else config.port,
-            baudrate = max(config.baudrate, 1),
-            stopbits = config.stopbits,
-            databits = config.databits,
-            parity = config.parity,
-            start_delay = max(config.start_delay, 0)
+            port="<port>" if len(config.port) == 0 else config.port,
+            baudrate=max(config.baudrate, 1),
+            stopbits=config.stopbits,
+            databits=config.databits,
+            parity=config.parity,
+            start_delay=max(config.start_delay, 0)
         )
-    
+
     def visual_validation(self) -> None:
-        #Called when OK is clicked
+        # Called when OK is clicked
         self._port_name_textbox.validate_expect_valid()
         self._baudrate_textbox.validate_expect_valid()
         self._start_delay_textbox.validate_expect_valid()
 
-class RTTConfigPane(BaseConfigPane):
-    _target_device_text_box:ValidableLineEdit
-    _jlink_interface_combo_box:QComboBox
 
-    def __init__(self, parent:Optional[QWidget]=None) -> None:
+class RTTConfigPane(BaseConfigPane):
+    _target_device_text_box: ValidableLineEdit
+    _jlink_interface_combo_box: QComboBox
+
+    def __init__(self, parent: Optional[QWidget] = None) -> None:
         super().__init__(parent)
 
         layout = QFormLayout(self)
-        
+
         self._target_device_text_box = ValidableLineEdit(soft_validator=NotEmptyValidator())
         self._jlink_interface_combo_box = QComboBox()
 
@@ -300,41 +301,41 @@ class RTTConfigPane(BaseConfigPane):
     def get_config(self) -> Optional[sdk.RTTLinkConfig]:
         target_device = self._target_device_text_box.text()
         interface = cast(sdk.RTTLinkConfig.JLinkInterface, self._jlink_interface_combo_box.currentData())
-        
+
         if len(target_device) == 0:
             return None
-        
+
         return sdk.RTTLinkConfig(
             target_device=target_device,
             jlink_interface=interface
         )
 
-    def load_config(self, config:Optional[sdk.BaseLinkConfig]) -> None:
+    def load_config(self, config: Optional[sdk.BaseLinkConfig]) -> None:
         config = self.make_config_valid(config)
         assert isinstance(config, sdk.RTTLinkConfig)
 
         self._target_device_text_box.setText(config.target_device)
         self._jlink_interface_combo_box.setCurrentIndex(self._jlink_interface_combo_box.findData(config.jlink_interface))
-        
+
     @classmethod
-    def make_config_valid(self, config:Optional[sdk.BaseLinkConfig]) -> sdk.BaseLinkConfig:
+    def make_config_valid(self, config: Optional[sdk.BaseLinkConfig]) -> sdk.BaseLinkConfig:
         assert isinstance(config, sdk.RTTLinkConfig)
         return sdk.RTTLinkConfig(
-            target_device = "<device>" if len(config.target_device) else config.target_device,
-            jlink_interface = config.jlink_interface
+            target_device="<device>" if len(config.target_device) else config.target_device,
+            jlink_interface=config.jlink_interface
         )
-    
+
     def visual_validation(self) -> None:
-        #Called when OK is clicked
+        # Called when OK is clicked
         self._target_device_text_box.validate_expect_valid()
-        
+
 
 class DeviceConfigDialog(QDialog):
 
     class PersistentPreferences:
         UDP_HOST = 'udp_hostname'
         UDP_PORT = 'udp_port'
-        
+
         TCP_HOST = 'tcp_hostname'
         TCP_PORT = 'tcp_port'
 
@@ -351,9 +352,8 @@ class DeviceConfigDialog(QDialog):
         @classmethod
         def get_all(cls) -> List[str]:
             return [attr for attr in dir(cls) if not callable(getattr(cls, attr)) and not attr.startswith("__")]
-        
 
-    CONFIG_TYPE_TO_WIDGET:Dict[sdk.DeviceLinkType, Type[BaseConfigPane]] = {
+    CONFIG_TYPE_TO_WIDGET: Dict[sdk.DeviceLinkType, Type[BaseConfigPane]] = {
         sdk.DeviceLinkType.NONE: NoConfigPane,
         sdk.DeviceLinkType.TCP: TCPConfigPane,
         sdk.DeviceLinkType.UDP: UDPConfigPane,
@@ -361,19 +361,19 @@ class DeviceConfigDialog(QDialog):
         sdk.DeviceLinkType.RTT: RTTConfigPane
     }
 
-    _link_type_combo_box:QComboBox
-    _config_container:QWidget
-    _configs:Dict[sdk.DeviceLinkType, sdk.BaseLinkConfig]
-    _active_pane:BaseConfigPane
-    _apply_callback:Optional[Callable[["DeviceConfigDialog"], None]]
-    _feedback_label:FeedbackLabel
-    _btn_ok:QPushButton
-    _btn_cancel:QPushButton
-    _preferences:AppPersistentData
+    _link_type_combo_box: QComboBox
+    _config_container: QWidget
+    _configs: Dict[sdk.DeviceLinkType, sdk.BaseLinkConfig]
+    _active_pane: BaseConfigPane
+    _apply_callback: Optional[Callable[["DeviceConfigDialog"], None]]
+    _feedback_label: FeedbackLabel
+    _btn_ok: QPushButton
+    _btn_cancel: QPushButton
+    _preferences: AppPersistentData
 
-    def __init__(self, 
-                 parent:Optional[QWidget]=None,  
-                 apply_callback:Optional[Callable[["DeviceConfigDialog"], None]]=None 
+    def __init__(self,
+                 parent: Optional[QWidget] = None,
+                 apply_callback: Optional[Callable[["DeviceConfigDialog"], None]] = None
                  ) -> None:
         super().__init__(parent)
         self.setModal(True)
@@ -399,7 +399,7 @@ class DeviceConfigDialog(QDialog):
         buttons = QDialogButtonBox(QDialogButtonBox.StandardButton.Ok | QDialogButtonBox.StandardButton.Cancel)
         buttons.accepted.connect(self._btn_ok_click)
         buttons.rejected.connect(self._btn_cancel_click)
-        
+
         vlayout.addWidget(self._link_type_combo_box)
         vlayout.addWidget(self._config_container)
         vlayout.addWidget(self._feedback_label)
@@ -412,49 +412,48 @@ class DeviceConfigDialog(QDialog):
         # Preload some default configs to avoid having a blank form
         self._configs[sdk.DeviceLinkType.NONE] = sdk.NoneLinkConfig()
         self._configs[sdk.DeviceLinkType.UDP] = sdk.UDPLinkConfig(
-            host=self._preferences.get_str(self.PersistentPreferences.UDP_HOST, 'localhost'), 
-            port=self._preferences.get_int(self.PersistentPreferences.UDP_PORT, 12345), 
+            host=self._preferences.get_str(self.PersistentPreferences.UDP_HOST, 'localhost'),
+            port=self._preferences.get_int(self.PersistentPreferences.UDP_PORT, 12345),
         )
-        
+
         self._configs[sdk.DeviceLinkType.TCP] = sdk.TCPLinkConfig(
-            host=self._preferences.get_str(self.PersistentPreferences.TCP_HOST, 'localhost'), 
-            port=self._preferences.get_int(self.PersistentPreferences.TCP_PORT, 12345), 
+            host=self._preferences.get_str(self.PersistentPreferences.TCP_HOST, 'localhost'),
+            port=self._preferences.get_int(self.PersistentPreferences.TCP_PORT, 12345),
         )
-        
+
         self._configs[sdk.DeviceLinkType.Serial] = sdk.SerialLinkConfig(
-            port=self._preferences.get_str(self.PersistentPreferences.SERIAL_PORT, '<port>'), 
-            baudrate=self._preferences.get_int(self.PersistentPreferences.SERIAL_BAUDRATE, 115200), 
+            port=self._preferences.get_str(self.PersistentPreferences.SERIAL_PORT, '<port>'),
+            baudrate=self._preferences.get_int(self.PersistentPreferences.SERIAL_BAUDRATE, 115200),
             start_delay=self._preferences.get_float(self.PersistentPreferences.SERIAL_START_DELAY, 0),
-            parity=sdk.SerialLinkConfig.Parity.from_str( 
-                self._preferences.get_str(self.PersistentPreferences.SERIAL_PARITY, sdk.SerialLinkConfig.Parity.NONE.to_str()) ,
+            parity=sdk.SerialLinkConfig.Parity.from_str(
+                self._preferences.get_str(self.PersistentPreferences.SERIAL_PARITY, sdk.SerialLinkConfig.Parity.NONE.to_str()),
                 sdk.SerialLinkConfig.Parity.NONE    # preference file could be corrupted
             ),
-            stopbits=sdk.SerialLinkConfig.StopBits.from_float( 
+            stopbits=sdk.SerialLinkConfig.StopBits.from_float(
                 self._preferences.get_float(self.PersistentPreferences.SERIAL_STOPBIT, sdk.SerialLinkConfig.StopBits.ONE.to_float()),
                 default=sdk.SerialLinkConfig.StopBits.ONE   # preference file could be corrupted
             ),
-            databits=sdk.SerialLinkConfig.DataBits.from_int( 
+            databits=sdk.SerialLinkConfig.DataBits.from_int(
                 self._preferences.get_int(self.PersistentPreferences.SERIAL_DATABITS, sdk.SerialLinkConfig.DataBits.EIGHT.to_int()),
                 default=sdk.SerialLinkConfig.DataBits.EIGHT   # preference file could be corrupted
             )
         )
-        
+
         self._configs[sdk.DeviceLinkType.RTT] = sdk.RTTLinkConfig(
-            target_device=self._preferences.get_str(self.PersistentPreferences.RTT_TARGET_DEVICE, '<device>'), 
+            target_device=self._preferences.get_str(self.PersistentPreferences.RTT_TARGET_DEVICE, '<device>'),
             jlink_interface=sdk.RTTLinkConfig.JLinkInterface.from_str(
                 self._preferences.get_str(self.PersistentPreferences.RTT_JLINK_INTERFACE, sdk.RTTLinkConfig.JLinkInterface.SWD.to_str()),
                 sdk.RTTLinkConfig.JLinkInterface.SWD
             )
         )
 
-
         self._link_type_combo_box.currentIndexChanged.connect(self._combobox_changed)
         self._active_pane = NoConfigPane()
         self.swap_config_pane(sdk.DeviceLinkType.NONE)
-        
+
         self._preferences.prune(self.PersistentPreferences.get_all())    # Remove extra keys
         self._commit_configs_to_preferences()   # Override any corrupted values
-    
+
     def _commit_configs_to_preferences(self) -> None:
         """Put the actual state of the dialog inside the persistent preferences system
         so that they get reloaded on next app startup"""
@@ -480,12 +479,12 @@ class DeviceConfigDialog(QDialog):
 
     def _get_selected_link_type(self) -> sdk.DeviceLinkType:
         return cast(sdk.DeviceLinkType, self._link_type_combo_box.currentData())
-        
+
     def _combobox_changed(self) -> None:
         link_type = self._get_selected_link_type()
         self._rebuild_config_layout(link_type)
 
-    def _rebuild_config_layout(self, link_type:sdk.DeviceLinkType) -> None:
+    def _rebuild_config_layout(self, link_type: sdk.DeviceLinkType) -> None:
         """Change the variable part of the dialog based on the type of link the user wants."""
 
         for pane in self._config_container.children():
@@ -494,7 +493,7 @@ class DeviceConfigDialog(QDialog):
                 pane.deleteLater()
 
         # Create an instance of the pane associated with the link type
-        self._active_pane = self.CONFIG_TYPE_TO_WIDGET[link_type]() 
+        self._active_pane = self.CONFIG_TYPE_TO_WIDGET[link_type]()
         layout = self._config_container.layout()
         assert layout is not None
         layout.addWidget(self._active_pane)
@@ -519,7 +518,7 @@ class DeviceConfigDialog(QDialog):
             if self._apply_callback is not None:
                 self._apply_callback(self)
 
-    def change_fail_callback(self, error:str) -> None:
+    def change_fail_callback(self, error: str) -> None:
         """To be called to confirm a device link change fails"""
         self._set_error_status(error)
         self._btn_ok.setEnabled(True)
@@ -533,12 +532,11 @@ class DeviceConfigDialog(QDialog):
     def _clear_status(self) -> None:
         self._feedback_label.clear()
 
-    def _set_error_status(self, error:str) -> None:
+    def _set_error_status(self, error: str) -> None:
         self._feedback_label.set_error(error)
-    
+
     def _set_waiting_status(self) -> None:
         self._feedback_label.set_info("Waiting for the server...")
-    
 
     def _btn_cancel_click(self) -> None:
         # Reload to the UI the config that is saved
@@ -547,15 +545,14 @@ class DeviceConfigDialog(QDialog):
         self._clear_status()
         self.close()
 
-    def set_config(self, link_type:sdk.DeviceLinkType, config:sdk.BaseLinkConfig ) -> None:
+    def set_config(self, link_type: sdk.DeviceLinkType, config: sdk.BaseLinkConfig) -> None:
         """Set the config for a given link type. 
         This config will be displayed when the user select the given link type"""
         if link_type not in self._configs:
             raise ValueError("Unsupported config type")
-        
+
         valid_config = self.CONFIG_TYPE_TO_WIDGET[link_type].make_config_valid(config)
         self._configs[link_type] = valid_config
-
 
     def get_type_and_config(self) -> Tuple[sdk.DeviceLinkType, Optional[sdk.BaseLinkConfig]]:
         """Return the device link configuration selected by the user"""
@@ -563,7 +560,7 @@ class DeviceConfigDialog(QDialog):
         config = self._active_pane.get_config()
         return (link_type, config)
 
-    def swap_config_pane(self, link_type:sdk.DeviceLinkType) -> None:
+    def swap_config_pane(self, link_type: sdk.DeviceLinkType) -> None:
         """Reconfigure the dialog for a new device type. Change the combo box value + reconfigure the variable part"""
         combobox_index = self._link_type_combo_box.findData(link_type)
         if combobox_index < 0:

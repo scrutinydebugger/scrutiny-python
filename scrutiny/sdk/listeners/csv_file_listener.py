@@ -14,22 +14,23 @@ from scrutiny.sdk.listeners import ValueUpdate, BaseListener
 from scrutiny.sdk.listeners.csv_logger import CSVLogger, CSVConfig
 from scrutiny.tools.typing import *
 
-class CSVFileListener(BaseListener):
-    csv_logger:CSVLogger
 
-    def __init__(self, 
-                 folder:str,
-                 filename:str,
-                 lines_per_file:Optional[int]=None,
-                 datetime_format:str=r'%Y-%m-%d %H:%M:%S.%f',
-                 convert_bool_to_int:bool=True,
-                 file_part_0pad:int=4,
-                 csv_config:Optional[CSVConfig]=None,
-                 *args:Any, **kwargs:Any):
+class CSVFileListener(BaseListener):
+    csv_logger: CSVLogger
+
+    def __init__(self,
+                 folder: str,
+                 filename: str,
+                 lines_per_file: Optional[int] = None,
+                 datetime_format: str = r'%Y-%m-%d %H:%M:%S.%f',
+                 convert_bool_to_int: bool = True,
+                 file_part_0pad: int = 4,
+                 csv_config: Optional[CSVConfig] = None,
+                 *args: Any, **kwargs: Any):
         """Listener that writes the watchable values into a CSV file as they are received
 
         Adding/removing subscriptions while running is **not** allowed since it affects the list of columns
-        
+
         :param folder: Folder in which to save the CSV file
         :param filename: Name of the file to create
         :param lines_per_file: Maximum number of lines per file, no limits if ``None``.  When this value is set to a valid integer, the file naming
@@ -43,29 +44,29 @@ class CSVFileListener(BaseListener):
 
         :param args: Passed to :class:`BaseListener<scrutiny.sdk.listeners.BaseListener>`
         :param kwargs: Passed to :class:`BaseListener<scrutiny.sdk.listeners.BaseListener>`
-        
+
         """
         BaseListener.__init__(self, *args, **kwargs)
 
         self.csv_logger = CSVLogger(
-            folder   = folder,
-            filename = filename,
-            datetime_format = datetime_format,
-            lines_per_file = lines_per_file,
-            convert_bool_to_int = convert_bool_to_int,
-            file_part_0pad = file_part_0pad,
-            csv_config = csv_config,
-            logger = self._logger
+            folder=folder,
+            filename=filename,
+            datetime_format=datetime_format,
+            lines_per_file=lines_per_file,
+            convert_bool_to_int=convert_bool_to_int,
+            file_part_0pad=file_part_0pad,
+            csv_config=csv_config,
+            logger=self._logger
         )
 
     def setup(self) -> None:
-        handles = sorted(list(self.get_subscriptions()), key=lambda x:x.display_path)
+        handles = sorted(list(self.get_subscriptions()), key=lambda x: x.display_path)
         self.csv_logger.define_columns_from_handles(handles)
         self.csv_logger.start()
 
     def receive(self, updates: List[ValueUpdate]) -> None:
         self.csv_logger.write(updates)
-    
+
     def teardown(self) -> None:
         self.csv_logger.stop()
 

@@ -26,19 +26,17 @@ class ClientHandlerMessage:
 
 
 class AbstractClientHandler:
-    new_conn_queue:"queue.Queue[str]"
+    new_conn_queue: "queue.Queue[str]"
 
     @dataclass
     class Statistics:
-        client_count:int
-        output_datarate_byte_per_sec:float
-        input_datarate_byte_per_sec:float
-        msg_received:int
-        msg_sent:int
+        client_count: int
+        output_datarate_byte_per_sec: float
+        input_datarate_byte_per_sec: float
+        msg_received: int
+        msg_sent: int
 
-
-    
-    def __init__(self, config: ClientHandlerConfig, rx_event:Optional[threading.Event]=None):
+    def __init__(self, config: ClientHandlerConfig, rx_event: Optional[threading.Event] = None):
         self.new_conn_queue = queue.Queue(maxsize=1000)
 
     @abstractmethod

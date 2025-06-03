@@ -22,9 +22,9 @@ import elftools
 
 from scrutiny.tools.typing import *
 
+
 class BaseTestAppMakeVarmapTest:
     init_exception: Optional[Exception]
-
 
     @classmethod
     def setUpClass(cls):
@@ -66,17 +66,16 @@ class BaseTestAppMakeVarmapTest:
             else:
                 self.assertEqual(val, value_at_loc)
         return v
-    
-    def assert_dwarf_version(self, binname:str, version:int):
+
+    def assert_dwarf_version(self, binname: str, version: int):
         with open(binname, 'rb') as f:
             elffile = elftools.elf.elffile.ELFFile(f)
 
             self.assertTrue(elffile.has_dwarf_info())
 
-            dwarfinfo = elffile.get_dwarf_info() 
+            dwarfinfo = elffile.get_dwarf_info()
             for cu in dwarfinfo.iter_CUs():
                 self.assertEqual(cu.header['version'], version)
-
 
     def assert_is_enum(self, v):
         self.assertIsNotNone(v.enum)
@@ -238,32 +237,31 @@ class BaseTestAppMakeVarmapTest:
         vu32 = self.assert_var('/global/file3_union/u32_var', EmbeddedDataType.uint32, value_at_loc=0x1234AA99)
         self.assertEqual(vu8.get_address(), vu16.get_address())
         self.assertEqual(vu16.get_address(), vu32.get_address())
-        
-        
-        v1=self.assert_var('/global/file3_anonbitfield_in_union/bits/bit5_8', EmbeddedDataType.uint8, bitoffset=4, bitsize=4, value_at_loc=7)
-        v2=self.assert_var('/global/file3_anonbitfield_in_union/bits/bit1', EmbeddedDataType.uint8,  bitoffset=0, bitsize=1, value_at_loc=0)
-        v3=self.assert_var('/global/file3_anonbitfield_in_union/val', EmbeddedDataType.uint8, value_at_loc=0x74)
+
+        v1 = self.assert_var('/global/file3_anonbitfield_in_union/bits/bit5_8', EmbeddedDataType.uint8, bitoffset=4, bitsize=4, value_at_loc=7)
+        v2 = self.assert_var('/global/file3_anonbitfield_in_union/bits/bit1', EmbeddedDataType.uint8, bitoffset=0, bitsize=1, value_at_loc=0)
+        v3 = self.assert_var('/global/file3_anonbitfield_in_union/val', EmbeddedDataType.uint8, value_at_loc=0x74)
         self.assertEqual(v1.get_address(), v2.get_address())
         self.assertEqual(v1.get_address(), v3.get_address())
-        
+
         v = self.assert_var('/global/file3_test_class/m_file3testclass_inclassenum', EmbeddedDataType.uint32, value_at_loc=1)
         self.assert_file3_is_EnumInClass(v)
-        
+
         self.assert_var('/global/file3_test_class/m_file3_complex_struct/field1', EmbeddedDataType.uint32, value_at_loc=0x11223344)
         self.assert_var('/global/file3_test_class/m_file3_complex_struct/field2', EmbeddedDataType.uint32, value_at_loc=0x55667788)
         self.assert_var('/global/file3_test_class/m_file3_complex_struct/field3/field3_u8/p3', EmbeddedDataType.uint8, value_at_loc=0xAA)
         self.assert_var('/global/file3_test_class/m_file3_complex_struct/field3/field3_u16/p0', EmbeddedDataType.uint16, value_at_loc=0xBCC2)
         self.assert_var('/global/file3_test_class/m_file3_complex_struct/field3/field3_u32', EmbeddedDataType.uint32, value_at_loc=0xAA34BCC2)
 
-        v1=self.assert_var('/global/file3_test_class/m_file3_complex_struct/field3/field3_enum_bitfields/p0', EmbeddedDataType.uint32, 
-                          value_at_loc=2, bitoffset=0, bitsize=5)
-        v2=self.assert_var('/global/file3_test_class/m_file3_complex_struct/field3/field3_enum_bitfields/p1', EmbeddedDataType.uint32, 
-                          value_at_loc=0x66, bitoffset=5, bitsize=7)
-        v3=self.assert_var('/global/file3_test_class/m_file3_complex_struct/field3/field3_enum_bitfields/p2', EmbeddedDataType.uint32, 
-                          value_at_loc=0x34B, bitoffset=12, bitsize=10)
-        v4=self.assert_var('/global/file3_test_class/m_file3_complex_struct/field3/field3_enum_bitfields/p3', EmbeddedDataType.uint32, 
-                          value_at_loc=0x2A8, bitoffset=22, bitsize=10)
-        
+        v1 = self.assert_var('/global/file3_test_class/m_file3_complex_struct/field3/field3_enum_bitfields/p0', EmbeddedDataType.uint32,
+                             value_at_loc=2, bitoffset=0, bitsize=5)
+        v2 = self.assert_var('/global/file3_test_class/m_file3_complex_struct/field3/field3_enum_bitfields/p1', EmbeddedDataType.uint32,
+                             value_at_loc=0x66, bitoffset=5, bitsize=7)
+        v3 = self.assert_var('/global/file3_test_class/m_file3_complex_struct/field3/field3_enum_bitfields/p2', EmbeddedDataType.uint32,
+                             value_at_loc=0x34B, bitoffset=12, bitsize=10)
+        v4 = self.assert_var('/global/file3_test_class/m_file3_complex_struct/field3/field3_enum_bitfields/p3', EmbeddedDataType.uint32,
+                             value_at_loc=0x2A8, bitoffset=22, bitsize=10)
+
         self.assert_file3_is_EnumInClass(v1)
         self.assert_file3_is_EnumInClass(v2)
         self.assert_file3_is_EnumInClass(v3)

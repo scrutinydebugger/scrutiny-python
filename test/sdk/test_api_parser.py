@@ -25,8 +25,9 @@ sdk = scrutiny.sdk  # Workaround for vscode linter an submodule on alias
 from test import ScrutinyUnitTest
 from scrutiny.tools.typing import *
 
+
 class TestApiParser(ScrutinyUnitTest):
-        
+
     def test_parse_get_watchable_list(self):
         def base():
             return {
@@ -36,35 +37,35 @@ class TestApiParser(ScrutinyUnitTest):
                 "qty": {"var": 2, "alias": 2, "rpv": 1},
                 "content": {
                     "var": [{
-                        "id": "id1", 
-                        "display_path": "/a/b/c", 
+                        "id": "id1",
+                        "display_path": "/a/b/c",
                         "datatype": "sint32",
                         "enum": {
-                            "name" : "example_enum",
-                            "values" : {
-                                "aaa" : 1,
-                                "bbb" : 2,
-                                "ccc" : 3
+                            "name": "example_enum",
+                            "values": {
+                                "aaa": 1,
+                                "bbb": 2,
+                                "ccc": 3
                             }
                         }
-                    },{
-                        "id": "id2", 
-                        "display_path": "/a/b/d", 
+                    }, {
+                        "id": "id2",
+                        "display_path": "/a/b/d",
                         "datatype": "uint64",
                     }],
                     "alias": [{
-                        "id": "id3", 
-                        "display_path": "/x/y/z", 
+                        "id": "id3",
+                        "display_path": "/x/y/z",
                         "datatype": "float32",
                     },
-                    {
-                        "id": "id4", 
-                        "display_path": "/x/y/w", 
+                        {
+                        "id": "id4",
+                        "display_path": "/x/y/w",
                         "datatype": "float64",
                     }],
                     "rpv": [{
-                        "id": "id5", 
-                        "display_path": "/aaa/bbb/ccc", 
+                        "id": "id5",
+                        "display_path": "/aaa/bbb/ccc",
                         "datatype": "sint8",
                     }]
                 }
@@ -124,7 +125,6 @@ class TestApiParser(ScrutinyUnitTest):
         self.assertEqual(o.watchable_type, WatchableType.RuntimePublishedValue)
         self.assertEqual(o.server_id, 'id5')
         self.assertEqual(o.datatype, EmbeddedDataType.sint8)
-        
 
         for wt in ('var', 'alias', 'rpv'):
             with self.assertRaises(sdk.exceptions.BadResponseError):
@@ -153,7 +153,7 @@ class TestApiParser(ScrutinyUnitTest):
                     del response["content"]['var'][0]['enum']['name']
                 else:
                     response["content"]['var'][0]['enum']['name'] = val
-                
+
                 parser.parse_get_watchable_list(response)
 
         for val in [[], None, 3.5, 1, True, Delete, "", "aaa"]:
@@ -163,8 +163,8 @@ class TestApiParser(ScrutinyUnitTest):
                     del response["content"]['var'][0]['enum']['values']
                 else:
                     response["content"]['var'][0]['enum']['values'] = val
-                
-                parser.parse_get_watchable_list(response)   
+
+                parser.parse_get_watchable_list(response)
 
         for val in [[], None, 3.5, 1, True, Delete, "", "aaa"]:
             with self.assertRaises(sdk.exceptions.BadResponseError, msg=f"val={val}"):
@@ -173,20 +173,20 @@ class TestApiParser(ScrutinyUnitTest):
                     del response["content"]['var'][0]['enum']['values']
                 else:
                     response["content"]['var'][0]['enum']['values'] = val
-                
-                parser.parse_get_watchable_list(response)     
+
+                parser.parse_get_watchable_list(response)
 
         for val in [None, 3.5, 1, True, ""]:
             with self.assertRaises(sdk.exceptions.BadResponseError, msg=f"val={val}"):
                 response = base()
                 response["content"]['var'][0]['enum']['values'][val] = 123
-                parser.parse_get_watchable_list(response)    
+                parser.parse_get_watchable_list(response)
 
         for val in [{}, [], None, 3.5, True, "", "aaa"]:
             with self.assertRaises(sdk.exceptions.BadResponseError, msg=f"val={val}"):
                 response = base()
                 response["content"]['var'][0]['enum']['values']["aaa"] = val
-                parser.parse_get_watchable_list(response)        
+                parser.parse_get_watchable_list(response)
 
     def test_parse_subscribe_watchable(self):
         def base():
@@ -203,12 +203,12 @@ class TestApiParser(ScrutinyUnitTest):
                         'id': 'abd',
                         'type': 'alias',
                         'datatype': 'sint8',
-                        'enum' : {
-                            'name' : 'the_enum',
-                            'values' : {
-                                'a' : 1,
-                                'b' : 2,
-                                'c' : 3,
+                        'enum': {
+                            'name': 'the_enum',
+                            'values': {
+                                'a': 1,
+                                'b': 2,
+                                'c': 3,
                             }
                         }
                     }
@@ -282,8 +282,8 @@ class TestApiParser(ScrutinyUnitTest):
     def test_get_device_info(self):
         def base() -> api_typing.S2C.GetDeviceInfo:
             return {
-                'cmd' : "response_get_device_info",
-                "available" : True,
+                'cmd': "response_get_device_info",
+                "available": True,
                 "device_info": {
                     "session_id": "5b8b7dc35b5c766a9115dbf482e39e9d",
                     "device_id": "b5c76f482e39e9d6a9115db5b8b7dc35",
@@ -304,7 +304,7 @@ class TestApiParser(ScrutinyUnitTest):
                     },
                     "forbidden_memory_regions": [{'start': 0x1000, 'end': 0x1FFF}, {'start': 0x4000, 'end': 0x4FFF}],
                     "readonly_memory_regions": [{'start': 0x8000, 'end': 0x8FFF}],
-                    "datalogging_capabilities" :  {
+                    "datalogging_capabilities": {
                         "buffer_size": 4096,
                         "encoding": 'raw',
                         "max_nb_signal": 32,
@@ -362,7 +362,6 @@ class TestApiParser(ScrutinyUnitTest):
         self.assertEqual(device_info.readonly_memory_regions[0].end, 0x8FFF)
         self.assertEqual(device_info.readonly_memory_regions[0].size, 0x1000)
 
-
         features = ['memory_write', 'datalogging', 'user_command', '_64bits']
         vals = [1, 'asd', None, [], {}]
         for feature in features:
@@ -379,7 +378,6 @@ class TestApiParser(ScrutinyUnitTest):
                 msg = base()
                 del msg['device_info']['supported_feature_map'][feature]
                 parser.parse_get_device_info(msg)
-
 
         capabilities = device_info.datalogging_capabilities
 
@@ -398,8 +396,6 @@ class TestApiParser(ScrutinyUnitTest):
         self.assertIsInstance(capabilities.sampling_rates[1], sdk.datalogging.VariableFreqSamplingRate)
         self.assertEqual(capabilities.sampling_rates[1].name, "loop1")
         self.assertEqual(capabilities.sampling_rates[1].identifier, 1)
-
-
 
         ###
         msg = base()
@@ -451,7 +447,7 @@ class TestApiParser(ScrutinyUnitTest):
                 },
                 "device_comm_link": {
                     "link_type": "udp",
-                    "link_operational" : True,
+                    "link_operational": True,
                     "link_config": {
                         "host": "localhost",
                         "port": 12345
@@ -472,7 +468,7 @@ class TestApiParser(ScrutinyUnitTest):
 
         self.assertIsNotNone(info.sfd_firmware_id)
         self.assertEqual(info.sfd_firmware_id, "b5c76f482e39e9d6a9115db5b8b7dc35")
-        
+
         self.assertEqual(info.datalogging.state, DataloggerState.Standby)
         self.assertEqual(info.datalogging.completion_ratio, 0.56)
 
@@ -483,9 +479,8 @@ class TestApiParser(ScrutinyUnitTest):
         self.assertEqual(info.device_link.config.host, "localhost")
         self.assertEqual(info.device_link.config.port, 12345)
 
-
         ##
-        
+
         msg = base()
         msg['device_status'] = "unknown"
         msg['loaded_sfd_firmware_id'] = None
@@ -524,7 +519,7 @@ class TestApiParser(ScrutinyUnitTest):
             "parity": 'even',
             "portname": '/dev/ttyO1',
             'stopbits': '2',
-            'start_delay':0.2
+            'start_delay': 0.2
         }
         # We forgot to update the config.
         info = parser.parse_inform_server_status(msg)
@@ -563,7 +558,7 @@ class TestApiParser(ScrutinyUnitTest):
                 del msg["device_comm_link"]["link_config"][field]
                 parser.parse_inform_server_status(msg)
 
-        ## Test RTT Link
+        # Test RTT Link
         msg = base()
         msg["device_comm_link"]["link_type"] = 'rtt'
         msg["device_comm_link"]["link_config"] = {
@@ -596,8 +591,8 @@ class TestApiParser(ScrutinyUnitTest):
 
         class Delete:
             pass
-        
-        for field in['jlink_interface', 'target_device']:
+
+        for field in ['jlink_interface', 'target_device']:
             for val in [1, None, 1.5, True, [], Delete()]:
                 msg = base()
                 msg["device_comm_link"]["link_type"] = 'rtt'
@@ -651,8 +646,8 @@ class TestApiParser(ScrutinyUnitTest):
                 "xdata": {
                     "name": "Xaxis",
                     "watchable": {
-                        'path' : "path/to/xaxis/item",
-                        'type' : "var"
+                        'path': "path/to/xaxis/item",
+                        'type': "var"
                     },
                     "data": [0, 1, 2, 3, 4, 5, 6, 7, 8, 9]
                 },
@@ -665,8 +660,8 @@ class TestApiParser(ScrutinyUnitTest):
                         "axis_id": 0,
                         "name": "signal1",
                         "watchable": {
-                            'path' : "/path/to/signal1",
-                            'type' : 'var'
+                            'path': "/path/to/signal1",
+                            'type': 'var'
                         },
                         "data": [0, 10, 20, 30, 40, 50, 60, 70, 80, 90]
                     },
@@ -674,8 +669,8 @@ class TestApiParser(ScrutinyUnitTest):
                         "axis_id": 0,
                         "name": "signal2",
                         "watchable": {
-                            'path' : "/path/to/signal2",
-                            'type' : 'alias'
+                            'path': "/path/to/signal2",
+                            'type': 'alias'
                         },
                         "data": [0, -10, -20, -30, -40, -50, -60, -70, -80, -90]
                     },
@@ -683,8 +678,8 @@ class TestApiParser(ScrutinyUnitTest):
                         "axis_id": 1,
                         "name": "signal3",
                         "watchable": {
-                            'path' : "/path/to/signal3",
-                            'type' : 'rpv'
+                            'path': "/path/to/signal3",
+                            'type': 'rpv'
                         },
                         "data": [-4.5, -3.5, -2.5, -1.5, -0.5, 0.5, 1.5, 2.5, 3.5, 4.5]
                     }
@@ -755,7 +750,7 @@ class TestApiParser(ScrutinyUnitTest):
             del msg['xdata'][field]
             with self.assertRaises(sdk.exceptions.BadResponseError, msg=f"Field : {field}"):
                 parser.parse_read_datalogging_acquisition_content_response(msg)
-        
+
         msg = base()
         msg['xdata']['watchable'] = None
         response = parser.parse_read_datalogging_acquisition_content_response(msg)
@@ -798,7 +793,7 @@ class TestApiParser(ScrutinyUnitTest):
                 msg['signals'][i]["watchable"]['type'] = val
                 with self.assertRaises(sdk.exceptions.BadResponseError, msg=f"val={val}"):
                     parser.parse_read_datalogging_acquisition_content_response(msg)
-            
+
             msg = base()
             msg['signals'][i]["watchable"] = None   # Not allowed for Y data
             with self.assertRaises(sdk.exceptions.BadResponseError, msg=f"val={val}"):
@@ -842,7 +837,7 @@ class TestApiParser(ScrutinyUnitTest):
             return {
                 "cmd": "response_list_datalogging_acquisitions",
                 "reqid": None,
-                "total" : 5,
+                "total": 5,
                 "acquisitions": [
                     {
                         'firmware_id': "firmware 1",
@@ -888,10 +883,9 @@ class TestApiParser(ScrutinyUnitTest):
 
         msg = base()
         acquisitions = parser.parse_list_datalogging_acquisitions_response(msg)
-        
+
         self.assertIsInstance(acquisitions, list)
         self.assertEqual(len(acquisitions), 2)
-
 
         self.assertEqual(acquisitions[0].firmware_id, "firmware 1")
         self.assertEqual(acquisitions[0].name, "hello")
@@ -1045,18 +1039,18 @@ class TestApiParser(ScrutinyUnitTest):
             return {
                 "cmd": "response_get_watchable_count",
                 "reqid": None,
-                'qty' : {
-                    'alias' : 10,
-                    'var' : 20,
-                    'rpv' : 30,
+                'qty': {
+                    'alias': 10,
+                    'var': 20,
+                    'rpv': 30,
                 }
             }
 
         with self.assertRaises(Exception):
             m = base()
             m['cmd'] = 'asd'
-            parser.parse_get_watchable_count(m)        
-        
+            parser.parse_get_watchable_count(m)
+
         msg = base()
         count = parser.parse_get_watchable_count(msg)
         self.assertEqual(count[WatchableType.Alias], 10)
@@ -1068,10 +1062,10 @@ class TestApiParser(ScrutinyUnitTest):
             msg = base()
             del msg['qty']
             parser.parse_get_watchable_count(msg)
-        
+
         class Delete:
             pass
-        
+
         for key in ['var', 'alias', 'rpv']:
             for val in [None, -1, 2.5, [], {}, True, Delete]:
                 with self.assertRaises(sdk.exceptions.BadResponseError, msg=f"key={key}, val={val}"):
@@ -1104,12 +1098,11 @@ class TestApiParser(ScrutinyUnitTest):
         with self.assertRaises(Exception):
             m = base()
             m['cmd'] = 'asd'
-            parser.parse_get_loaded_sfd(m)        
-        
+            parser.parse_get_loaded_sfd(m)
 
         msg = base()
         sfd = parser.parse_get_loaded_sfd(msg)
-        
+
         self.assertIsNotNone(sfd)
         self.assertEqual(sfd.metadata.project_name, "Some project")
         self.assertEqual(sfd.metadata.author, "unit test")
@@ -1144,44 +1137,44 @@ class TestApiParser(ScrutinyUnitTest):
             self.assertIsNone(sfd.metadata.generation_info.timestamp)
 
     def test_parse_get_server_stats(self):
-        def base() : 
+        def base():
             return {
                 'cmd': 'response_get_server_stats',
                 'reqid': None,
-                'uptime' : 10.1,
-                'invalid_request_count' : 1,
-                'unexpected_error_count' : 2,
-                'client_count' : 3,
-                'to_all_clients_datarate_byte_per_sec' : 20.2,
-                'from_any_client_datarate_byte_per_sec' : 30.3,
-                'msg_received' : 4,
-                'msg_sent' : 5,
-                'device_session_count' : 6,
-                'to_device_datarate_byte_per_sec' : 40.4,
-                'from_device_datarate_byte_per_sec' : 50.5,
-                'device_request_per_sec' : 60.6
+                'uptime': 10.1,
+                'invalid_request_count': 1,
+                'unexpected_error_count': 2,
+                'client_count': 3,
+                'to_all_clients_datarate_byte_per_sec': 20.2,
+                'from_any_client_datarate_byte_per_sec': 30.3,
+                'msg_received': 4,
+                'msg_sent': 5,
+                'device_session_count': 6,
+                'to_device_datarate_byte_per_sec': 40.4,
+                'from_device_datarate_byte_per_sec': 50.5,
+                'device_request_per_sec': 60.6
             }
 
         with self.assertRaises(Exception):
             m = base()
             m['cmd'] = 'asd'
-            parser.parser_server_stats(m)   
+            parser.parser_server_stats(m)
 
         msg = base()
         stats = parser.parser_server_stats(msg)
 
-        self.assertEqual(stats.uptime,  10.1)
-        self.assertEqual(stats.invalid_request_count,  1)
-        self.assertEqual(stats.unexpected_error_count,  2)
-        self.assertEqual(stats.client_count,  3)
-        self.assertEqual(stats.to_all_clients_datarate_byte_per_sec,  20.2)
-        self.assertEqual(stats.from_any_client_datarate_byte_per_sec,  30.3)
-        self.assertEqual(stats.msg_received,  4)
-        self.assertEqual(stats.msg_sent,  5)
-        self.assertEqual(stats.device_session_count,  6)
-        self.assertEqual(stats.to_device_datarate_byte_per_sec,  40.4)
-        self.assertEqual(stats.from_device_datarate_byte_per_sec,  50.5)
-        self.assertEqual(stats.device_request_per_sec,  60.6)
+        self.assertEqual(stats.uptime, 10.1)
+        self.assertEqual(stats.invalid_request_count, 1)
+        self.assertEqual(stats.unexpected_error_count, 2)
+        self.assertEqual(stats.client_count, 3)
+        self.assertEqual(stats.to_all_clients_datarate_byte_per_sec, 20.2)
+        self.assertEqual(stats.from_any_client_datarate_byte_per_sec, 30.3)
+        self.assertEqual(stats.msg_received, 4)
+        self.assertEqual(stats.msg_sent, 5)
+        self.assertEqual(stats.device_session_count, 6)
+        self.assertEqual(stats.to_device_datarate_byte_per_sec, 40.4)
+        self.assertEqual(stats.from_device_datarate_byte_per_sec, 50.5)
+        self.assertEqual(stats.device_request_per_sec, 60.6)
 
         all_fields = [
             'uptime',
@@ -1244,19 +1237,18 @@ class TestApiParser(ScrutinyUnitTest):
         with self.assertRaises(Exception):
             m = base()
             m['cmd'] = 'asd'
-            parser.parse_welcome(m) 
+            parser.parse_welcome(m)
 
         msg = base()
         welcome = parser.parse_welcome(msg)
         self.assertEqual(welcome.server_time_zero_timestamp, tnow)
 
-
     def test_parse_watchable_update(self):
         def base():
             return {
-                'cmd' : 'watchable_update',
-                'req_id' : None,
-                'updates' : [
+                'cmd': 'watchable_update',
+                'req_id': None,
+                'updates': [
                     dict(id='aaa', v=3.14159, t=1234.5),
                     dict(id='bbb', v=1, t=5555),
                     dict(id='ccc', v=True, t=6666)
@@ -1266,10 +1258,10 @@ class TestApiParser(ScrutinyUnitTest):
         with self.assertRaises(Exception):
             m = base()
             m['cmd'] = 'asd'
-            parser.parse_watchable_update(m) 
+            parser.parse_watchable_update(m)
 
         msg = base()
-        updates = parser.parse_watchable_update(msg) 
+        updates = parser.parse_watchable_update(msg)
         self.assertIsInstance(updates, list)
         self.assertEqual(len(updates), 3)
         for update in updates:
@@ -1293,7 +1285,6 @@ class TestApiParser(ScrutinyUnitTest):
         self.assertIsInstance(updates[2].value, bool)
         self.assertEqual(updates[2].server_time_us, 6666)
 
-
         class Delete:
             pass
 
@@ -1304,62 +1295,60 @@ class TestApiParser(ScrutinyUnitTest):
             else:
                 msg['updates'] = v
             with self.assertRaises(sdk.exceptions.BadResponseError, msg=f"v={v}"):
-                parser.parse_watchable_update(msg) 
+                parser.parse_watchable_update(msg)
 
         for v in [{}, [], None, 1, Delete]:
             msg = base()
             for i in range(len(msg['updates'])):
                 msg['updates'][i]['id'] = v
                 with self.assertRaises(sdk.exceptions.BadResponseError, msg=f"i={i}. v={v}"):
-                    parser.parse_watchable_update(msg) 
+                    parser.parse_watchable_update(msg)
 
         for v in [{}, [], None, "asd", Delete]:
             msg = base()
             for i in range(len(msg['updates'])):
                 msg['updates'][i]['v'] = v
                 with self.assertRaises(sdk.exceptions.BadResponseError, msg=f"i={i}. v={v}"):
-                    parser.parse_watchable_update(msg) 
+                    parser.parse_watchable_update(msg)
 
         for v in [{}, [], None, True, "asd", Delete]:
             msg = base()
             for i in range(len(msg['updates'])):
                 msg['updates'][i]['t'] = v
                 with self.assertRaises(sdk.exceptions.BadResponseError, msg=f"i={i}. v={v}"):
-                    parser.parse_watchable_update(msg)  
+                    parser.parse_watchable_update(msg)
 
-        msg = base() 
+        msg = base()
         msg['updates'] = []
         updates = parser.parse_watchable_update(msg)
         self.assertEqual(updates, [])
 
-
     def test_parse_memory_read_completion(self):
         def base() -> api_typing.S2C.ReadMemoryComplete:
             return {
-                'cmd' : 'inform_memory_read_complete',
+                'cmd': 'inform_memory_read_complete',
                 "reqid": None,
-                "request_token" : "aaa",
-                "success" : True,
-                "completion_server_time_us" : 1234.5,
-                "data" : b64encode(bytes([1,2,3,4])).decode('utf8'),
+                "request_token": "aaa",
+                "success": True,
+                "completion_server_time_us": 1234.5,
+                "data": b64encode(bytes([1, 2, 3, 4])).decode('utf8'),
                 "detail_msg": None
             }
 
         with self.assertRaises(Exception):
             m = base()
             m['cmd'] = 'asd'
-            parser.parse_memory_read_completion(m) 
+            parser.parse_memory_read_completion(m)
 
         msg = base()
         completion = parser.parse_memory_read_completion(msg)
 
         self.assertEqual(completion.request_token, "aaa")
         self.assertEqual(completion.success, True)
-        self.assertEqual(completion.data, bytes([1,2,3,4]))
+        self.assertEqual(completion.data, bytes([1, 2, 3, 4]))
         self.assertIsInstance(completion.local_monotonic_timestamp, float)
         self.assertEqual(completion.server_time_us, 1234.5)
         self.assertEqual(completion.error, "")
-
 
         msg = base()
         msg['success'] = False
@@ -1368,7 +1357,6 @@ class TestApiParser(ScrutinyUnitTest):
         self.assertEqual(completion.data, None)
         self.assertEqual(completion.success, False)
 
-
         class Delete:
             pass
 
@@ -1379,32 +1367,31 @@ class TestApiParser(ScrutinyUnitTest):
                     del msg[field]
                 else:
                     msg[field] = val
-                
+
                 with self.assertRaises(sdk.exceptions.BadResponseError, msg=f"field={field}. val={val}"):
                     parser.parse_memory_read_completion(msg)
 
         check_field_invalid('request_token', [1, None, True, [], {}, Delete])
         check_field_invalid('success', [1, None, 1.123, "asd", [], {}, Delete])
         check_field_invalid('completion_server_time_us', ["asd", None, True, [], {}, Delete])
-        check_field_invalid('data', [1, "...", None, True, [], {}, Delete]) # Cannot delete if success
+        check_field_invalid('data', [1, "...", None, True, [], {}, Delete])  # Cannot delete if success
         check_field_invalid('detail_msg', [1, 1.123, True, [], {}, Delete])
-
 
     def test_parse_memory_write_completion(self):
         def base() -> api_typing.S2C.WriteMemoryComplete:
             return {
-                'cmd' : 'inform_memory_write_complete',
+                'cmd': 'inform_memory_write_complete',
                 "reqid": None,
-                "request_token" : "aaa",
-                "success" : True,
-                "completion_server_time_us" : 1234.5,
+                "request_token": "aaa",
+                "success": True,
+                "completion_server_time_us": 1234.5,
                 "detail_msg": None
             }
 
         with self.assertRaises(Exception):
             m = base()
             m['cmd'] = 'asd'
-            parser.parse_memory_write_completion(m) 
+            parser.parse_memory_write_completion(m)
 
         msg = base()
         completion = parser.parse_memory_write_completion(msg)
@@ -1415,12 +1402,10 @@ class TestApiParser(ScrutinyUnitTest):
         self.assertEqual(completion.server_time_us, 1234.5)
         self.assertEqual(completion.error, "")
 
-
         msg = base()
         msg['success'] = False
         completion = parser.parse_memory_write_completion(msg)
         self.assertEqual(completion.success, False)
-
 
         class Delete:
             pass
@@ -1432,7 +1417,7 @@ class TestApiParser(ScrutinyUnitTest):
                     del msg[field]
                 else:
                     msg[field] = val
-                
+
                 with self.assertRaises(sdk.exceptions.BadResponseError, msg=f"field={field}. val={val}"):
                     parser.parse_memory_write_completion(msg)
 
@@ -1441,14 +1426,13 @@ class TestApiParser(ScrutinyUnitTest):
         check_field_invalid('completion_server_time_us', ["asd", None, True, [], {}, Delete])
         check_field_invalid('detail_msg', [1, 1.123, True, [], {}, Delete])
 
-
     def test_parse_inform_datalogging_list_changed(self):
         def base() -> api_typing.S2C.InformDataloggingListChanged:
             return {
-                'cmd' : 'inform_datalogging_list_changed',
+                'cmd': 'inform_datalogging_list_changed',
                 "reqid": None,
-                "action" : "new",
-                "reference_id" : "123456",
+                "action": "new",
+                "reference_id": "123456",
             }
 
         msg = base()
@@ -1495,7 +1479,7 @@ class TestApiParser(ScrutinyUnitTest):
                 else:
                     msg["reference_id"] = v
                 parser.parse_datalogging_list_changed(msg)
-        
+
         with self.assertRaises(Exception):
             msg = base()
             msg["action"] = 'new'
@@ -1511,14 +1495,13 @@ class TestApiParser(ScrutinyUnitTest):
     def test_parse_request_datalogging_acquisition_response(self):
         def base() -> api_typing.S2C.RequestDataloggingAcquisition:
             return {
-                'cmd' : 'response_request_datalogging_acquisition',
+                'cmd': 'response_request_datalogging_acquisition',
                 "reqid": None,
-                "request_token" : "abcdef"
+                "request_token": "abcdef"
             }
-        
-        msg = base()
-        self.assertEqual( parser.parse_request_datalogging_acquisition_response(msg), "abcdef")
 
+        msg = base()
+        self.assertEqual(parser.parse_request_datalogging_acquisition_response(msg), "abcdef")
 
         class Delete:
             pass
@@ -1528,30 +1511,30 @@ class TestApiParser(ScrutinyUnitTest):
             if v == Delete:
                 del msg['request_token']
             else:
-                msg["request_token"]= v
+                msg["request_token"] = v
 
             with self.assertRaises(sdk.exceptions.BadResponseError):
-                	parser.parse_request_datalogging_acquisition_response(msg)
+               	parser.parse_request_datalogging_acquisition_response(msg)
 
     def test_parse_datalogging_acquisition_complete(self):
         def base_success() -> api_typing.S2C.InformDataloggingAcquisitionComplete:
             return {
-                "cmd" : 'inform_datalogging_acquisition_complete',
-                "success" : True,
-                "reference_id" : "abc",
-                "request_token" : "xyz",
-                "detail_msg" : ""
+                "cmd": 'inform_datalogging_acquisition_complete',
+                "success": True,
+                "reference_id": "abc",
+                "request_token": "xyz",
+                "detail_msg": ""
             }
 
         def base_failure() -> api_typing.S2C.InformDataloggingAcquisitionComplete:
             return {
-                "cmd" : 'inform_datalogging_acquisition_complete',
-                "success" : False,
-                "reference_id" : None,
-                "request_token" : "xyz",
-                "detail_msg" : "oops"
+                "cmd": 'inform_datalogging_acquisition_complete',
+                "success": False,
+                "reference_id": None,
+                "request_token": "xyz",
+                "detail_msg": "oops"
             }
-        
+
         msg = base_success()
         response = parser.parse_datalogging_acquisition_complete(msg)
         self.assertEqual(response.success, True)
@@ -1567,7 +1550,7 @@ class TestApiParser(ScrutinyUnitTest):
 
         class Delete:
             pass
-        
+
         for field in ['reference_id', 'request_token']:
             for v in [[], {}, None, 1, "", True, Delete]:
                 msg = base_success()
@@ -1587,7 +1570,7 @@ class TestApiParser(ScrutinyUnitTest):
                 msg['success'] = v
 
             with self.assertRaises(sdk.exceptions.BadResponseError, msg=f'v={v}'):
-                parser.parse_datalogging_acquisition_complete(msg)   
+                parser.parse_datalogging_acquisition_complete(msg)
 
         for v in [[], {}, None, 1, Delete]:
             msg = base_failure()
@@ -1597,20 +1580,20 @@ class TestApiParser(ScrutinyUnitTest):
                 msg['detail_msg'] = v
 
             with self.assertRaises(sdk.exceptions.BadResponseError, msg=f'v={v}'):
-                parser.parse_datalogging_acquisition_complete(msg)        
+                parser.parse_datalogging_acquisition_complete(msg)
 
     def test_parse_user_command_response(self):
         def base() -> api_typing.S2C.UserCommand:
             return {
-                "cmd" : "response_user_command",
-                "subfunction" : 2,
-                "data" : b64encode(bytes([1,2,3])).decode('utf8')
+                "cmd": "response_user_command",
+                "subfunction": 2,
+                "data": b64encode(bytes([1, 2, 3])).decode('utf8')
             }
-        
+
         msg = base()
         response = parser.parse_user_command_response(msg)
         self.assertEqual(response.subfunction, 2)
-        self.assertEqual(response.data, bytes([1,2,3]))
+        self.assertEqual(response.data, bytes([1, 2, 3]))
 
         class Delete:
             pass
@@ -1633,16 +1616,16 @@ class TestApiParser(ScrutinyUnitTest):
                 msg['data'] = v
 
             with self.assertRaises(sdk.exceptions.BadResponseError, msg=f'v={v}'):
-                parser.parse_user_command_response(msg)    
+                parser.parse_user_command_response(msg)
 
     def test_parse_write_value_response(self):
-        def base() ->   api_typing.S2C.WriteValue:
+        def base() -> api_typing.S2C.WriteValue:
             return {
-                'cmd' : 'response_write_watchable',
-                'count' : 10,
-                'request_token' : 'abc'
+                'cmd': 'response_write_watchable',
+                'count': 10,
+                'request_token': 'abc'
             }
-        
+
         msg = base()
         response = parser.parse_write_value_response(msg)
         self.assertEqual(response.count, 10)
@@ -1651,7 +1634,7 @@ class TestApiParser(ScrutinyUnitTest):
         class Delete:
             pass
 
-        for v in [[], {}, None, -1, 1.2, "",  True, Delete]:
+        for v in [[], {}, None, -1, 1.2, "", True, Delete]:
             msg = base()
             if v == Delete:
                 del msg['count']
@@ -1659,7 +1642,7 @@ class TestApiParser(ScrutinyUnitTest):
                 msg['count'] = v
 
             with self.assertRaises(sdk.exceptions.BadResponseError, msg=f'v={v}'):
-                parser.parse_write_value_response(msg)    
+                parser.parse_write_value_response(msg)
 
         for v in [[], {}, None, -1, 1.2, "", True, Delete]:
             msg = base()
@@ -1669,19 +1652,19 @@ class TestApiParser(ScrutinyUnitTest):
                 msg['request_token'] = v
 
             with self.assertRaises(sdk.exceptions.BadResponseError, msg=f'v={v}'):
-                parser.parse_write_value_response(msg)    
-        
+                parser.parse_write_value_response(msg)
+
     def test_parse_write_completion(self):
         def base() -> api_typing.S2C.WriteCompletion:
             return {
-                'cmd' : 'inform_write_completion',
-                'batch_index' : 1,
-                'completion_server_time_us' : 123.4,
-                'request_token' : 'abc',
-                'success' : True,
-                'watchable' : "def"
+                'cmd': 'inform_write_completion',
+                'batch_index': 1,
+                'completion_server_time_us': 123.4,
+                'request_token': 'abc',
+                'success': True,
+                'watchable': "def"
             }
-        
+
         msg = base()
         response = parser.parse_write_completion(msg)
 
@@ -1694,7 +1677,7 @@ class TestApiParser(ScrutinyUnitTest):
         class Delete:
             pass
 
-        for v in [[], {}, None, 1, 1.2, "",  Delete]:
+        for v in [[], {}, None, 1, 1.2, "", Delete]:
             msg = base()
             if v == Delete:
                 del msg['success']
@@ -1702,9 +1685,9 @@ class TestApiParser(ScrutinyUnitTest):
                 msg['success'] = v
 
             with self.assertRaises(sdk.exceptions.BadResponseError, msg=f'v={v}'):
-                parser.parse_write_completion(msg)   
+                parser.parse_write_completion(msg)
 
-        for v in [[], {}, None, 1.2, True, "aaa",  Delete]:
+        for v in [[], {}, None, 1.2, True, "aaa", Delete]:
             msg = base()
             if v == Delete:
                 del msg['batch_index']
@@ -1712,9 +1695,9 @@ class TestApiParser(ScrutinyUnitTest):
                 msg['batch_index'] = v
 
             with self.assertRaises(sdk.exceptions.BadResponseError, msg=f'v={v}'):
-                parser.parse_write_completion(msg)  
+                parser.parse_write_completion(msg)
 
-        for v in [[], {}, None, 1, True, 1.2, "",  Delete]:
+        for v in [[], {}, None, 1, True, 1.2, "", Delete]:
             msg = base()
             if v == Delete:
                 del msg['request_token']
@@ -1722,9 +1705,9 @@ class TestApiParser(ScrutinyUnitTest):
                 msg['request_token'] = v
 
             with self.assertRaises(sdk.exceptions.BadResponseError, msg=f'v={v}'):
-                parser.parse_write_completion(msg)        
+                parser.parse_write_completion(msg)
 
-        for v in [[], {}, None, 1, True, 1.2, "",  Delete]:
+        for v in [[], {}, None, 1, True, 1.2, "", Delete]:
             msg = base()
             if v == Delete:
                 del msg['watchable']
@@ -1732,9 +1715,9 @@ class TestApiParser(ScrutinyUnitTest):
                 msg['watchable'] = v
 
             with self.assertRaises(sdk.exceptions.BadResponseError, msg=f'v={v}'):
-                parser.parse_write_completion(msg)        
+                parser.parse_write_completion(msg)
 
-        for v in [[], {}, None, True, "asd",  Delete]:
+        for v in [[], {}, None, True, "asd", Delete]:
             msg = base()
             if v == Delete:
                 del msg['completion_server_time_us']
@@ -1742,37 +1725,37 @@ class TestApiParser(ScrutinyUnitTest):
                 msg['completion_server_time_us'] = v
 
             with self.assertRaises(sdk.exceptions.BadResponseError, msg=f'v={v}'):
-                parser.parse_write_completion(msg)  
-
+                parser.parse_write_completion(msg)
 
     def test_parse_get_installed_sfds_response(self):
         now_timestamp = int(datetime.now().timestamp())
+
         def base() -> api_typing.S2C.GetInstalledSFD:
             return {
-                "cmd" : 'response_get_installed_sfd',
-                "sfd_list" : {
-                    "firmware_id_1" : {
-                        'author' : "AAA",
-                        'version' : "1.2.3",
-                        'project_name' : "BBB",
-                        'generation_info' : {
-                            'python_version' : "3.14.1",
-                            'scrutiny_version' : "1.2.3",
-                            "system_type" : "linux",
-                            "time" : now_timestamp
+                "cmd": 'response_get_installed_sfd',
+                "sfd_list": {
+                    "firmware_id_1": {
+                        'author': "AAA",
+                        'version': "1.2.3",
+                        'project_name': "BBB",
+                        'generation_info': {
+                            'python_version': "3.14.1",
+                            'scrutiny_version': "1.2.3",
+                            "system_type": "linux",
+                            "time": now_timestamp
                         }
                     },
-                    "firmware_id_2" : {
-                        'author' : "CCC",
-                        'version' : "1.2.4",
-                        'project_name' : "DDD"
+                    "firmware_id_2": {
+                        'author': "CCC",
+                        'version': "1.2.4",
+                        'project_name': "DDD"
                     },
-                    "firmware_id_3" : {
-                        'generation_info' : {}
+                    "firmware_id_3": {
+                        'generation_info': {}
                     }
                 }
-            }      
-        
+            }
+
         msg = base()
         response = parser.parse_get_installed_sfds_response(msg)
         self.assertIsInstance(response, dict)
@@ -1826,29 +1809,26 @@ class TestApiParser(ScrutinyUnitTest):
                 del msg["sfd_list"]
             else:
                 msg["sfd_list"] = v
-            
+
             with self.assertRaises(sdk.exceptions.BadResponseError):
                 parser.parse_get_installed_sfds_response(msg)
-
-
 
         for field in ["author", "version", "project_name"]:
             msg = base()
             msg["sfd_list"]['firmware_id_1'][field] = None
             response = parser.parse_get_installed_sfds_response(msg)
-            self.assertEqual( getattr(response['firmware_id_1'].metadata, field), None )
+            self.assertEqual(getattr(response['firmware_id_1'].metadata, field), None)
 
             msg = base()
             del msg["sfd_list"]['firmware_id_1'][field]
             response = parser.parse_get_installed_sfds_response(msg)
-            self.assertEqual( getattr(response['firmware_id_1'].metadata, field), None)            
-           
+            self.assertEqual(getattr(response['firmware_id_1'].metadata, field), None)
+
             for v in [[], {}, 1.2, 1, True]:
                 msg = base()
                 msg["sfd_list"]['firmware_id_1'][field] = v
                 with self.assertRaises(sdk.exceptions.BadResponseError, msg=f"field={field}. v={v}"):
                     parser.parse_get_installed_sfds_response(msg)
-
 
 
 if __name__ == '__main__':

@@ -43,7 +43,8 @@ class _FSMState(Enum):
     REQUEST_RESET = auto()
 
 
-DeviceAcquisitionRequestCompletionCallback = Callable[[bool, str, Optional[List[List[bytes]]], Optional[device_datalogging.AcquisitionMetadata]], None]
+DeviceAcquisitionRequestCompletionCallback = Callable[[bool, str,
+                                                       Optional[List[List[bytes]]], Optional[device_datalogging.AcquisitionMetadata]], None]
 DataloggingReceiveSetupCallback = Callable[[device_datalogging.DataloggingSetup], None]
 
 
@@ -159,12 +160,11 @@ class DataloggingPoller:
         self.acquisition_metadata = None
         self.require_status_update = False
         self.completion_ratio = None
-    
-    def configure_datalogging_setup(self, setup:device_datalogging.DataloggingSetup ) -> None:
+
+    def configure_datalogging_setup(self, setup: device_datalogging.DataloggingSetup) -> None:
         if self.started:
             raise RuntimeError("Cannot configure datalogging when started")
         self.device_setup = setup
-        
 
     def configure_rpvs(self, rpvs: List[RuntimePublishedValue]) -> None:
         self.rpv_map.clear()
@@ -215,7 +215,7 @@ class DataloggingPoller:
     def get_completion_ratio(self) -> Optional[float]:
         """Returns a value between 0 and 1 indicating how far the acquisition is frm being completed once the trigger event has been launched"""
         return self.completion_ratio
-    
+
     def get_state_and_completion_ratio(self) -> Tuple[Optional[device_datalogging.DataloggerState], Optional[float]]:
         return self.get_datalogger_state(), self.get_completion_ratio()
 
@@ -322,7 +322,7 @@ class DataloggingPoller:
                 self.mark_active_acquisition_failed_if_any("Datalogging state machine is being reset")
                 if self.update_status_timer.is_stopped():
                     self.update_status_timer.start()
-                
+
                 if self.device_setup is not None:
                     next_state = _FSMState.REQUEST_RESET
 
@@ -507,7 +507,7 @@ class DataloggingPoller:
                             # Request another chunk
                             if not self.request_pending[DatalogSubfn.ReadAcquisition]:
                                 self.read_rolling_counter = (self.read_rolling_counter + 1) & 0xFF
-                                if self.logger.isEnabledFor(logging.DEBUG): #pragma: no cover
+                                if self.logger.isEnabledFor(logging.DEBUG):  # pragma: no cover
                                     self.logger.debug("Increasing rolling counter: %d" % self.read_rolling_counter)
                                 read_request = self.protocol.datalogging_read_acquisition(
                                     data_read=len(self.bytes_received),
@@ -546,7 +546,7 @@ class DataloggingPoller:
             self.previous_state = self.state
             if next_state != self.state:
                 device_state_name = self.device_datalogging_state if self.device_datalogging_state is not None else "<None>"
-                if self.logger.isEnabledFor(logging.DEBUG): #pragma: no cover
+                if self.logger.isEnabledFor(logging.DEBUG):  # pragma: no cover
                     self.logger.debug("Moving state from %s to %s. Last device status reading is %s" %
                                       (self.state.name, next_state.name, device_state_name))
             self.state = next_state
@@ -571,7 +571,7 @@ class DataloggingPoller:
 
     def success_callback(self, request: Request, response: Response, params: Any = None) -> None:
         """Called when a request completes and succeeds"""
-        if self.logger.isEnabledFor(logging.DEBUG): #pragma: no cover
+        if self.logger.isEnabledFor(logging.DEBUG):  # pragma: no cover
             self.logger.debug("Success callback. Request=%s. Response Code=%s, Params=%s" % (request, response.code, params))
 
         subfunction = DatalogSubfn(response.subfn)
@@ -602,7 +602,7 @@ class DataloggingPoller:
 
     def failure_callback(self, request: Request, params: Any = None) -> None:
         """Callback called by the request dispatcher when a request fails to complete"""
-        if self.logger.isEnabledFor(logging.DEBUG): #pragma: no cover
+        if self.logger.isEnabledFor(logging.DEBUG):  # pragma: no cover
             self.logger.debug("Failure callback. Request=%s. Params=%s" % (request, params))
         subfn = DatalogSubfn(request.subfn)
         self.request_failed[subfn] = True
@@ -622,7 +622,7 @@ class DataloggingPoller:
 
         datalogging_state_name = self.device_datalogging_state if self.device_datalogging_state is not None else "<None>"
         if self.device_datalogging_state != response_data['state']:
-            if self.logger.isEnabledFor(logging.DEBUG): #pragma: no cover
+            if self.logger.isEnabledFor(logging.DEBUG):  # pragma: no cover
                 self.logger.debug("Device datalogging status changed from %s to %s" % (datalogging_state_name, response_data['state'].name))
         self.device_datalogging_state = response_data['state']
         self.completion_ratio = None

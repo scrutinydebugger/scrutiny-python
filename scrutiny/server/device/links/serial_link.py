@@ -18,6 +18,7 @@ import time
 from scrutiny.server.device.links.abstract_link import AbstractLink, LinkConfig
 from scrutiny.tools.typing import *
 
+
 class SerialConfig(TypedDict):
     """
     Config given the the SerialLink object.
@@ -28,8 +29,7 @@ class SerialConfig(TypedDict):
     stopbits: str
     databits: int
     parity: str
-    start_delay:float
-
+    start_delay: float
 
 
 class SerialLink(AbstractLink):
@@ -40,7 +40,7 @@ class SerialLink(AbstractLink):
     logger: logging.Logger
     config: SerialConfig
     _initialized: bool
-    _init_timestamp:float
+    _init_timestamp: float
 
     port: Optional[serial.Serial]
 
@@ -59,7 +59,7 @@ class SerialLink(AbstractLink):
         '1': serial.STOPBITS_ONE,
         '1.5': serial.STOPBITS_ONE_POINT_FIVE,
         '2': serial.STOPBITS_TWO
-    }   
+    }
 
     INT_TO_DATABITS: Dict[int, int] = {
         5: serial.FIVEBITS,
@@ -117,7 +117,7 @@ class SerialLink(AbstractLink):
             'stopbits': str(config.get('stopbits', '1')),
             'databits': int(config.get('databits', 8)),
             'parity': str(config.get('parity', 'none')),
-            'start_delay' : float(config.get('start_delay', 0))
+            'start_delay': float(config.get('start_delay', 0))
         })
 
     def get_config(self) -> LinkConfig:
@@ -132,17 +132,17 @@ class SerialLink(AbstractLink):
         parity = self.get_parity(self.config['parity'])
 
         self.port = serial.Serial(
-            port=portname, 
-            baudrate=baudrate, 
+            port=portname,
+            baudrate=baudrate,
             timeout=0.2,
             write_timeout=0,
-            parity=parity, 
-            bytesize=databits, 
+            parity=parity,
+            bytesize=databits,
             stopbits=stopbits,
-            xonxoff=False, 
-            rtscts=True, 
+            xonxoff=False,
+            rtscts=True,
             dsrdtr=False
-            )
+        )
         self.port.reset_input_buffer()      # Clear pending data
         self.port.reset_output_buffer()     # Clear pending data
         self._initialized = True
@@ -160,15 +160,15 @@ class SerialLink(AbstractLink):
             return False
         return self.port.isOpen() and self.initialized()
 
-    def read(self, timeout:Optional[float] = None) -> Optional[bytes]:
+    def read(self, timeout: Optional[float] = None) -> Optional[bytes]:
         """ Reads bytes in a blocking fashion from the comm channel. None if no data available after timeout"""
         if not self.operational():
             return None
-        
+
         assert self.port is not None    # For mypy
         if timeout != self.port.timeout:
             self.port.timeout = timeout
-        data:bytes = self.port.read(max(self.port.in_waiting, 1))
+        data: bytes = self.port.read(max(self.port.in_waiting, 1))
         if self.port.in_waiting > 0:
             data += self.port.read(self.port.in_waiting)
 
@@ -187,7 +187,7 @@ class SerialLink(AbstractLink):
 
     def initialized(self) -> bool:
         """ Tells if initialize() has been called"""
-        return self._initialized and time.monotonic()-self._init_timestamp > self.config['start_delay']
+        return self._initialized and time.monotonic() - self._init_timestamp > self.config['start_delay']
 
     def process(self) -> None:
         pass

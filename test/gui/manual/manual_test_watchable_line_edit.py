@@ -7,10 +7,11 @@
 #
 #   Copyright (c) 2025 Scrutiny Debugger
 
-if __name__ != '__main__' : 
+if __name__ != '__main__':
     raise RuntimeError("This script is expected to run from the command line")
 
-import sys, os
+import sys
+import os
 sys.path.insert(0, os.path.dirname(__file__))
 from manual_test_base import make_manual_test_app
 app = make_manual_test_app()
@@ -29,7 +30,7 @@ window = QMainWindow()
 central_widget = QWidget()
 line_edit = WatchableLineEdit(window)
 line_edit_double_validator = WatchableLineEdit(window)
-line_edit_double_validator.setValidator(QDoubleValidator(-100,100,4,window))
+line_edit_double_validator.setValidator(QDoubleValidator(-100, 100, 4, window))
 window.setCentralWidget(central_widget)
 layout = QVBoxLayout(central_widget)
 
@@ -39,28 +40,31 @@ varlist = VarListComponent(main_window=window, instance_name="varlist1", server_
 varlist.setup()
 
 registry.write_content({
-    WatchableType.Alias : {
-        '/my_var' : WatchableConfiguration('my_var', WatchableType.Variable, EmbeddedDataType.float32, enum=None)
+    WatchableType.Alias: {
+        '/my_var': WatchableConfiguration('my_var', WatchableType.Variable, EmbeddedDataType.float32, enum=None)
     },
-    WatchableType.RuntimePublishedValue : {
-        '/my_rpva' : WatchableConfiguration('my_rpv', WatchableType.RuntimePublishedValue, EmbeddedDataType.float32, enum=None)
+    WatchableType.RuntimePublishedValue: {
+        '/my_rpva': WatchableConfiguration('my_rpv', WatchableType.RuntimePublishedValue, EmbeddedDataType.float32, enum=None)
     },
-    WatchableType.Variable : {
-        '/my_alias' : WatchableConfiguration('my_alias', WatchableType.Alias, EmbeddedDataType.float32, enum=None),
-        '/alias with very long name' : WatchableConfiguration('my_alias', WatchableType.Alias, EmbeddedDataType.float32, enum=None)
+    WatchableType.Variable: {
+        '/my_alias': WatchableConfiguration('my_alias', WatchableType.Alias, EmbeddedDataType.float32, enum=None),
+        '/alias with very long name': WatchableConfiguration('my_alias', WatchableType.Alias, EmbeddedDataType.float32, enum=None)
     },
 })
 varlist.reload_model([WatchableType.Alias, WatchableType.RuntimePublishedValue, WatchableType.Variable])
 
 chk_text_mode = QCheckBox("Text mode enabled (both)")
-def state_changed(state:Qt.CheckState):
+
+
+def state_changed(state: Qt.CheckState):
     if state == Qt.CheckState.Checked:
         line_edit.set_text_mode_enabled(True)
         line_edit_double_validator.set_text_mode_enabled(True)
     else:
         line_edit.set_text_mode_enabled(False)
         line_edit_double_validator.set_text_mode_enabled(False)
-        
+
+
 chk_text_mode.checkStateChanged.connect(state_changed)
 chk_text_mode.setCheckState(Qt.CheckState.Checked)
 

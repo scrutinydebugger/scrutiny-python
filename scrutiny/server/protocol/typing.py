@@ -14,6 +14,7 @@ from scrutiny.server.device.device_info import ExecLoop
 
 from scrutiny.tools.typing import *
 
+
 class BlockAddressLength(TypedDict):
     address: int
     length: int

@@ -11,10 +11,10 @@ __all__ = ['MainWindow']
 import logging
 from pathlib import Path
 
-from PySide6.QtWidgets import  QWidget, QHBoxLayout
-from PySide6.QtGui import  QCloseEvent
+from PySide6.QtWidgets import QWidget, QHBoxLayout
+from PySide6.QtGui import QCloseEvent
 from PySide6.QtCore import Qt, QRect
-from PySide6.QtWidgets import QMainWindow 
+from PySide6.QtWidgets import QMainWindow
 
 from scrutiny.gui.core.persistent_data import gui_persistent_data
 from scrutiny.gui.core.local_server_runner import LocalServerRunner
@@ -42,39 +42,40 @@ from scrutiny.gui.core.watchable_registry import WatchableRegistry
 
 from scrutiny.tools.typing import *
 
+
 class MainWindow(QMainWindow):
     INITIAL_W = 1200
     INITIAL_H = 900
 
-    ENABLED_GLOBALS_COMPONENTS:List[Type[ScrutinyGUIBaseGlobalComponent]] = [
+    ENABLED_GLOBALS_COMPONENTS: List[Type[ScrutinyGUIBaseGlobalComponent]] = [
         VarListComponent,
         MetricsComponent
     ]
 
-    ENABLED_LOCAL_COMPONENTS:List[Type[ScrutinyGUIBaseLocalComponent]] = [
+    ENABLED_LOCAL_COMPONENTS: List[Type[ScrutinyGUIBaseLocalComponent]] = [
         WatchComponent,
         ContinuousGraphComponent,
         EmbeddedGraphComponent
     ]
-    
+
     _logger: logging.Logger
 
-    _central_widget:QWidget
-    
-    _component_sidebar:ComponentSidebar
-    _server_config_dialog:ServerConfigDialog
-    _watchable_registry:WatchableRegistry
-    _server_manager:ServerManager
-    _menu_bar:MenuBar
-    _status_bar:StatusBar
-    _dashboard:Dashboard
-    _local_server_runner:LocalServerRunner
+    _central_widget: QWidget
+
+    _component_sidebar: ComponentSidebar
+    _server_config_dialog: ServerConfigDialog
+    _watchable_registry: WatchableRegistry
+    _server_manager: ServerManager
+    _menu_bar: MenuBar
+    _status_bar: StatusBar
+    _dashboard: Dashboard
+    _local_server_runner: LocalServerRunner
 
     def __init__(self) -> None:
-        super().__init__()       
-        
+        super().__init__()
+
         self._logger = logging.getLogger(self.__class__.__name__)
-        
+
         self.setWindowTitle('Scrutiny Debugger')
         self.setGeometry(self.centered(self.INITIAL_W, self.INITIAL_H))
         self.setWindowState(Qt.WindowState.WindowMaximized)
@@ -85,7 +86,7 @@ class MainWindow(QMainWindow):
         self._local_server_runner = LocalServerRunner()
 
         self._make_main_zone()
-        
+
         self._status_bar = StatusBar(self, server_manager=self._server_manager, local_server_runner=self._local_server_runner)
         self.setStatusBar(self._status_bar)
 
@@ -102,11 +103,12 @@ class MainWindow(QMainWindow):
         self._menu_bar.set_dashboard_recents(self._dashboard.read_history())
 
         server_config_dialog = self._status_bar.get_server_config_dialog()
-        
-        if app_settings().start_local_server :
+
+        if app_settings().start_local_server:
             port = app_settings().local_server_port
             server_config_dialog.set_local_server_port(port)
             server_config_dialog.set_server_type(ServerConfigDialog.ServerType.LOCAL)
+
             def start_local_server() -> None:
                 self._local_server_runner.start(port)
             invoke_later(start_local_server)
@@ -114,33 +116,33 @@ class MainWindow(QMainWindow):
         if app_settings().auto_connect:
             invoke_later(self.start_server_manager)
 
-    def centered(self, w:int, h:int) -> QRect:
+    def centered(self, w: int, h: int) -> QRect:
         """Returns a rectangle centered in the screen of given width/height"""
         screen = self.screen()
         assert screen is not None
         return QRect(
             max((screen.geometry().width() - w), 0) // 2,
             max((screen.geometry().height() - h), 0) // 2,
-            w,h)
+            w, h)
 
     def show_about(self) -> None:
         dialog = AboutDialog(self)
         dialog.setGeometry(self.centered(400, 200))
         dialog.show()
-        
+
     def _make_main_zone(self) -> None:
         self._central_widget = QWidget()
-        self._central_widget.setContentsMargins(0,0,0,0)
+        self._central_widget.setContentsMargins(0, 0, 0, 0)
         self.setCentralWidget(self._central_widget)
-        
+
         hlayout = QHBoxLayout(self._central_widget)
-        hlayout.setContentsMargins(0,0,0,0)
+        hlayout.setContentsMargins(0, 0, 0, 0)
         hlayout.setSpacing(0)
-        
+
         self._component_sidebar = ComponentSidebar(
-            global_components=self.ENABLED_GLOBALS_COMPONENTS, 
+            global_components=self.ENABLED_GLOBALS_COMPONENTS,
             local_components=self.ENABLED_LOCAL_COMPONENTS
-            )
+        )
         self.addToolBar(Qt.ToolBarArea.LeftToolBarArea, self._component_sidebar)
 
         self._component_sidebar.insert_local_component.connect(self._dashboard.add_local_component)
@@ -150,7 +152,7 @@ class MainWindow(QMainWindow):
         self._dashboard.make_default_dashboard()
 
         self._dashboard.signals.active_file_changed.connect(self._dashboard_active_file_changed_slot)
-        
+
     def start_server_manager(self) -> None:
         """Start the server manager by emulating a click to the "connect" button """
         self._status_bar.update_content()  # Make sure the connect button is enabled if it can
@@ -163,13 +165,13 @@ class MainWindow(QMainWindow):
         self._local_server_runner.stop()
         gui_persistent_data.save()  # Not supposed to raise
         super().closeEvent(event)
-        
+
     def _dashboard_clear_click(self) -> None:
         self._dashboard.make_default_dashboard()
 
     def _dashboard_save_click(self) -> None:
         self._dashboard.save_active_or_prompt()
-    
+
     def _dashboard_save_as_click(self) -> None:
         self._dashboard.save_with_prompt()
 
@@ -183,7 +185,7 @@ class MainWindow(QMainWindow):
         self._save_before_open_question()
         self._dashboard.open_with_prompt()
 
-    def _dashboard_recent_open_click(self, filepath:str) -> None:
+    def _dashboard_recent_open_click(self, filepath: str) -> None:
         self._save_before_open_question()
         self._dashboard.open(Path(filepath))
 
@@ -199,5 +201,5 @@ class MainWindow(QMainWindow):
             self.setWindowTitle("")
         else:
             self.setWindowTitle(file.name)
-        
+
         self._menu_bar.set_dashboard_recents(self._dashboard.read_history())

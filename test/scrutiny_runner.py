@@ -5,4 +5,3 @@
 #   - Project :  Scrutiny Debugger (github.com/scrutinydebugger/scrutiny-main)
 #
 #   Copyright (c) 2022 Scrutiny Debugger
-

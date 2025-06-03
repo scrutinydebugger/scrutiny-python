@@ -25,12 +25,12 @@ class Version(BaseCommand):
     def __init__(self, args: List[str], requested_log_level: Optional[str] = None):
         self.args = args
         self.parser = argparse.ArgumentParser(prog=self.get_prog())
-        self.parser.add_argument('--format', choices=['full', 'short' ], default='full', help='The version format')
+        self.parser.add_argument('--format', choices=['full', 'short'], default='full', help='The version format')
 
     def run(self) -> Optional[int]:
         import scrutiny
         args = self.parser.parse_args(self.args)
-        
+
         if args.format == 'full':
             print(f"Scrutiny Debugger v{scrutiny.__version__}\n(c) {scrutiny.__author__} (License : {scrutiny.__license__})")
         if args.format == 'short':

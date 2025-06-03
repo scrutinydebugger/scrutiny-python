@@ -11,5 +11,5 @@ __all__ = [
 ]
 
 import logging
-DUMPDATA_LOGLEVEL = logging.DEBUG-1
+DUMPDATA_LOGLEVEL = logging.DEBUG - 1
 logging.addLevelName(DUMPDATA_LOGLEVEL, "DUMPDATA")

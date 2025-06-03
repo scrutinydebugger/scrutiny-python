@@ -16,13 +16,14 @@ from dataclasses import dataclass
 
 from scrutiny.tools.typing import *
 
+
 @dataclass
 class _OutputTableRow:
     title: str
     value: Union[int, str]
 
 
-def _sizeof_fmt(num:float, suffix:str="B") -> str:
+def _sizeof_fmt(num: float, suffix: str = "B") -> str:
     for unit in ["", "Ki", "Mi", "Gi", "Ti", "Pi", "Ei", "Zi"]:
         if abs(num) < 1024.0:
             return f"{num:3.1f}{unit}{suffix}"

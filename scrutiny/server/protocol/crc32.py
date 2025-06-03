@@ -10,6 +10,7 @@ __all__ = ['crc32']
 
 from typing import Union
 
+
 def crc32(data: Union[bytes, bytearray]) -> int:
     """Computes the CRC32 of a byte array"""
     crc = 0xFFFFFFFF
