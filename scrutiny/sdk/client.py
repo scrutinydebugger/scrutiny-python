@@ -669,7 +669,7 @@ class ScrutinyClient:
                     watchable = self._watchable_storage[update.server_id]
 
             if watchable is None:
-                self._logger.error(f"Got watchable update for unknown watchable {update.server_id}")
+                self._logger.error(f"Got watchable update for unknown watchable. Server ID={update.server_id}")
                 continue
             else:
                 if self._logger.isEnabledFor(DUMPDATA_LOGLEVEL):   # prgama: no cover
@@ -1441,6 +1441,10 @@ class ScrutinyClient:
                         f'The server did not confirm the subscription for the right watchable. Got {list(response["subscribed"].keys())[0]}, expected {path}')
 
                 watchable._configure(watchable_defs[path])
+                assert watchable._configuration is not None
+                with self._main_lock:
+                    self._watchable_path_to_id_map[watchable.display_path] = watchable._configuration.server_id
+                    self._watchable_storage[watchable._configuration.server_id] = watchable
 
         req = self._make_request(API.Command.Client2Api.SUBSCRIBE_WATCHABLE, {
             'watchables': [watchable.display_path]  # Single element
@@ -1453,12 +1457,10 @@ class ScrutinyClient:
             raise sdk.exceptions.OperationFailure(f"Failed to subscribe to the watchable. {future.error_str}")
 
         watchable._assert_configured()
-        assert watchable._configuration is not None
-        with self._main_lock:
-            self._watchable_path_to_id_map[watchable.display_path] = watchable._configuration.server_id
-            self._watchable_storage[watchable._configuration.server_id] = watchable
+        assert watchable._configuration is not None # To please mypy
+        
         if self._logger.isEnabledFor(logging.DEBUG):
-            self._logger.debug(f"Now watching {watchable.display_path}")
+            self._logger.debug(f"Now watching {watchable.display_path} (Server ID={watchable._configuration.server_id})")
 
         return watchable
 
