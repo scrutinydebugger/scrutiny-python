@@ -121,8 +121,16 @@ class WatchComponent(ScrutinyGUIBaseLocalComponent):
                         State.KEY_EXPANDED: self._tree.isExpanded(item.index()),
                         State.KEY_CHILDREN: list(_get_children_recursive(item))
                     })
+        
+        # Compute columns order for the state
+        logical_col_map = self.get_column_logical_indexes_by_name()
+        visual_cols = [ (self._tree.header().visualIndex(v), k) for k,v in logical_col_map.items() ]
+        visual_cols.sort(key=lambda x: x[0])
+        cols = [x[1] for x in visual_cols]
+
         return {
-            'root': list(_get_children_recursive())
+            'root': list(_get_children_recursive()),
+            'cols' : cols
         }
 
     def load_state(self, state: Dict[Any, Any]) -> bool:
@@ -153,6 +161,20 @@ class WatchComponent(ScrutinyGUIBaseLocalComponent):
 
         self.update_all_watchable_state()
 
+        # Reorder the columns order
+        cols = state.get('cols', [])
+        visual_dst = 1
+        logical_col_map = self.get_column_logical_indexes_by_name()
+        for i in range(len(cols)):
+            col = cols[i]
+            if col in logical_col_map:
+                logical_src = logical_col_map[col]
+            else:
+                continue
+
+            self._tree.header().moveSection(self._tree.header().visualIndex(logical_src), visual_dst)
+            visual_dst += 1
+
         return fully_loaded
 
     def visibilityChanged(self, visible: bool) -> None:
@@ -168,6 +190,18 @@ class WatchComponent(ScrutinyGUIBaseLocalComponent):
             for item in self._tree_model.get_all_watchable_items():
                 self._unwatch_item(item)
 
+    def get_column_logical_indexes_by_name(self) -> Dict[str, int]:
+        """Return a map of the columns index identified by a name that can be serialized for state save/reload"""
+        return {
+            'value': self._tree_model.value_col(),
+            'type': self._tree_model.datatype_col(),
+            'enum': self._tree_model.enum_col(),
+        }
+    
+    def column_count(self) -> int:
+        """Return the number of columns"""
+        return self._tree_model.columnCount()
+    
     def _state_node_to_dnd_serializable_node_recursive(self, state_item: Union[State.Folder, State.Watchable], level: int = 0) -> SerializableTreeDescriptor:
         """Convert a node form the state dict to a serializable node used whil drag&dropping """
         if State.KEY_TYPE not in state_item:
