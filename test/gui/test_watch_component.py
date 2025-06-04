@@ -1,3 +1,10 @@
+#    test_watch_component.py
+#        A test suite for the Watch Component
+#
+#   - License : MIT - See LICENSE file.
+#   - Project :  Scrutiny Debugger (github.com/scrutinydebugger/scrutiny-main)
+#
+#   Copyright (c) 2025 Scrutiny Debugger
 
 from PySide6.QtWidgets import QWidget
 from test.gui.fake_server_manager import FakeServerManager
