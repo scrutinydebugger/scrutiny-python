@@ -811,6 +811,9 @@
         },
         "stubs/appdirs.pyi": {
             "docstring": "A stub file for the appdirs module"
+        },
+        "test/gui/test_watch_component.py": {
+            "docstring": "A test suite for the Watch Component"
         }
     }
 }

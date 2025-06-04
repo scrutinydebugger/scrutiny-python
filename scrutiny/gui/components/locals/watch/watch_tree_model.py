@@ -697,15 +697,19 @@ class WatchComponentTreeModel(WatchableTreeModel):
         assert isinstance(o, EnumNameStandardItem)
         return o
 
-    def value_col(self) -> int:
-        return self.get_column_index(self.Column.VALUE)
-
-    def datatype_col(self) -> int:
-        return self.get_column_index(self.Column.DATATYPE)
-
-    def enum_col(self) -> int:
-        return self.get_column_index(self.Column.ENUM)
-
-    def get_column_index(self, col: Column) -> int:
+    @classmethod    
+    def value_col(cls) -> int:
+        return cls.get_column_index(cls.Column.VALUE)
+    
+    @classmethod
+    def datatype_col(cls) -> int:
+        return cls.get_column_index(cls.Column.DATATYPE)
+    
+    @classmethod
+    def enum_col(cls) -> int:
+        return cls.get_column_index(cls.Column.ENUM)
+    
+    @classmethod
+    def get_column_index(cls, col: Column) -> int:
         # Indirection layer to make it easier to enable column reorder
         return col.value
