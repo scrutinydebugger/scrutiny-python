@@ -14,6 +14,7 @@ from scrutiny.gui.core.watchable_registry import WatchableRegistry
 
 from scrutiny.tools.typing import *
 
+
 class MainWindowStub(QWidget):
     def __init__(self):
         super().__init__()
@@ -25,7 +26,7 @@ class MainWindowStub(QWidget):
 
     def get_watchable_registry(self):
         return self.registry
-    
+
 
 class TestWatchComponent(ScrutinyBaseGuiTest):
     def setUp(self):
@@ -33,14 +34,14 @@ class TestWatchComponent(ScrutinyBaseGuiTest):
         self.main_window = MainWindowStub()
         self.watch1 = WatchComponent(self.main_window, 'watch1', self.main_window.get_watchable_registry(), self.main_window.get_server_manager())
         self.watch1.setup()
-    
+
     def tearDown(self):
         self.watch1.teardown()
         return super().tearDown()
 
     def test_column_order_state(self):
         colmap = self.watch1.get_column_logical_indexes_by_name()
-        self.assertEqual(len(colmap), self.watch1.column_count()-1)
+        self.assertEqual(len(colmap), self.watch1.column_count() - 1)
 
         state = self.watch1.get_state()
         self.assertIn('cols', state)
@@ -60,4 +61,3 @@ class TestWatchComponent(ScrutinyBaseGuiTest):
         self.assertEqual(tree.header().visualIndex(WatchComponentTreeModel.enum_col()), 1)
         self.assertEqual(tree.header().visualIndex(WatchComponentTreeModel.value_col()), 2)
         self.assertEqual(tree.header().visualIndex(WatchComponentTreeModel.datatype_col()), 3)
-        
