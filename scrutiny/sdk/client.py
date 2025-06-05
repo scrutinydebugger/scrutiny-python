@@ -1457,8 +1457,8 @@ class ScrutinyClient:
             raise sdk.exceptions.OperationFailure(f"Failed to subscribe to the watchable. {future.error_str}")
 
         watchable._assert_configured()
-        assert watchable._configuration is not None # To please mypy
-        
+        assert watchable._configuration is not None  # To please mypy
+
         if self._logger.isEnabledFor(logging.DEBUG):
             self._logger.debug(f"Now watching {watchable.display_path} (Server ID={watchable._configuration.server_id})")
 

@@ -421,7 +421,7 @@ class TestApiParser(ScrutinyUnitTest):
         fields = ['max_tx_data_size', 'max_rx_data_size', 'max_bitrate_bps', 'rx_timeout_us', 'heartbeat_timeout_us',
                   'address_size_bits', 'protocol_major', 'protocol_minor']
         for field in fields:
-            vals = ['asd', 1.5, [], {},]   # bad values
+            vals = ['asd', 1.5, [], {}, ]   # bad values
             for val in vals:
                 logging.debug(f"field={field}, val={val}")
                 with self.assertRaises(sdk.exceptions.BadResponseError, msg=f"field={field}, val={val}"):
@@ -1514,7 +1514,7 @@ class TestApiParser(ScrutinyUnitTest):
                 msg["request_token"] = v
 
             with self.assertRaises(sdk.exceptions.BadResponseError):
-               	parser.parse_request_datalogging_acquisition_response(msg)
+                parser.parse_request_datalogging_acquisition_response(msg)
 
     def test_parse_datalogging_acquisition_complete(self):
         def base_success() -> api_typing.S2C.InformDataloggingAcquisitionComplete:

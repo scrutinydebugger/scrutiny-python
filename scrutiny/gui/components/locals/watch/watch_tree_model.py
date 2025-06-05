@@ -17,11 +17,11 @@ __all__ = [
 import logging
 import enum
 
-from PySide6.QtCore import QMimeData, QModelIndex, QPersistentModelIndex, Qt, Signal, QPoint, QObject
-from PySide6.QtWidgets import QWidget, QMenu, QAbstractItemDelegate
+from PySide6.QtCore import QMimeData, QModelIndex, QPersistentModelIndex, Qt, Signal, QPoint, QObject, QAbstractItemModel
+from PySide6.QtWidgets import QWidget, QMenu, QAbstractItemDelegate, QComboBox, QStyleOptionViewItem, QStyledItemDelegate
 from PySide6.QtGui import QStandardItem, QPalette, QContextMenuEvent, QDragMoveEvent, QDropEvent, QDragEnterEvent, QKeyEvent, QStandardItem, QAction
 
-from scrutiny.sdk import WatchableConfiguration
+from scrutiny.sdk import WatchableConfiguration, EmbeddedEnum
 from scrutiny.gui.core.scrutiny_drag_data import ScrutinyDragData, WatchableListDescriptor
 from scrutiny.gui.core.watchable_registry import WatchableRegistry
 from scrutiny.gui.widgets.watchable_tree import (
@@ -40,14 +40,51 @@ from scrutiny.tools.global_counters import global_i64_counter
 from scrutiny.tools.typing import *
 from scrutiny import tools
 
+ValType: TypeAlias = Union[int, float, bool]
 
-AVAILABLE_DATA_ROLE = Qt.ItemDataRole.UserRole + 1
-WATCHER_ID_ROLE = Qt.ItemDataRole.UserRole + 2
+REAL_DATA_ROLE = Qt.ItemDataRole.UserRole + 1
+"""The data stored as numerical value. May be different from display"""
+AVAILABLE_DATA_ROLE = Qt.ItemDataRole.UserRole + 2
+"""A boolean value put on the watchable name cell telling if the watchable is available in the registry"""
+WATCHER_ID_ROLE = Qt.ItemDataRole.UserRole + 3
+"""A string put on the watchable name cell that stores the WatchbleRegistry watcher ID. One ID per row"""
+ENUM_DATA_ROLE = Qt.ItemDataRole.UserRole + 4
+"""An optional EmbeddedEnum object stored on the Value cell storing a copy of the enum from the registry. Used for combo box on edit"""
 
 
 class ValueStandardItem(QStandardItem):
     """The tree item that stores a watchable value."""
-    pass
+
+    def set_value(self, value_to_set: Optional[ValType]) -> None:
+        """Set the value of the item. Stores the real data + compute a text representation for the UI."""
+        self.setData(value_to_set, REAL_DATA_ROLE)
+
+        value_enum = cast(Optional[EmbeddedEnum], self.data(ENUM_DATA_ROLE))
+        display_txt = str(value_to_set)
+        if value_to_set is None:
+            display_txt = ""
+        elif value_enum is not None:
+            if isinstance(value_to_set, int):
+                name = value_enum.get_first_value_name_match(value_to_set)
+                if name is not None:
+                    display_txt = self.make_enum_display_val(name, value_to_set)
+                else:
+                    pass  # Can happen if the data has a value not defined in the enum. Default to string cast
+            else:
+                pass  # That'd be weird. Let's be resilient
+        else:
+            pass  # Basic type values. Just cast to string for display
+        self.setData(display_txt, Qt.ItemDataRole.DisplayRole)
+
+    def get_value(self) -> Optional[ValType]:
+        """Return the data in its original data type that has been stored with set_value"""
+        return cast(Optional[ValType], self.data(REAL_DATA_ROLE))
+
+    @classmethod
+    def make_enum_display_val(cls, name: str, val: ValType) -> str:
+        """Compute a string to represent a value when that value is associated with an enum"""
+        # Ignore float on purpose. Float enum are not possibles.
+        return f'{name} : {int(val)}'
 
 
 class DataTypeStandardItem(QStandardItem):
@@ -73,11 +110,57 @@ class SerializableTreeDescriptor(TypedDict):
     children: List["SerializableTreeDescriptor"]
 
 
+class ValueEditDelegate(QStyledItemDelegate):
+    """Class invoked by the tree view when an action needs to be done on the model.
+    We use this delegate to manage watchables that has an enum, editing with a combo box instead of a text box"""
+
+    def createEditor(self, parent: QWidget, option: QStyleOptionViewItem, index: Union[QModelIndex, QPersistentModelIndex]) -> QWidget:
+        enum = cast(Optional[EmbeddedEnum], index.data(ENUM_DATA_ROLE))     # Set by set_available
+        if enum is not None:
+            combo = QComboBox(parent)
+            for name, val in enum.vals.items():
+                combo.addItem(ValueStandardItem.make_enum_display_val(name, val), val)
+            return combo
+
+        return super().createEditor(parent, option, index)
+
+    def setEditorData(self, editor: QWidget, index: Union[QModelIndex, QPersistentModelIndex]) -> None:
+        enum_data = cast(Optional[EmbeddedEnum], index.data(ENUM_DATA_ROLE))
+
+        if enum_data is None or not isinstance(editor, QComboBox):
+            super().setEditorData(editor, index)
+            return
+
+        loaded_val = cast(Optional[ValType], index.data(REAL_DATA_ROLE))
+        for val in enum_data.vals.values():
+            if val == loaded_val:
+                editor.setCurrentIndex(editor.findData(loaded_val))  # Default value is fine if not found.
+                return
+
+        # Default do nothing, leaves the combo box takes its default value. shouldn't happen normally
+
+    def setModelData(self, editor: QWidget, model: QAbstractItemModel, index: Union[QModelIndex, QPersistentModelIndex]) -> None:
+        assert isinstance(model, WatchableTreeModel)
+        enum_data = cast(Optional[EmbeddedEnum], index.data(ENUM_DATA_ROLE))
+        if enum_data is None or not isinstance(editor, QComboBox):
+            super().setModelData(editor, model, index)
+            return
+
+        item = model.itemFromIndex(index)
+        if not isinstance(item, ValueStandardItem):
+            super().setModelData(editor, model, index)
+            return
+
+        # Combobox, currentData() return the numerical value
+        val = cast(Optional[ValType], editor.currentData())
+        item.set_value(val)
+
+
 class WatchComponentTreeWidget(WatchableTreeWidget):
     NEW_FOLDER_DEFAULT_NAME = "New Folder"
 
     class _Signals(QObject):
-        value_written = Signal(str, str)    # fqn, value
+        value_written = Signal(str, object)    # fqn, value
 
     signals: _Signals
 
@@ -88,6 +171,7 @@ class WatchComponentTreeWidget(WatchableTreeWidget):
         self.setDragDropMode(self.DragDropMode.DragDrop)
         self.set_header_labels(['', 'Value', 'Type', 'Enum'])
         self.signals = self._Signals()
+        self.setItemDelegateForColumn(self.model().value_col(), ValueEditDelegate())
 
     def contextMenuEvent(self, event: QContextMenuEvent) -> None:
         context_menu = QMenu(self)
@@ -255,7 +339,7 @@ class WatchComponentTreeWidget(WatchableTreeWidget):
             watchable_item = model.itemFromIndex(item_written.index().siblingAtColumn(nesting_col))
             if isinstance(watchable_item, WatchableStandardItem):   # paranoid check. Should never be false. Folders have no Value column
                 fqn = watchable_item.fqn
-                value = item_written.text()
+                value = item_written.get_value()
                 self.signals.value_written.emit(fqn, value)
 
         # Make arrow navigation easier because elements are nested on columns 0.
@@ -276,9 +360,13 @@ class WatchComponentTreeModel(WatchableTreeModel):
         DATATYPE = 2
         ENUM = 3
 
+    class _Signals(QObject):
+        availability_changed = Signal(QModelIndex, bool, object)
+
     logger: logging.Logger
     _available_palette: QPalette
     _unavailable_palette: QPalette
+    _signals: _Signals
 
     def __init__(self,
                  parent: QWidget,
@@ -287,6 +375,7 @@ class WatchComponentTreeModel(WatchableTreeModel):
                  unavailable_palette: Optional[QPalette] = None) -> None:
         super().__init__(parent, watchable_registry)
         self.logger = logging.getLogger(self.__class__.__name__)
+        self._signals = self._Signals(self)
 
         if available_palette is not None:
             self._available_palette = available_palette
@@ -299,6 +388,10 @@ class WatchComponentTreeModel(WatchableTreeModel):
         else:
             self._unavailable_palette = QPalette()
             self._unavailable_palette.setCurrentColorGroup(QPalette.ColorGroup.Disabled)
+
+    @property
+    def signals(self) -> _Signals:
+        return self._signals
 
     def _assign_unique_watcher_id(self, item: WatchableStandardItem) -> None:
         watcher_id = global_i64_counter()
@@ -635,44 +728,55 @@ class WatchComponentTreeModel(WatchableTreeModel):
         When the watchable refered by an element is not in the registry, becomes "unavailable" (grayed out).
         """
         watchable_config = self._watchable_registry.get_watchable_fqn(watchable_item.fqn)
+        was_available = watchable_item.data(AVAILABLE_DATA_ROLE)
         if watchable_config is not None:
             self.set_available(watchable_item, watchable_config)
         else:
             self.set_unavailable(watchable_item)
 
+        is_available = watchable_item.data(AVAILABLE_DATA_ROLE)
+
+        if is_available != was_available:
+            self._signals.availability_changed.emit(watchable_item.index(), is_available, watchable_config)
+
     def set_unavailable(self, arg_item: WatchableStandardItem) -> None:
         """Make an item in the tree unavailable (grayed out)"""
         background_color = self._unavailable_palette.color(QPalette.ColorRole.Base)
         forground_color = self._unavailable_palette.color(QPalette.ColorRole.Text)
+        arg_item.setData(False, AVAILABLE_DATA_ROLE)
         for i in range(self.columnCount()):
             item = self.itemFromIndex(arg_item.index().siblingAtColumn(i))
             if item is not None:
-                item.setData(False, AVAILABLE_DATA_ROLE)
                 item.setBackground(background_color)
                 item.setForeground(forground_color)
                 if isinstance(item, ValueStandardItem):
+                    item.setData(None, ENUM_DATA_ROLE)
                     item.setEditable(False)
                     item.setText('N/A')
-                if isinstance(item, DataTypeStandardItem):
+                elif isinstance(item, DataTypeStandardItem):
                     item.setText('N/A')
-                if isinstance(item, EnumNameStandardItem):
+                elif isinstance(item, EnumNameStandardItem):
                     item.setText('')
 
     def set_available(self, arg_item: WatchableStandardItem, watchable_config: WatchableConfiguration) -> None:
         """Make an item in the tree available (normal color)"""
         background_color = self._available_palette.color(QPalette.ColorRole.Base)
         forground_color = self._available_palette.color(QPalette.ColorRole.Text)
+        arg_item.setData(True, AVAILABLE_DATA_ROLE)
         for i in range(self.columnCount()):
             item = self.itemFromIndex(arg_item.index().siblingAtColumn(i))
             if item is not None:
-                item.setData(True, AVAILABLE_DATA_ROLE)
                 item.setBackground(background_color)
                 item.setForeground(forground_color)
                 if isinstance(item, ValueStandardItem):
                     item.setEditable(True)
-                if isinstance(item, DataTypeStandardItem):
+                    if watchable_config.enum is not None:
+                        # Assign a copy of the enum on the item because the Delegate that creates the combo box
+                        # does not have access to the registry nor the model
+                        item.setData(watchable_config.enum, ENUM_DATA_ROLE)
+                elif isinstance(item, DataTypeStandardItem):
                     item.setText(watchable_config.datatype.name)
-                if isinstance(item, EnumNameStandardItem):
+                elif isinstance(item, EnumNameStandardItem):
                     if watchable_config.enum is not None:
                         item.setText(watchable_config.enum.name)
 
@@ -697,18 +801,18 @@ class WatchComponentTreeModel(WatchableTreeModel):
         assert isinstance(o, EnumNameStandardItem)
         return o
 
-    @classmethod    
+    @classmethod
     def value_col(cls) -> int:
         return cls.get_column_index(cls.Column.VALUE)
-    
+
     @classmethod
     def datatype_col(cls) -> int:
         return cls.get_column_index(cls.Column.DATATYPE)
-    
+
     @classmethod
     def enum_col(cls) -> int:
         return cls.get_column_index(cls.Column.ENUM)
-    
+
     @classmethod
     def get_column_index(cls, col: Column) -> int:
         # Indirection layer to make it easier to enable column reorder

@@ -121,16 +121,16 @@ class WatchComponent(ScrutinyGUIBaseLocalComponent):
                         State.KEY_EXPANDED: self._tree.isExpanded(item.index()),
                         State.KEY_CHILDREN: list(_get_children_recursive(item))
                     })
-        
+
         # Compute columns order for the state
         logical_col_map = self.get_column_logical_indexes_by_name()
-        visual_cols = [ (self._tree.header().visualIndex(v), k) for k,v in logical_col_map.items() ]
+        visual_cols = [(self._tree.header().visualIndex(v), k) for k, v in logical_col_map.items()]
         visual_cols.sort(key=lambda x: x[0])
         cols = [x[1] for x in visual_cols]
 
         return {
             'root': list(_get_children_recursive()),
-            'cols' : cols
+            'cols': cols
         }
 
     def load_state(self, state: Dict[Any, Any]) -> bool:
@@ -197,11 +197,11 @@ class WatchComponent(ScrutinyGUIBaseLocalComponent):
             'type': self._tree_model.datatype_col(),
             'enum': self._tree_model.enum_col(),
         }
-    
+
     def column_count(self) -> int:
         """Return the number of columns"""
         return self._tree_model.columnCount()
-    
+
     def _state_node_to_dnd_serializable_node_recursive(self, state_item: Union[State.Folder, State.Watchable], level: int = 0) -> SerializableTreeDescriptor:
         """Convert a node form the state dict to a serializable node used whil drag&dropping """
         if State.KEY_TYPE not in state_item:
@@ -320,13 +320,13 @@ class WatchComponent(ScrutinyGUIBaseLocalComponent):
         # Added at the end of the event loop because it is a queuedConnection
         # Expanding with star requires that
         self.expand_if_needed.emit()
-        self.update_all_watchable_state(start_node=self._tree_model.itemFromIndex(index))
+        self.update_all_watchable_state(start_node=self._tree_model.itemFromIndex(index.siblingAtColumn(self._tree_model.nesting_col())))
 
     def _node_collapsed_slot(self, index: QModelIndex) -> None:
-        self.update_all_watchable_state(start_node=self._tree_model.itemFromIndex(index))
+        self.update_all_watchable_state(start_node=self._tree_model.itemFromIndex(index.siblingAtColumn(self._tree_model.nesting_col())))
 
     def _row_moved_slot(self, src_parent: QModelIndex, src_row: int, src_col: int, dest_parent: QModelIndex, dst_row: int) -> None:
-        self.update_all_watchable_state(start_node=self._tree_model.itemFromIndex(dest_parent))
+        self.update_all_watchable_state(start_node=self._tree_model.itemFromIndex(dest_parent.siblingAtColumn(self._tree_model.nesting_col())))
 
     def _watch_item(self, item: WatchableStandardItem) -> None:
         """Internal function registering a tree line from the watchable registry"""
@@ -384,15 +384,17 @@ class WatchComponent(ScrutinyGUIBaseLocalComponent):
                 can_update = False  # Don't change the content. The user is writing something
 
         if can_update:
-            item.setText(str(vals[-1].value))
+            item.set_value(vals[-1].value)
 
-    def _value_written_slot(self, fqn: str, value: str) -> None:
+    def _value_written_slot(self, fqn: str, value: Union[str, int, float, bool]) -> None:
         """The QT slot called when the user input a new value in a value field"""
         def ui_callback(exception: Optional[Exception]) -> None:
             if exception is not None:
                 self.logger.warning(f"Failed to write {fqn}. {exception}")
                 self.logger.debug(tools.format_exception(exception))
 
+        if not isinstance(value, (int, float, bool, str)):
+            raise ValueError(f"Cannot write the value of {fqn}. Value is of the wrong type: {value.__class__.__name__}")
         # No need to parse strings. The server auto-converts
         # Supports : Number as strings. Hexadecimal with 0x prefix, true/false, etc.
         self.server_manager.qt_write_watchable_value(fqn, value, ui_callback)
