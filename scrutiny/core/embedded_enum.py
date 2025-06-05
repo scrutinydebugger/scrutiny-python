@@ -35,9 +35,9 @@ class EmbeddedEnum:
             for k, v in vals.items():
                 self.add_value(k, v)
 
-    def get_first_value_name_match(self, wanted_val:int) -> Optional[str]:
+    def get_first_value_name_match(self, wanted_val: int) -> Optional[str]:
         """Return the name associated with a value. In case of duplicates, the first found is returned.
-        
+
         :param wanted_val: The numerical value to search for
         """
         for name, val in self.vals.items():

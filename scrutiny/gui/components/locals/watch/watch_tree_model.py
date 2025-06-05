@@ -40,7 +40,7 @@ from scrutiny.tools.global_counters import global_i64_counter
 from scrutiny.tools.typing import *
 from scrutiny import tools
 
-ValType:TypeAlias = Union[int, float, bool]
+ValType: TypeAlias = Union[int, float, bool]
 
 REAL_DATA_ROLE = Qt.ItemDataRole.UserRole + 1
 """The data stored as numerical value. May be different from display"""
@@ -51,13 +51,14 @@ WATCHER_ID_ROLE = Qt.ItemDataRole.UserRole + 3
 ENUM_DATA_ROLE = Qt.ItemDataRole.UserRole + 4
 """An optional EmbeddedEnum object stored on the Value cell storing a copy of the enum from the registry. Used for combo box on edit"""
 
+
 class ValueStandardItem(QStandardItem):
     """The tree item that stores a watchable value."""
-    
-    def set_value(self, value_to_set:Optional[ValType]) -> None:
+
+    def set_value(self, value_to_set: Optional[ValType]) -> None:
         """Set the value of the item. Stores the real data + compute a text representation for the UI."""
         self.setData(value_to_set, REAL_DATA_ROLE)
-        
+
         value_enum = cast(Optional[EmbeddedEnum], self.data(ENUM_DATA_ROLE))
         display_txt = str(value_to_set)
         if value_to_set is None:
@@ -68,23 +69,22 @@ class ValueStandardItem(QStandardItem):
                 if name is not None:
                     display_txt = self.make_enum_display_val(name, value_to_set)
                 else:
-                    pass # Can happen if the data has a value not defined in the enum. Default to string cast
+                    pass  # Can happen if the data has a value not defined in the enum. Default to string cast
             else:
-                pass # That'd be weird. Let's be resilient
+                pass  # That'd be weird. Let's be resilient
         else:
-            pass # Basic type values. Just cast to string for display
+            pass  # Basic type values. Just cast to string for display
         self.setData(display_txt, Qt.ItemDataRole.DisplayRole)
 
     def get_value(self) -> Optional[ValType]:
         """Return the data in its original data type that has been stored with set_value"""
         return cast(Optional[ValType], self.data(REAL_DATA_ROLE))
-    
+
     @classmethod
-    def make_enum_display_val(cls, name:str, val:ValType) -> str:
+    def make_enum_display_val(cls, name: str, val: ValType) -> str:
         """Compute a string to represent a value when that value is associated with an enum"""
         # Ignore float on purpose. Float enum are not possibles.
         return f'{name} : {int(val)}'
-
 
 
 class DataTypeStandardItem(QStandardItem):
@@ -113,49 +113,47 @@ class SerializableTreeDescriptor(TypedDict):
 class ValueEditDelegate(QStyledItemDelegate):
     """Class invoked by the tree view when an action needs to be done on the model.
     We use this delegate to manage watchables that has an enum, editing with a combo box instead of a text box"""
-   
-    def createEditor(self, parent:QWidget, option:QStyleOptionViewItem, index:Union[QModelIndex, QPersistentModelIndex]) -> QWidget:
+
+    def createEditor(self, parent: QWidget, option: QStyleOptionViewItem, index: Union[QModelIndex, QPersistentModelIndex]) -> QWidget:
         enum = cast(Optional[EmbeddedEnum], index.data(ENUM_DATA_ROLE))     # Set by set_available
         if enum is not None:
             combo = QComboBox(parent)
             for name, val in enum.vals.items():
                 combo.addItem(ValueStandardItem.make_enum_display_val(name, val), val)
             return combo
-            
+
         return super().createEditor(parent, option, index)
 
-    def setEditorData(self, editor:QWidget, index:Union[QModelIndex, QPersistentModelIndex]) -> None:
+    def setEditorData(self, editor: QWidget, index: Union[QModelIndex, QPersistentModelIndex]) -> None:
         enum_data = cast(Optional[EmbeddedEnum], index.data(ENUM_DATA_ROLE))
-        
+
         if enum_data is None or not isinstance(editor, QComboBox):
             super().setEditorData(editor, index)
             return
- 
+
         loaded_val = cast(Optional[ValType], index.data(REAL_DATA_ROLE))
         for val in enum_data.vals.values():
             if val == loaded_val:
-                editor.setCurrentIndex(editor.findData(loaded_val)) # Default value is fine if not found.
+                editor.setCurrentIndex(editor.findData(loaded_val))  # Default value is fine if not found.
                 return
-        
-        # Default do nothing, leaves the combo box takes its default value. shouldn't happen normally
-    
 
-    def setModelData(self, editor:QWidget, model:QAbstractItemModel, index:Union[QModelIndex, QPersistentModelIndex]) -> None:
+        # Default do nothing, leaves the combo box takes its default value. shouldn't happen normally
+
+    def setModelData(self, editor: QWidget, model: QAbstractItemModel, index: Union[QModelIndex, QPersistentModelIndex]) -> None:
         assert isinstance(model, WatchableTreeModel)
         enum_data = cast(Optional[EmbeddedEnum], index.data(ENUM_DATA_ROLE))
         if enum_data is None or not isinstance(editor, QComboBox):
             super().setModelData(editor, model, index)
             return
-        
+
         item = model.itemFromIndex(index)
         if not isinstance(item, ValueStandardItem):
             super().setModelData(editor, model, index)
             return
-        
+
         # Combobox, currentData() return the numerical value
         val = cast(Optional[ValType], editor.currentData())
         item.set_value(val)
-       
 
 
 class WatchComponentTreeWidget(WatchableTreeWidget):
@@ -735,7 +733,7 @@ class WatchComponentTreeModel(WatchableTreeModel):
             self.set_available(watchable_item, watchable_config)
         else:
             self.set_unavailable(watchable_item)
-        
+
         is_available = watchable_item.data(AVAILABLE_DATA_ROLE)
 
         if is_available != was_available:
@@ -782,7 +780,6 @@ class WatchComponentTreeModel(WatchableTreeModel):
                     if watchable_config.enum is not None:
                         item.setText(watchable_config.enum.name)
 
-
     def is_available(self, arg_item: WatchableStandardItem) -> bool:
         v = cast(Optional[bool], arg_item.data(AVAILABLE_DATA_ROLE))
         if v == True:
@@ -804,18 +801,18 @@ class WatchComponentTreeModel(WatchableTreeModel):
         assert isinstance(o, EnumNameStandardItem)
         return o
 
-    @classmethod    
+    @classmethod
     def value_col(cls) -> int:
         return cls.get_column_index(cls.Column.VALUE)
-    
+
     @classmethod
     def datatype_col(cls) -> int:
         return cls.get_column_index(cls.Column.DATATYPE)
-    
+
     @classmethod
     def enum_col(cls) -> int:
         return cls.get_column_index(cls.Column.ENUM)
-    
+
     @classmethod
     def get_column_index(cls, col: Column) -> int:
         # Indirection layer to make it easier to enable column reorder

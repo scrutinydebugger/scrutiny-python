@@ -485,7 +485,7 @@ class TestListeners(ScrutinyUnitTest):
                 datetime_format=r'%Y-%m-%d %H:%M:%S',
                 csv_config=csv_config
             )
-            listener.subscribe([self.w3, self.w4, self.w5, self.w1, self.w2,])
+            listener.subscribe([self.w3, self.w4, self.w5, self.w1, self.w2, ])
             with listener.start():
                 count = 250
                 for i in range(count):

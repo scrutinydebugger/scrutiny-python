@@ -388,7 +388,7 @@ class TestServerManager(ScrutinyBaseGuiTest):
                 expected_events = [EventType.DEVICE_DISCONNECTED, EventType.SFD_UNLOADED]
             else:
                 expected_events = [EventType.WATCHABLE_REGISTRY_CHANGED, EventType.DEVICE_DISCONNECTED,
-                                   EventType.WATCHABLE_REGISTRY_CHANGED, EventType.SFD_UNLOADED,]
+                                   EventType.WATCHABLE_REGISTRY_CHANGED, EventType.SFD_UNLOADED, ]
 
             self.wait_events_and_clear(expected_events, timeout=1, enforce_order=True)
 
