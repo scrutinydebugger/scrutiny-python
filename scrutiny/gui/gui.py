@@ -98,6 +98,8 @@ class ScrutinyQtGUI:
         elif sys.platform == 'linux':
             # QtADS doesn't work well with Wayland. Works with X11.
             # https://github.com/githubuser0xFFFF/Qt-Advanced-Docking-System/issues/714
+            is_wsl = 'microsoft' in os.uname().version.lower()
+
             if 'QT_QPA_PLATFORM' not in os.environ:
                 logger.warning(
                     "Forcing usage of X11 windowing system because Wayland has known issues. Make sure to have libxcb and its component installed. Specify env QT_QPA_PLATFORM to change this behavior.")
@@ -107,6 +109,11 @@ class ScrutinyQtGUI:
                 if platform == 'wayland':
                     logger.warning(
                         "There are known issues with Wayland windowing system and this software dependencies (QT & QT-ADS). Specifying QT_QPA_PLATFORM=xcb may solve display bugs.")
+            
+            if os.environ['QT_QPA_PLATFORM'] == 'xcb' and is_wsl:
+                if 'DISPLAY' not in os.environ:
+                    logger.warning("To use X11 on WSL, you may need to set DISPLAY=:0")
+                
 
         app = make_qt_app(args)
         app.setAttribute(Qt.ApplicationAttribute.AA_DontShowIconsInMenus, False)  # Mac OS doesn't display the icon by default.
@@ -144,7 +151,6 @@ class ScrutinyQtGUI:
         if self.settings.debug_layout:
             window.setStyleSheet("border:1px solid red")
 
-        CrossThreadInvoker.init()  # Internal tool to run functions in the QT Thread from other thread
         window.show()
 
         return app.exec()
