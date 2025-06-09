@@ -136,10 +136,26 @@ class GraphConfigWidget(QWidget):
         layout.addWidget(xaxis_container)
         layout.addWidget(trigger_container)
 
-        self._acquisition_layout = QFormLayout(acquisition_container)
-        self._sampling_rate_layout = QFormLayout(sampling_rate_container)
-        self._xaxis_layout = QFormLayout(xaxis_container)
-        self._trigger_layout = QFormLayout(trigger_container)
+        def set_top_bottom_margin(layout:QFormLayout, top:int, bottom:int) -> None:
+            margins = layout.contentsMargins()
+            margins.setTop(top)
+            margins.setBottom(bottom)
+            layout.setContentsMargins(margins)
+        
+        class InternalFormLayout(QFormLayout):
+            @tools.copy_type(QFormLayout.__init__)
+            def __init__(self, *args:Any, **kwargs:Any) -> None:
+                super().__init__(*args, **kwargs)
+                margins = self.contentsMargins()
+                margins.setTop(3)
+                margins.setBottom(2)
+                self.setContentsMargins(margins)
+                self.setVerticalSpacing(4)
+
+        self._acquisition_layout = InternalFormLayout(acquisition_container)
+        self._sampling_rate_layout = InternalFormLayout(sampling_rate_container)
+        self._xaxis_layout = InternalFormLayout(xaxis_container)
+        self._trigger_layout = InternalFormLayout(trigger_container)
         self._device_info = None
         self._get_signal_dtype_fn = get_signal_dtype_fn
         self._watchable_registry = watchable_registry

@@ -568,17 +568,8 @@ class GraphSignalTree(BaseTreeView):
             new_axis_action.setDisabled(True)
             remove_action.setDisabled(True)
 
-        self.display_context_menu(context_menu, event.pos())
+        context_menu.popup(self.mapToGlobal( event.pos()))
         event.accept()
-
-    def display_context_menu(self, menu: QMenu, pos: QPoint) -> None:
-        """Display a menu at given relative position, and make sure it goes below the cursor to mimic what most people are used to"""
-        actions = menu.actions()
-        at: Optional[QAction] = None
-        if len(actions) > 0:
-            pos += QPoint(0, menu.actionGeometry(actions[0]).height())
-            at = actions[0]
-        menu.popup(self.mapToGlobal(pos), at)
 
     def keyPressEvent(self, event: QKeyEvent) -> None:
         if event.key() == Qt.Key.Key_Delete and not self._locked:

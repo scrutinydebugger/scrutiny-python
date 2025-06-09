@@ -106,7 +106,7 @@ class ScrutinyQtGUI:
                 platform = os.environ['QT_QPA_PLATFORM'].lower().strip()
                 if platform == 'wayland':
                     logger.warning(
-                        "There are known issues with Wayland windowing system and this software dependecies (QT & QT-ADS). Specifying QT_QPA_PLATFORM=xcb may solve display bugs.")
+                        "There are known issues with Wayland windowing system and this software dependencies (QT & QT-ADS). Specifying QT_QPA_PLATFORM=xcb may solve display bugs.")
 
         app = make_qt_app(args)
         app.setAttribute(Qt.ApplicationAttribute.AA_DontShowIconsInMenus, False)  # Mac OS doesn't display the icon by default.

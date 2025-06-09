@@ -107,7 +107,8 @@ class ScrutinyValueAxis(QValueAxis):
         super().__init__(*args, **kwargs)
         self._latched_range = None
         palette = scrutiny_get_theme().palette()
-        self.setGridLineColor(palette.text().color())
+        self.setGridLineColor(palette.window().color())
+        self.setLinePenColor(palette.window().color())
         self.setLabelsBrush(palette.text())
         self.setTitleBrush(palette.text())
 
