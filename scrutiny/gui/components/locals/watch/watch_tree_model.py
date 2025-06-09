@@ -42,8 +42,6 @@ from scrutiny import tools
 
 ValType: TypeAlias = Union[int, float, bool]
 
-REAL_DATA_ROLE = Qt.ItemDataRole.UserRole + 1
-"""The data stored as numerical value. May be different from display"""
 AVAILABLE_DATA_ROLE = Qt.ItemDataRole.UserRole + 2
 """A boolean value put on the watchable name cell telling if the watchable is available in the registry"""
 WATCHER_ID_ROLE = Qt.ItemDataRole.UserRole + 3
@@ -57,7 +55,7 @@ class ValueStandardItem(QStandardItem):
 
     def set_value(self, value_to_set: Optional[ValType]) -> None:
         """Set the value of the item. Stores the real data + compute a text representation for the UI."""
-        self.setData(value_to_set, REAL_DATA_ROLE)
+        self.setData(value_to_set, Qt.ItemDataRole.EditRole)    # Real value
 
         value_enum = cast(Optional[EmbeddedEnum], self.data(ENUM_DATA_ROLE))
         display_txt = str(value_to_set)
@@ -78,7 +76,7 @@ class ValueStandardItem(QStandardItem):
 
     def get_value(self) -> Optional[ValType]:
         """Return the data in its original data type that has been stored with set_value"""
-        return cast(Optional[ValType], self.data(REAL_DATA_ROLE))
+        return cast(Optional[ValType], self.data(Qt.ItemDataRole.EditRole))
 
     @classmethod
     def make_enum_display_val(cls, name: str, val: ValType) -> str:
@@ -131,7 +129,7 @@ class ValueEditDelegate(QStyledItemDelegate):
             super().setEditorData(editor, index)
             return
 
-        loaded_val = cast(Optional[ValType], index.data(REAL_DATA_ROLE))
+        loaded_val = cast(Optional[ValType], index.data(Qt.ItemDataRole.EditRole))
         for val in enum_data.vals.values():
             if val == loaded_val:
                 editor.setCurrentIndex(editor.findData(loaded_val))  # Default value is fine if not found.
