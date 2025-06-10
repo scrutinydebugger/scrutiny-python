@@ -50,7 +50,7 @@ class SIntCodec(BaseCodec):
     def __init__(self, size: int, endianness: Endianness) -> None:
         super().__init__()
         if size not in self.str_map:
-            raise NotImplementedError('Does not support signed int of %d bytes', size)
+            raise NotImplementedError('Does not support signed int of %d bytes' % size)
         endianness_char = '<' if endianness == Endianness.Little else '>'
         self.packstr = endianness_char + self.str_map[size]
 
@@ -72,7 +72,7 @@ class UIntCodec(BaseCodec):
     def __init__(self, size: int, endianness: Endianness) -> None:
         super().__init__()
         if size not in self.str_map:
-            raise NotImplementedError('Does not support unsigend signed int of %d bytes', size)
+            raise NotImplementedError('Does not support unsigned int of %d bytes' % size)
         endianness_char = '<' if endianness == Endianness.Little else '>'
         self.packstr = endianness_char + self.str_map[size]
 
@@ -92,7 +92,7 @@ class FloatCodec(BaseCodec):
     def __init__(self, size: int, endianness: Endianness) -> None:
         super().__init__()
         if size not in self.str_map:
-            raise NotImplementedError('Does not support float of %d bytes', size)
+            raise NotImplementedError('Does not support float of %d bytes' % size)
         endianness_char = '<' if endianness == Endianness.Little else '>'
         self.packstr = endianness_char + self.str_map[size]
 

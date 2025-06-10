@@ -45,7 +45,7 @@ class Throttler:
         self.reset()
 
     def set_bitrate(self, mean_bitrate: float) -> None:
-        """ Sets the target mean bitrate to respect"""
+        """ Sets the target mean bitrate to rexpect"""
         self.mean_bitrate = mean_bitrate
 
     def enable(self) -> None:

@@ -36,7 +36,7 @@ btn_stop = QPushButton("Stop")
 btn_connect = QPushButton("Connect server")
 btn_disconnect = QPushButton("Disconnect server")
 btn_device_ready = QPushButton("Connect Device")
-btn_device_gone = QPushButton("Diconnect Device")
+btn_device_gone = QPushButton("Disconnect Device")
 btn_load_sfd = QPushButton("Load Sfd")
 btn_unload_sfd = QPushButton("Unload SFD")
 

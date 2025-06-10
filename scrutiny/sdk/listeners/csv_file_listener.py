@@ -70,5 +70,5 @@ class CSVFileListener(BaseListener):
     def teardown(self) -> None:
         self.csv_logger.stop()
 
-    def allow_subcription_changes_while_running(self) -> bool:
+    def allow_subscription_changes_while_running(self) -> bool:
         return False    # Do not allow because it affect the list of columns

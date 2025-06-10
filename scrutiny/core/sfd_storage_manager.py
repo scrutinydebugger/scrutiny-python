@@ -86,7 +86,7 @@ class SFDStorageManager:
 
     def install_sfd(self, sfd: FirmwareDescription, ignore_exist: bool = False) -> None:
         """Install a Scrutiny Firmware Description (SFD) object into the global storage. 
-        Once isntalled, it can be loaded when communication starts with a device that identify
+        Once installed, it can be loaded when communication starts with a device that identify
         itself with an ID that matches this SFD"""
         firmware_id_ascii = self.clean_firmware_id(sfd.get_firmware_id_ascii())
         output_file = os.path.join(self.get_storage_dir(create=True), firmware_id_ascii)
@@ -151,7 +151,7 @@ class SFDStorageManager:
 
     @classmethod
     def is_valid_firmware_id(cls, firmware_id: str) -> bool:
-        """Returns True if the given string respect the expected format for a firmware ID"""
+        """Returns True if the given string rexpect the expected format for a firmware ID"""
         retval = False
         with tools.SuppressException(Exception):
             firmware_id = cls.clean_firmware_id(firmware_id)

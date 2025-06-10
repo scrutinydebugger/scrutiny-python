@@ -582,7 +582,7 @@ class Dashboard(QWidget):
             return None
 
         def ready_if_not_deleted() -> None:
-            # If the component is created but unused (deleted at func exit), this could happend
+            # If the component is created but unused (deleted at func exit)
             if shiboken6.isValid(widget):
                 widget.ready()
         self._component_instances[name] = widget
@@ -638,7 +638,7 @@ class Dashboard(QWidget):
             self._dock_manager.addDockWidgetTab(QtAds.TopDockWidgetArea, dock_widget)
 
     def _destroy_widget(self, dock_widget: QtAds.CDockWidget) -> None:
-        """Handle deletion of widget. Either when "close" is clicked or programatically removed with dock_manager.removeDockWidget()"""
+        """Handle deletion of widget. Either when "close" is clicked or programmatically removed with dock_manager.removeDockWidget()"""
         component = dock_widget.widget()
         if component is None:
             return
@@ -706,7 +706,7 @@ class Dashboard(QWidget):
         that consist of adding a series of placeholders widget to create dock areas, fill the dock area then delete the placeholder.
 
         Mutable data is shared for each recursive call.
-        Immurable data is copied for each sub call
+        Immutable data is copied for each sub call
         """
 
         # Top level. Create the data that passes down

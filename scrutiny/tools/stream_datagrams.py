@@ -124,12 +124,12 @@ class StreamParser:
                         if self._payload_properties.data_length > self._mtu:
                             self._logger.error(
                                 f"Received a message with length={self._payload_properties.data_length} which is bigger than the MTU ({self._mtu})")
-                            self._payload_properties = None  # Do not go in reception mode. Leave subsequent data be sonsidered as garbage until the next header
+                            self._payload_properties = None  # Do not go in reception mode. Leave subsequent data be considered as garbage until the next header
                         elif self._payload_properties.use_hash:
                             self._payload_properties.data_length += HASH_SIZE
                     self._buffer = self._buffer[m.end():]   # Drop header and previous garbage
                 else:
-                    self._buffer = self._buffer[-MAX_HEADER_LENGTH:]   # Drop grabage
+                    self._buffer = self._buffer[-MAX_HEADER_LENGTH:]   # Drop garbage
                     done = True
 
             if self._payload_properties is not None:  # Header is received already, we read successive data

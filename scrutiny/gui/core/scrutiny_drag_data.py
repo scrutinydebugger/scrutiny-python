@@ -110,7 +110,7 @@ class SingleWatchableDescriptor:
 
     @classmethod
     def from_serializable(cls, data: SerializableWatchableElement) -> Optional["SingleWatchableDescriptor"]:
-        """Create an descriptor object from a seraializable dict created by ``to_serializable()``"""
+        """Create an descriptor object from a serializable dict created by ``to_serializable()``"""
         if not isinstance(data, dict):
             return None
 
@@ -156,7 +156,7 @@ class WatchableListDescriptor:
 
     @classmethod
     def from_serializable(cls, data: List[SerializableWatchableElement]) -> Optional["WatchableListDescriptor"]:
-        """Creates an descriptor object from a seraializable dict created by ``to_serializable()``"""
+        """Creates an descriptor object from a serializable dict created by ``to_serializable()``"""
         if not isinstance(data, list):
             return None
         deserialized_data: List[SingleWatchableDescriptor] = []

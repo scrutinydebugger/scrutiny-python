@@ -10,12 +10,7 @@ The easiest way to get the Scrutiny Python SDK is to use pip.
 
     pip install scrutinydebugger
 
-After the installation, the :abbr:`SDK (Software Development Kit)` should be usable as well as the :abbr:`CLI (Command Line Interface)`.
-
-.. note:: 
-
-    The long term plan is to also distribute Scrutiny through an installer that will include the GUI as well as the Python virtual environment. 
-    Until this point is reached, install through the command line is the best option
+After the installation, the :abbr:`SDK (Software Development Kit)` should be usable as well as all the other features (:abbr:`CLI (Command Line Interface)`, :abbr:`GUI (Graphical User Interface)`, Server)`.
 
 -----
 
@@ -40,10 +35,10 @@ Using the Scrutiny Python :abbr:`SDK (Software Development Kit)` starts by creat
         else:
             print("No device connected to the server")
  
-Most operation with the Python :abbr:`SDK (Software Development Kit)` are synchronized, meaning they will block until completion. When relevant for performance, some operations will return a reference to a ``future`` 
+Most operations with the Python :abbr:`SDK (Software Development Kit)` are synchronized, meaning they will block until completion. When relevant for performance, some operations will return a reference to a ``future`` 
 object that can be waited for when necessary.
 
-Operations that fail raise an exception. All exceptions defined in the Scrutiny SDK inherit the :class:`sdk.ScrutinySDKException<scrutiny.sdk.ScrutinySDKException>`. 
+Operations that fail raise an exception. All exceptions defined in the Scrutiny SDK inherit the :class:`sdk.ScrutinySDKException<scrutiny.sdk.exceptions.ScrutinySDKException>`. 
 
 See the :ref:`Exceptions page<page_exceptions>`
 

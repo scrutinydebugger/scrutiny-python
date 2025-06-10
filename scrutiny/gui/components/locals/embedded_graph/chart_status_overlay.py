@@ -78,7 +78,7 @@ class ChartStatusOverlay(QGraphicsItem):
             # Clip both dimensions.
             icon_h = min(max_size.height(), icon_max_h)
             icon_w = min(max_size.width(), max_w)
-            if icon_h > 0 and icon_w > 0:   # Display only if diplayable
+            if icon_h > 0 and icon_w > 0:   # Display only if displayable
                 # Scale the image if necessary.
                 # If one of the side has been clipped, the other will be reduced.
                 # If no side has been clipped, the icon should stay the same size.

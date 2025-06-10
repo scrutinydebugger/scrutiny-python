@@ -10,7 +10,7 @@ as the interval between two polling events could span several milliseconds.
 Datalogging (or `Embedded Graphs`) addresses this issue by instructing the device to record a specific set of watchables in a circular buffer until a certain event occurs. 
 This effectively turns the embedded device into a scope.
 
-The condition that stop the circular acquisition is called the `Trigger condition` and may be of many type.
+The condition that stops the circular acquisition is called the `Trigger condition` and may be of many types.
 Once the trigger condition is met, the acquisition finishes (either immediately or after a specified amount of time) and the data is returned to the 
 server to be saved into a database. A client can then download and display that data under the form of a graph.
 
@@ -180,6 +180,10 @@ and once the :attr:`reference_id<scrutiny.core.datalogging.DataloggingAcquisitio
 -----
 
 .. automethod:: scrutiny.sdk.client.ScrutinyClient.read_datalogging_acquisition 
+
+-----
+
+.. automethod:: scrutiny.sdk.client.ScrutinyClient.read_datalogging_acquisitions_metadata 
 
 -----
 

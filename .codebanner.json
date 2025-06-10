@@ -380,7 +380,7 @@
         "scrutiny/sdk/write_request.py": {
             "docstring": "A object representing a request to write a watchable element."
         },
-        "test/integration/test_interract_with_device.py": {
+        "test/integration/test_interact_with_device.py": {
             "docstring": "Make sure we can do some API calls related to the device that are not read/writes."
         },
         "test/core/test_datalogging.py": {
@@ -420,7 +420,7 @@
             "docstring": "Test suite for symbol extraction. AvrGCC dwarf V4"
         },
         "test/cli/base_testapp_makevarmap_test.py": {
-            "docstring": "BAse test for symbol extrction based on C++ TestApp"
+            "docstring": "Base test for symbol extraction based on C++ TestApp"
         },
         "test/cli/test_makevarmap_Linux_LE_x64_Gcc_11_4_0_dwarf2.py": {
             "docstring": "Test suite for symbol extraction. GCC dwarf V2"
@@ -510,7 +510,7 @@
             "docstring": "About window, contains data about the software, including all versions numbers"
         },
         "scrutiny/gui/dialogs/device_info_dialog.py": {
-            "docstring": "A dialog to visualize the device information downlaoded after a device has connected."
+            "docstring": "A dialog to visualize the device information downloaded after a device has connected."
         },
         "scrutiny/gui/dialogs/server_config_dialog.py": {
             "docstring": "A dialog to edit the connection parameter of the server and optionally start a local server"
@@ -663,7 +663,7 @@
             "docstring": "A widget used to configure the continuous CSV logger"
         },
         "scrutiny/gui/components/locals/continuous_graph/realtime_line_series.py": {
-            "docstring": "A extension of the QLineSeries meants for real-time graph. It includes a decimator and some inline stats computation"
+            "docstring": "A extension of the QLineSeries meant for real-time graph. It includes a decimator and some inline stats computation"
         },
         "scrutiny/gui/components/locals/continuous_graph/graph_statistics.py": {
             "docstring": "A statistic overlay that can be displayed on the top of a graph"
@@ -735,7 +735,7 @@
             "docstring": "Common tools for signal handling"
         },
         "test/gui/manual/manual_test_chart.py": {
-            "docstring": "A test application to check the visual rendring of a chart"
+            "docstring": "A test application to check the visual rendering of a chart"
         },
         "scrutiny/gui/themes/fusion_theme.py": {
             "docstring": "A ScrutinyTheme that wraps the QT Fusion Style"

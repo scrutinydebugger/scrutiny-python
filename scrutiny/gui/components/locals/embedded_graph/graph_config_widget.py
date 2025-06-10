@@ -136,10 +136,26 @@ class GraphConfigWidget(QWidget):
         layout.addWidget(xaxis_container)
         layout.addWidget(trigger_container)
 
-        self._acquisition_layout = QFormLayout(acquisition_container)
-        self._sampling_rate_layout = QFormLayout(sampling_rate_container)
-        self._xaxis_layout = QFormLayout(xaxis_container)
-        self._trigger_layout = QFormLayout(trigger_container)
+        def set_top_bottom_margin(layout: QFormLayout, top: int, bottom: int) -> None:
+            margins = layout.contentsMargins()
+            margins.setTop(top)
+            margins.setBottom(bottom)
+            layout.setContentsMargins(margins)
+
+        class InternalFormLayout(QFormLayout):
+            @tools.copy_type(QFormLayout.__init__)
+            def __init__(self, *args: Any, **kwargs: Any) -> None:
+                super().__init__(*args, **kwargs)
+                margins = self.contentsMargins()
+                margins.setTop(3)
+                margins.setBottom(2)
+                self.setContentsMargins(margins)
+                self.setVerticalSpacing(4)
+
+        self._acquisition_layout = InternalFormLayout(acquisition_container)
+        self._sampling_rate_layout = InternalFormLayout(sampling_rate_container)
+        self._xaxis_layout = InternalFormLayout(xaxis_container)
+        self._trigger_layout = InternalFormLayout(trigger_container)
         self._device_info = None
         self._get_signal_dtype_fn = get_signal_dtype_fn
         self._watchable_registry = watchable_registry
@@ -402,9 +418,9 @@ class GraphConfigWidget(QWidget):
                 if self._get_signal_dtype_fn is not None:
                     duration = self._compute_estimated_duration()
                     if duration is not None:
-                        nb_smaples, estimated_duration_sec = duration
+                        nb_samples, estimated_duration_sec = duration
                         duration_txt = tools.format_eng_unit(estimated_duration_sec, decimal=1, unit="s")
-                        estimated_duration_label_txt = f"~{duration_txt} ({nb_smaples} samples)"
+                        estimated_duration_label_txt = f"~{duration_txt} ({nb_samples} samples)"
 
         self._lbl_effective_sampling_rate.setText(effective_sampling_rate_label_txt)
         self._lbl_estimated_duration.setText(estimated_duration_label_txt)
@@ -429,7 +445,7 @@ class GraphConfigWidget(QWidget):
             self._xaxis_layout.setRowVisible(self._txtw_xaxis_signal, False)
 
     def configure_from_device_info(self, device_info: Optional[DeviceInfo]) -> None:
-        """Configure the widget for a certain device. None means there is no device avaialble."""
+        """Configure the widget for a certain device. None means there is no device available."""
         self._device_info = device_info
         self._cmb_sampling_rate.clear()
         if self._device_info is not None:
@@ -485,7 +501,7 @@ class GraphConfigWidget(QWidget):
 
         nb_operand = trigger_condition.required_operands()
         txtw_operands = [self._txtw_trigger_operand1, self._txtw_trigger_operand2, self._txtw_trigger_operand3]
-        # We don't need WatchableHandle here. need it to please static analysis becuse list of union can't detect overlaps with other list of union
+        # We don't need WatchableHandle here. need it to please static analysis because list of union can't detect overlaps with other list of union
 
         operands: Optional[List[Union[float, str, WatchableHandle]]] = None
         if nb_operand > 0:

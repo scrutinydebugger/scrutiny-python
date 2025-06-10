@@ -42,7 +42,7 @@ It is possible to unsubscribe to watchables with one of the following method
 .. automethod:: scrutiny.sdk.listeners.BaseListener.prune_subscriptions
 
 Each listener has a :meth:`start()<scrutiny.sdk.listeners.BaseListener.start>` and a :meth:`stop()<scrutiny.sdk.listeners.BaseListener.stop>` method.
-These methods launches an internal thread that will handle each new value updates. 
+These methods launch an internal thread that will handle each new value updates. 
 
 .. automethod:: scrutiny.sdk.listeners.BaseListener.start
 
@@ -78,7 +78,7 @@ These methods launches an internal thread that will handle each new value update
 
 
 Listeners may or may not allow a user to add or remove watchables from their subscription list while the listener is active.
-This behavior is controlled by overriding :meth:`allow_subcription_changes_while_running()<scrutiny.sdk.listeners.BaseListener.allow_subcription_changes_while_running>`.
+This behavior is controlled by overriding :meth:`allow_subscription_changes_while_running()<scrutiny.sdk.listeners.BaseListener.allow_subscription_changes_while_running>`.
 
 Some listeners will allow it (like the :class:`TextStreamListener<scrutiny.sdk.listeners.TextStreamListener>` or the :class:`BufferedReaderListener<scrutiny.sdk.listeners.BufferedReaderListener>`) 
 , but some does not (like the :class:`CSVFileListener<scrutiny.sdk.listeners.CSVFileListener>`). When not allowed, a :class:`NotAllowedError<scrutiny.sdk.exceptions.NotAllowedError>` will
@@ -90,7 +90,7 @@ be raised if one of the following method is called after :meth:`start()<scrutiny
 - :meth:`prune_subscriptions()<scrutiny.sdk.listeners.BaseListener.prune_subscriptions>`
 
 
-.. automethod:: scrutiny.sdk.listeners.BaseListener.allow_subcription_changes_while_running
+.. automethod:: scrutiny.sdk.listeners.BaseListener.allow_subscription_changes_while_running
 
 -----
 
@@ -100,7 +100,7 @@ Internal behavior
 A listener runs in a separate thread and awaits value updates by monitoring a python ``queue`` that is fed by the 
 :class:`client<scrutiny.sdk.client.ScrutinyClient>` object. 
 The Python ``queue`` object internally utilizes `condition variables`, which results in a scheduler switch between 
-the notifier thread and the listner thread occurring in just microseconds.
+the notifier thread and the listener thread occurring in just microseconds.
 
 When the update notification reaches the listener, they are forwarded to the listener-specific 
 :meth:`receive()<scrutiny.sdk.listeners.BaseListener.receive>` method.
@@ -144,7 +144,7 @@ the :meth:`receive()<scrutiny.sdk.listeners.BaseListener.receive>` method.
 -----
 
 The element passed to :meth:`receive()<scrutiny.sdk.listeners.BaseListener.receive>` are immutable :class:`ValueUpdate<scrutiny.sdk.listeners.ValueUpdate>`
-objects that represents the update content.
+objects that represent the update content.
 
 .. autoclass:: scrutiny.sdk.listeners.ValueUpdate
     :exclude-members: __new__, __init__
@@ -153,8 +153,8 @@ objects that represents the update content.
 
 -----
 
-Two optional methods can be overriden to perform a :meth:`setup<scrutiny.sdk.listeners.BaseListener.setup>` and/or 
-a :meth:`teardown<scrutiny.sdk.listeners.BaseListener.teardown>`. If not overriden, these 2 methods will do nothing by default.
+Two optional methods can be overridden to perform a :meth:`setup<scrutiny.sdk.listeners.BaseListener.setup>` and/or 
+a :meth:`teardown<scrutiny.sdk.listeners.BaseListener.teardown>`. If not overridden, these 2 methods will do nothing by default.
 
 .. automethod:: scrutiny.sdk.listeners.BaseListener.setup
 

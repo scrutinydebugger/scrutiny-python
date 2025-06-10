@@ -514,7 +514,7 @@ class TestDeviceHandler(ScrutinyUnitTest):
                             all_updated = False
 
                     if all_updated:
-                        # We reload new timestamps for the enxt round robin pass.
+                        # We reload new timestamps for the next round robin pass.
                         previous_write_timestamp_per_entry = {}
                         for entry in all_entries:
                             previous_write_timestamp_per_entry[entry.get_id()] = entry.get_value_change_server_time_us()
@@ -930,7 +930,7 @@ class TestDeviceHandlerMultipleLink(ScrutinyUnitTest):
         self.emulated_device2.stop()
 
     def test_change_link_mid_comm(self):
-        # This test failed once on CI for no reason.  Keep an eye on it!   self.assertTrue(connection_completed) == flase
+        # This test failed once on CI for no reason.  Keep an eye on it!   self.assertTrue(connection_completed) == false
 
         # Make sur ewe can work with no link
         self.device_handler.process()

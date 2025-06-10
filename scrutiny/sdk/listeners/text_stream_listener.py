@@ -56,5 +56,5 @@ class TextStreamListener(BaseListener):
     def teardown(self) -> None:
         self._stream.flush()
 
-    def allow_subcription_changes_while_running(self) -> bool:
+    def allow_subscription_changes_while_running(self) -> bool:
         return True

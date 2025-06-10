@@ -1,5 +1,5 @@
 #    base_testapp_makevarmap_test.py
-#        BAse test for symbol extrction based on C++ TestApp
+#        Base test for symbol extraction based on C++ TestApp
 #
 #   - License : MIT - See LICENSE file.
 #   - Project :  Scrutiny Debugger (github.com/scrutinydebugger/scrutiny-main)

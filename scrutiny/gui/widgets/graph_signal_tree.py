@@ -359,8 +359,8 @@ class GraphSignalModel(BaseTreeModel):
                 signal_item.reload_watchable_icon()
 
     def update_availability(self, series_item: ChartSeriesWatchableStandardItem) -> None:
-        """Change the availability of an item based on its availibility in the registry. 
-        When the watchable refered by an element is not in the registry, becomes "unavailable" (grayed out).
+        """Change the availability of an item based on its availability in the registry. 
+        When the watchable referred by an element is not in the registry, becomes "unavailable" (grayed out).
         """
         if self._watchable_registry.is_watchable_fqn(series_item.fqn):
             self.set_available(series_item)
@@ -368,8 +368,8 @@ class GraphSignalModel(BaseTreeModel):
             self.set_unavailable(series_item)
 
     def update_all_availabilities(self) -> None:
-        """Change the availability of all item based on their availibility in the registry. 
-        When the watchable refered by an element is not in the registry, becomes "unavailable" (grayed out).
+        """Change the availability of all item based on their availability in the registry. 
+        When the watchable referred by an element is not in the registry, becomes "unavailable" (grayed out).
         """
         for i in range(self.rowCount()):
             axis = self.item(i, self.watchable_col())
@@ -568,17 +568,8 @@ class GraphSignalTree(BaseTreeView):
             new_axis_action.setDisabled(True)
             remove_action.setDisabled(True)
 
-        self.display_context_menu(context_menu, event.pos())
+        context_menu.popup(self.mapToGlobal(event.pos()))
         event.accept()
-
-    def display_context_menu(self, menu: QMenu, pos: QPoint) -> None:
-        """Display a menu at given relative position, and make sure it goes below the cursor to mimic what most people are used to"""
-        actions = menu.actions()
-        at: Optional[QAction] = None
-        if len(actions) > 0:
-            pos += QPoint(0, menu.actionGeometry(actions[0]).height())
-            at = actions[0]
-        menu.popup(self.mapToGlobal(pos), at)
 
     def keyPressEvent(self, event: QKeyEvent) -> None:
         if event.key() == Qt.Key.Key_Delete and not self._locked:

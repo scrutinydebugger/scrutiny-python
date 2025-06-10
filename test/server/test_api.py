@@ -1108,9 +1108,9 @@ class TestAPI(ScrutinyUnitTest):
         self.assertIsNotNone(response['device_info'])
         device_info = self.fake_device_handler.get_device_info()
 
-        device_info_exclude_propeties = ['runtime_published_values', 'loops', 'datalogging_setup']  # API does not provide those on purpose
+        device_info_exclude_properties = ['runtime_published_values', 'loops', 'datalogging_setup']  # API does not provide those on purpose
         for attr in device_info.get_attributes():
-            if attr not in device_info_exclude_propeties:    # Exclude list
+            if attr not in device_info_exclude_properties:    # Exclude list
                 self.assertIn(attr, response['device_info'])
 
                 if attr not in ['readonly_memory_regions', 'forbidden_memory_regions']:
@@ -1950,7 +1950,7 @@ class TestAPI(ScrutinyUnitTest):
 
                 req: api_typing.C2S.ListDataloggingAcquisitions = {
                     'cmd': 'list_datalogging_acquisitions',
-                    'firmware_id': 'inexistant_id',
+                    'firmware_id': 'inexistent_id',
                     'count': 100
                 }
 
@@ -1963,7 +1963,7 @@ class TestAPI(ScrutinyUnitTest):
                 # Missing count - bad
                 req: api_typing.C2S.ListDataloggingAcquisitions = {
                     'cmd': 'list_datalogging_acquisitions',
-                    'firmware_id': 'inexistant_id'
+                    'firmware_id': 'inexistent_id'
                 }
                 self.send_request(req)
                 self.assert_is_error(self.wait_and_load_response())
@@ -1971,7 +1971,7 @@ class TestAPI(ScrutinyUnitTest):
                 # Bad timestamp
                 req: api_typing.C2S.ListDataloggingAcquisitions = {
                     'cmd': 'list_datalogging_acquisitions',
-                    'firmware_id': 'inexistant_id',
+                    'firmware_id': 'inexistent_id',
                     'before_timestamp': -1,
                     'count': 100
                 }
@@ -1981,7 +1981,7 @@ class TestAPI(ScrutinyUnitTest):
                 # Bad count
                 req: api_typing.C2S.ListDataloggingAcquisitions = {
                     'cmd': 'list_datalogging_acquisitions',
-                    'firmware_id': 'inexistant_id',
+                    'firmware_id': 'inexistent_id',
                     'count': -1
                 }
                 self.send_request(req)
@@ -1990,7 +1990,7 @@ class TestAPI(ScrutinyUnitTest):
                 # timestamp None = no timestamp. OK
                 req: api_typing.C2S.ListDataloggingAcquisitions = {
                     'cmd': 'list_datalogging_acquisitions',
-                    'firmware_id': 'inexistant_id',
+                    'firmware_id': 'inexistent_id',
                     'before_timestamp': None,
                     'count': 100
                 }
@@ -1999,7 +1999,7 @@ class TestAPI(ScrutinyUnitTest):
 
                 req: api_typing.C2S.ListDataloggingAcquisitions = {
                     'cmd': 'list_datalogging_acquisitions',
-                    'reference_id': 'inexistant_id'
+                    'reference_id': 'inexistent_id'
                 }
                 self.send_request(req)
                 response = self.wait_and_load_response()

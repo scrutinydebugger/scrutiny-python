@@ -537,7 +537,7 @@ class TestClient(ScrutinyUnitTest):
         self.server_started = threading.Event()
         self.sync_complete = threading.Event()
         self.require_sync = threading.Event()
-        self.rx_rquest_log = []
+        self.rx_request_log = []
         self.thread = threading.Thread(target=self.server_thread, daemon=True)
         self.thread.start()
         self.server_started.wait(timeout=1)
@@ -564,7 +564,7 @@ class TestClient(ScrutinyUnitTest):
             self.fail("Failed to setup the test")
 
     def log_rx_request(self, client, o):
-        self.rx_rquest_log.append(o)
+        self.rx_request_log.append(o)
 
     def fill_datastore(self):
         rpv1000 = datastore.DatastoreRPVEntry('/rpv/x1000', RuntimePublishedValue(0x1000, EmbeddedDataType.float32))
@@ -1967,7 +1967,7 @@ class TestClient(ScrutinyUnitTest):
         self.assertEqual(subfn, 0x10)
         self.assertEqual(data, bytes([1, 2, 3, 4, 5]))
 
-        # Falure case
+        # Failure case
         self.assertTrue(self.device_handler.user_command_requests_queue.empty())
         with self.assertRaises(sdk.exceptions.OperationFailure):
             self.client.user_command(0x50, bytes([1, 2, 3]))
@@ -2021,7 +2021,7 @@ class TestClient(ScrutinyUnitTest):
                              self.datastore.get_entry_by_display_path(path).get_id())
 
         nb_response_msg = 0
-        for object in self.rx_rquest_log:
+        for object in self.rx_request_log:
             if 'cmd' in object and object['cmd'] == API.Command.Api2Client.GET_WATCHABLE_LIST_RESPONSE:
                 nb_response_msg += 1
         self.assertEqual(nb_response_msg, 1)
@@ -2039,7 +2039,7 @@ class TestClient(ScrutinyUnitTest):
         self.assertIn(sdk.WatchableType.Alias, watchables)
         self.assertIn(sdk.WatchableType.RuntimePublishedValue, watchables)
 
-        self.assertEqual(len(watchables[sdk.WatchableType.Variable]), 0)  # 0 isntead of 3
+        self.assertEqual(len(watchables[sdk.WatchableType.Variable]), 0)  # 0 instead of 3
         self.assertEqual(len(watchables[sdk.WatchableType.Alias]), 2)
         self.assertEqual(len(watchables[sdk.WatchableType.RuntimePublishedValue]), 1)
 
@@ -2065,7 +2065,7 @@ class TestClient(ScrutinyUnitTest):
         self.assertIn(sdk.WatchableType.Alias, watchables)
         self.assertIn(sdk.WatchableType.RuntimePublishedValue, watchables)
 
-        self.assertEqual(len(watchables[sdk.WatchableType.Variable]), 0)    # 0 isntead of 3
+        self.assertEqual(len(watchables[sdk.WatchableType.Variable]), 0)    # 0 instead of 3
         self.assertEqual(len(watchables[sdk.WatchableType.Alias]), 1)       # 1 instead of 2
         self.assertEqual(len(watchables[sdk.WatchableType.RuntimePublishedValue]), 1)
 
@@ -2097,7 +2097,7 @@ class TestClient(ScrutinyUnitTest):
 
         # Make sure the server transmitted 1 watchable definition per message. We use the client logs to validate
         nb_response_msg = 0
-        for object in self.rx_rquest_log:
+        for object in self.rx_request_log:
             if 'cmd' in object and object['cmd'] == API.Command.Api2Client.GET_WATCHABLE_LIST_RESPONSE:
                 nb_response_msg += 1
         expected_response_count = len(watchables[sdk.WatchableType.Variable]) + \

@@ -327,7 +327,7 @@ class WatchableTreeModel(BaseTreeModel):
         :param max_level: The maximum number of nested children. ``None`` for no limit
         :param keep_folder_fqn: Indicate if the Fully Qualified Name taken from  WatchableRegistry should be assigned to folder nodes created
         :param editable: Makes the new nodes editable by the GUI
-        :param level: internal aprameter to keep track of recursion. The user should leave to default
+        :param level: internal parameter to keep track of recursion. The user should leave to default
         """
         parent.set_loaded()
         content = self._watchable_registry.read(watchable_type, path)

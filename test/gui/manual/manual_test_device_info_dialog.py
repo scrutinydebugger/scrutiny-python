@@ -86,7 +86,7 @@ window = QMainWindow()
 central_widget = QWidget()
 btn_everything = QPushButton("With everything")
 btn_nothing = QPushButton("Nothing")
-btn_no_sampling_rate = QPushButton("No smapling rates")
+btn_no_sampling_rate = QPushButton("No sampling rates")
 
 window.setCentralWidget(central_widget)
 layout = QVBoxLayout(central_widget)

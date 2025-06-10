@@ -57,7 +57,7 @@ class Endianness(Enum):
     """(Enum) Represent an data storage endianness"""
 
     Little = 0
-    """Litle endian. 0x12345678 is stored as 78 56 34 12 """
+    """Little endian. 0x12345678 is stored as 78 56 34 12 """
 
     Big = 1
     """Big endian. 0x12345678 is stored as 12 34 56 78 """
@@ -87,7 +87,7 @@ class EmbeddedDataType(Enum):
     """
     (Enum)
     Represent a datatype that can be read from a device.
-    The embedded library has the same definition of datatype as this one. They needs to match.
+    The embedded library has the same definition of datatypes as this one. They needs to match.
     Not all datatype are supported.  (cfloat or >64 bits)
     """
     sint8 = DataTypeType._sint.value | DataTypeSize._8.value

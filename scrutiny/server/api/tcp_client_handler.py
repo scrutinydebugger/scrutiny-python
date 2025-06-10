@@ -139,6 +139,7 @@ class TCPClientHandler(AbstractClientHandler):
         self.last_process = time.perf_counter()
         self.logger.info('Starting TCP socket listener on %s:%s' % (self.config['host'], self.config['port']))
         self.server_sock = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
+        self.server_sock.setsockopt(socket.SOL_SOCKET, socket.SO_REUSEADDR, 1)
         self.server_sock.bind((self.config['host'], self.config['port']))
         self.server_sock.listen()
         self.selector = selectors.DefaultSelector()

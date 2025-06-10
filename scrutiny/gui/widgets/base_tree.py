@@ -152,7 +152,7 @@ class BaseTreeModel(QStandardItemModel):
 
         try:
             dest_parent = self.itemFromIndex(dest_parent_index)  # Where we move the stuff to
-            nesting_col = self.nesting_col()  # The index of the column that stores the main boject (watchable/folder)
+            nesting_col = self.nesting_col()  # The index of the column that stores the main object (watchable/folder)
 
             # Finds all the items to move
             items = [self.get_item_from_serializable_index_descriptor(descriptor) for descriptor in data]
