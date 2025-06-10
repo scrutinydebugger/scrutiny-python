@@ -119,7 +119,7 @@ class QtBufferedListener(BaseListener):
             self._emit_signal_if_possible()  # Prune any remaining content if the server stops broadcasting
         self.qt_event_rate_measurement.update()
 
-    def allow_subcription_changes_while_running(self) -> bool:
+    def allow_subscription_changes_while_running(self) -> bool:
         return True
 
     @property
@@ -560,7 +560,7 @@ class ServerManager:
         self._signals.device_ready.emit()
 
     def _thread_event_sfd_loaded(self) -> None:
-        """To be called once when a SFD is laoded"""
+        """To be called once when a SFD is loaded"""
         self._logger.debug("Detected SFD loaded")
         req = self._thread_state.sfd_watchables_download_request    # Get the ref atomically
         if req is not None:
@@ -829,7 +829,7 @@ class ServerManager:
 
     @enforce_thread(QT_THREAD_NAME)
     def _sfd_loaded_callback(self) -> None:
-        # Called in the UI thread when we emit the signal : sfd_laoded.
+        # Called in the UI thread when we emit the signal : sfd_loaded.
         # Use to download the SFD data
         info = self.get_server_info()
         if info is not None:
@@ -987,10 +987,10 @@ class ServerManager:
 
     @enforce_thread(QT_THREAD_NAME)
     def qt_write_watchable_value(self, fqn: str, value: Union[str, int, float, bool], callback: Callable[[Optional[Exception]], None]) -> None:
-        """Request the server manager to write the value of a node in the registry idetified by its Fully Qualified Name.
+        """Request the server manager to write the value of a node in the registry identified by its Fully Qualified Name.
         Must be called from QT thread
 
-        :param fqn: The Fully Qulified Name of the watchable
+        :param fqn: The Fully Qualified Name of the watchable
         :param callback: A callback to call on completion. If the single parameter is None, completed successfully, otherwise will be the exception raised
 
         """

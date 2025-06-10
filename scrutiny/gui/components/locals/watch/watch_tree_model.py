@@ -341,7 +341,7 @@ class WatchComponentTreeWidget(WatchableTreeWidget):
                 self.signals.value_written.emit(fqn, value)
 
         # Make arrow navigation easier because elements are nested on columns 0.
-        # If current index is at another column, we can't go up in the tree witht he keyboard
+        # If current index is at another column, we can't go up in the tree with the keyboard
         self.setCurrentIndex(self.currentIndex().siblingAtColumn(nesting_col))
 
         return super().closeEditor(editor, hint)
@@ -722,8 +722,8 @@ class WatchComponentTreeModel(WatchableTreeModel):
             recurse(parent)
 
     def update_row_state(self, watchable_item: WatchableStandardItem) -> None:
-        """Change the availability of an item based on its availibility in the registry. 
-        When the watchable refered by an element is not in the registry, becomes "unavailable" (grayed out).
+        """Change the availability of an item based on its availability in the registry. 
+        When the watchable referred by an element is not in the registry, becomes "unavailable" (grayed out).
         """
         watchable_config = self._watchable_registry.get_watchable_fqn(watchable_item.fqn)
         was_available = watchable_item.data(AVAILABLE_DATA_ROLE)

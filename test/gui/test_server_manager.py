@@ -567,7 +567,7 @@ class TestServerManager(ScrutinyBaseGuiTest):
 class TestServerManagerRegistryInteraction(ScrutinyBaseGuiTest):
     # This test suite make sure that WatchableRegistry watch/unwatch calls correctly triggers
     # watch/unwatch request to the server.
-    # The registry is independant from the network. It doesn't wait for server confirmation before returning of a watch/unwatch.
+    # The registry is independent from the network. It doesn't wait for server confirmation before returning of a watch/unwatch.
     # The server manager should try to register as long as the number of watcher is greater than 0, and unregister when there is 0 watchers asynchronously.
     # No request stacking should happen. while nb_watcher > 0: keep trying to watch. When nb_watch == 0, stop trying watching and/or keep trying to unwatch
 
@@ -608,15 +608,15 @@ class TestServerManagerRegistryInteraction(ScrutinyBaseGuiTest):
             self.assertEqual(len(self.fake_client._pending_unwatch_request), 0)
         return request
 
-    def asssert_no_watch_request(self, max_wait: int = 1):
+    def assert_no_watch_request(self, max_wait: int = 1):
         self.wait_true_with_events(lambda: len(self.fake_client._pending_watch_request) > 0, timeout=max_wait, no_assert=True)
         self.assertEqual(len(self.fake_client._pending_watch_request), 0)
 
-    def asssert_no_unwatch_request(self, max_wait: int = 1):
+    def assert_no_unwatch_request(self, max_wait: int = 1):
         self.wait_true_with_events(lambda: len(self.fake_client._pending_unwatch_request) > 0, timeout=max_wait, no_assert=True)
         self.assertEqual(len(self.fake_client._pending_unwatch_request), 0)
 
-    def asssert_no_watch_or_unwatch_request(self, max_wait: int = 1):
+    def assert_no_watch_or_unwatch_request(self, max_wait: int = 1):
         func = lambda: len(self.fake_client._pending_unwatch_request) > 0 or len(self.fake_client._pending_watch_request) > 0
         self.wait_true_with_events(func, timeout=max_wait, no_assert=True)
         self.assertFalse(func())
@@ -647,12 +647,12 @@ class TestServerManagerRegistryInteraction(ScrutinyBaseGuiTest):
         self.registry.unwatch(watcher1, sdk.WatchableType.Variable, 'a/b/c')
 
         watch_request = self.get_watch_request(assert_single=True)
-        self.asssert_no_watch_or_unwatch_request(max_wait=0.5)
+        self.assert_no_watch_or_unwatch_request(max_wait=0.5)
         self.assertEqual(ui_callback_count, self.server_manager._qt_watch_unwatch_ui_callback_call_count)
         watch_request.simulate_failure()
         self.wait_true_with_events(lambda: self.server_manager._qt_watch_unwatch_ui_callback_call_count != ui_callback_count, timeout=1)
         # watch failed. We have no watcher. Should do nothing more
-        self.asssert_no_watch_or_unwatch_request(max_wait=0.5)
+        self.assert_no_watch_or_unwatch_request(max_wait=0.5)
 
         # We are back to 0 watcher.
         # Start a new series of watch unwatch.
@@ -666,7 +666,7 @@ class TestServerManagerRegistryInteraction(ScrutinyBaseGuiTest):
         self.registry.unwatch(watcher1, sdk.WatchableType.Variable, 'a/b/c')
 
         watch_request = self.get_watch_request(assert_single=True)
-        self.asssert_no_watch_or_unwatch_request(max_wait=0.5)
+        self.assert_no_watch_or_unwatch_request(max_wait=0.5)
         self.assertEqual(ui_callback_count, self.server_manager._qt_watch_unwatch_ui_callback_call_count)
         watch_request.simulate_success(watchable_config)
         self.wait_true_with_events(lambda: self.server_manager._qt_watch_unwatch_ui_callback_call_count != ui_callback_count, timeout=1)
@@ -674,7 +674,7 @@ class TestServerManagerRegistryInteraction(ScrutinyBaseGuiTest):
 
         unwatch_request = self.get_unwatch_request(assert_single=True)
         unwatch_request.simulate_success()
-        self.asssert_no_watch_or_unwatch_request(max_wait=0.5)
+        self.assert_no_watch_or_unwatch_request(max_wait=0.5)
 
     def test_no_stacking_with_multiple_watchers(self):
         self.registry._add_watchable('a/b/c', sdk.WatchableConfiguration(
@@ -694,18 +694,18 @@ class TestServerManagerRegistryInteraction(ScrutinyBaseGuiTest):
         # Watch request comes in faster than network. No server request stacking should happen
         self.registry.watch(watcher1, sdk.WatchableType.Variable, 'a/b/c')
         self.registry.watch(watcher2, sdk.WatchableType.Variable, 'a/b/c')
-        self.assertEqual(self.registry.node_watcher_count(sdk.WatchableType.Variable, 'a/b/c'), 2)   # Independant of network request status
+        self.assertEqual(self.registry.node_watcher_count(sdk.WatchableType.Variable, 'a/b/c'), 2)   # independent of network request status
 
         call_count = self.server_manager._qt_watch_unwatch_ui_callback_call_count
         request1 = self.get_watch_request(assert_single=True)
-        self.asssert_no_watch_request(max_wait=0.5)  # Should have a single watch request for the 2 watches
+        self.assert_no_watch_request(max_wait=0.5)  # Should have a single watch request for the 2 watches
         request1.simulate_failure()  # Should stay unwatched
         self.wait_true_with_events(lambda: call_count != self.server_manager._qt_watch_unwatch_ui_callback_call_count, timeout=1)
 
         self.registry.watch(watcher3, sdk.WatchableType.Variable, 'a/b/c')  # Will trigger a retry
 
         request2 = self.get_watch_request(assert_single=True)
-        self.asssert_no_watch_request(max_wait=0.5)
+        self.assert_no_watch_request(max_wait=0.5)
         some_watchable_config = sdk.WatchableConfiguration(
             server_id='aaa', watchable_type=sdk.WatchableType.Variable, datatype=sdk.EmbeddedDataType.float32, enum=None)
 
@@ -720,7 +720,7 @@ class TestServerManagerRegistryInteraction(ScrutinyBaseGuiTest):
 
         self.registry.unwatch(watcher3, sdk.WatchableType.Variable, 'a/b/c')  # Should trigger a unwatch to the server
         request1 = self.get_unwatch_request(assert_single=True)
-        self.asssert_no_unwatch_request(max_wait=0.5)
+        self.assert_no_unwatch_request(max_wait=0.5)
         call_count = self.server_manager._qt_watch_unwatch_ui_callback_call_count
         request1.simulate_failure()  # Should stay watched
         self.wait_true_with_events(lambda: call_count != self.server_manager._qt_watch_unwatch_ui_callback_call_count, timeout=1)
@@ -730,13 +730,13 @@ class TestServerManagerRegistryInteraction(ScrutinyBaseGuiTest):
         self.registry.watch(watcher3, sdk.WatchableType.Variable, 'a/b/c')
         self.registry.unwatch(watcher3, sdk.WatchableType.Variable, 'a/b/c')
         request3 = self.get_unwatch_request(assert_single=True)
-        self.asssert_no_unwatch_request(max_wait=0.5)
+        self.assert_no_unwatch_request(max_wait=0.5)
 
         call_count = self.server_manager._qt_watch_unwatch_ui_callback_call_count
         request3.simulate_success()
         self.wait_true_with_events(lambda: call_count != self.server_manager._qt_watch_unwatch_ui_callback_call_count, timeout=1)
 
-        self.asssert_no_unwatch_request(max_wait=0.5)
+        self.assert_no_unwatch_request(max_wait=0.5)
         self.assertEqual(self.registry.node_watcher_count(sdk.WatchableType.Variable, 'a/b/c'), 0)
 
     def test_data_reaches_watchers(self):
@@ -829,7 +829,7 @@ class TestQtListener(ScrutinyBaseGuiTest):
         self.assertIs(data_received[0].watchable, self.watch1)
         # watch2 was not subscribed
         self.assertIs(data_received[1].watchable, self.watch3)
-        data_received.clear()   # All goo, clear the data for enxt test
+        data_received.clear()   # All goo, clear the data for next test
 
         self.assertEqual(self.listener.gui_qsize, 0)    # Nothing is buffered internally.
         self.listener._broadcast_update([self.watch1, self.watch2, self.watch3])

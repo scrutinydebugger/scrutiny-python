@@ -52,22 +52,22 @@ class AddAlias(BaseCommand):
         if args.fullpath is not None and args.file is not None:
             raise Exception('Alias must be defined by a file (--file) or command line parameters (--fullpath + others), but not both.')
 
-        all_alliases = {}
+        all_aliases = {}
         if os.path.isdir(args.destination):
             varmap = FirmwareDescription.read_varmap_from_filesystem(args.destination)
             target_alias_file = os.path.join(args.destination, FirmwareDescription.alias_file)
 
             if os.path.isfile(target_alias_file):
                 with open(target_alias_file, 'rb') as f:
-                    all_alliases = FirmwareDescription.read_aliases(f, varmap)
+                    all_aliases = FirmwareDescription.read_aliases(f, varmap)
         elif os.path.isfile(args.destination):
             sfd = FirmwareDescription(args.destination)
             varmap = sfd.varmap
-            all_alliases = sfd.get_aliases()
+            all_aliases = sfd.get_aliases()
         elif SFDStorage.is_installed(args.destination):
             sfd = SFDStorage.get(args.destination)
             varmap = sfd.varmap
-            all_alliases = sfd.get_aliases()
+            all_aliases = sfd.get_aliases()
         else:
             raise Exception('Inexistent destination for alias %s' % args.destination)
 
@@ -108,15 +108,15 @@ class AddAlias(BaseCommand):
                 tools.log_exception(self.logger, e, f'Cannot deduce type of alias {alias.get_fullpath()} referring to {alias.get_target()}.')
                 continue
 
-            if k in all_alliases:
+            if k in all_aliases:
                 self.logger.error('Duplicate alias with path %s' % k)
                 continue
 
-            all_alliases[alias.get_fullpath()] = alias
+            all_aliases[alias.get_fullpath()] = alias
 
         if os.path.isdir(args.destination):
             with open(target_alias_file, 'wb') as f:
-                f.write(FirmwareDescription.serialize_aliases(all_alliases))
+                f.write(FirmwareDescription.serialize_aliases(all_aliases))
 
         elif os.path.isfile(args.destination):
             sfd.append_aliases(new_aliases)

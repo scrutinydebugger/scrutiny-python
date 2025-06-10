@@ -201,7 +201,7 @@ class VarListComponent(ScrutinyGUIBaseGlobalComponent):
         self._tree.expand_first_column_to_content()
 
     def registry_changed_slot(self) -> None:
-        """Called when the server manager finsishes downloading the server watchable list and update the registry"""
+        """Called when the server manager finishes downloading the server watchable list and update the registry"""
         index_change_counters = self.watchable_registry.get_change_counters()
         # Identify all the types that changed since the last model update
         types_to_reload = []

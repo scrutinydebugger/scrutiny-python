@@ -198,9 +198,9 @@ class SerialLink(AbstractLink):
         if not isinstance(config, dict):
             raise ValueError('Configuration is not a valid dictionary')
 
-        requried_fields = ['portname', 'baudrate']
+        required_fields = ['portname', 'baudrate']
 
-        for field in requried_fields:
+        for field in required_fields:
             if field not in config:
                 raise ValueError('Missing ' + field)
 

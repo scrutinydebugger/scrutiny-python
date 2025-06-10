@@ -193,7 +193,7 @@ class TestWatchableTree(BaseWatchableTreeTest):
 
         parent = rowA[0]
         self.model.add_multiple_rows_to_parent(parent, -1, [rowI, rowJ])
-        self.model.add_multiple_rows_to_parent(parent, 1, [rowK, rowL])  # Insert betweene xisting nodes
+        self.model.add_multiple_rows_to_parent(parent, 1, [rowK, rowL])  # Insert between existing nodes
 
         self.assertIs(parent.child(0, 0), rowI[0])
         self.assertIs(parent.child(1, 0), rowK[0])
@@ -848,14 +848,14 @@ class TestWatchTreeModel(BaseWatchableTreeTest):
         self.assertIs(var2_node.parent(), folder_xxx_node)
         self.assertIs(folder_yyy_node.parent(), folder_alias_node)
 
-        new_childrens = [folder_xxx_node.child(i, 0) for i in range(xxx_row_count_start, folder_xxx_node.rowCount())]
-        self.assertEqual(len(new_childrens), 2)
-        if new_childrens[0].text() == 'var2':
-            new_var2_node = new_childrens[0]
-            new_folder_yyy_node = new_childrens[1]
+        new_children = [folder_xxx_node.child(i, 0) for i in range(xxx_row_count_start, folder_xxx_node.rowCount())]
+        self.assertEqual(len(new_children), 2)
+        if new_children[0].text() == 'var2':
+            new_var2_node = new_children[0]
+            new_folder_yyy_node = new_children[1]
         else:
-            new_var2_node = new_childrens[1]
-            new_folder_yyy_node = new_childrens[0]
+            new_var2_node = new_children[1]
+            new_folder_yyy_node = new_children[0]
 
         assert isinstance(new_var2_node, WatchableStandardItem)
         assert isinstance(new_folder_yyy_node, FolderStandardItem)
@@ -908,9 +908,9 @@ class TestWatchTreeModel(BaseWatchableTreeTest):
         # Did not move existing nodes
         self.assertIs(var2_node.parent(), folder_xxx_node)
 
-        new_childrens = [folder_xxx_node.child(i, 0) for i in range(xxx_row_count_start, folder_xxx_node.rowCount())]
-        self.assertEqual(len(new_childrens), 1)
-        new_var2_node = new_childrens[0]
+        new_children = [folder_xxx_node.child(i, 0) for i in range(xxx_row_count_start, folder_xxx_node.rowCount())]
+        self.assertEqual(len(new_children), 1)
+        new_var2_node = new_children[0]
 
         assert isinstance(new_var2_node, WatchableStandardItem)
 

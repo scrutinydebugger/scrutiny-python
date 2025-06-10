@@ -1,5 +1,5 @@
 #    realtime_line_series.py
-#        A extension of the QLineSeries meants for real-time graph. It includes a decimator
+#        A extension of the QLineSeries meant for real-time graph. It includes a decimator
 #        and some inline stats computation
 #
 #   - License : MIT - See LICENSE file.

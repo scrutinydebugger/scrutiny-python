@@ -359,8 +359,8 @@ class GraphSignalModel(BaseTreeModel):
                 signal_item.reload_watchable_icon()
 
     def update_availability(self, series_item: ChartSeriesWatchableStandardItem) -> None:
-        """Change the availability of an item based on its availibility in the registry. 
-        When the watchable refered by an element is not in the registry, becomes "unavailable" (grayed out).
+        """Change the availability of an item based on its availability in the registry. 
+        When the watchable referred by an element is not in the registry, becomes "unavailable" (grayed out).
         """
         if self._watchable_registry.is_watchable_fqn(series_item.fqn):
             self.set_available(series_item)
@@ -368,8 +368,8 @@ class GraphSignalModel(BaseTreeModel):
             self.set_unavailable(series_item)
 
     def update_all_availabilities(self) -> None:
-        """Change the availability of all item based on their availibility in the registry. 
-        When the watchable refered by an element is not in the registry, becomes "unavailable" (grayed out).
+        """Change the availability of all item based on their availability in the registry. 
+        When the watchable referred by an element is not in the registry, becomes "unavailable" (grayed out).
         """
         for i in range(self.rowCount()):
             axis = self.item(i, self.watchable_col())

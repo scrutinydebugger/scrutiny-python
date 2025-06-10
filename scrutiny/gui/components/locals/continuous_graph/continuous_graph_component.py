@@ -166,7 +166,7 @@ class ContinuousGraphComponent(ScrutinyGUIBaseLocalComponent):
     _chart_toolbar: ScrutinyChartToolBar
     """The toolbar that let the user control the zoom"""
     _xval_label: QLabel
-    """The label above the signal tree that shows the X value when moving the chart curosor"""
+    """The label above the signal tree that shows the X value when moving the chart cursor"""
     _signal_tree: GraphSignalTree
     """The right menu with axis and signal"""
     _btn_start_stop: QPushButton
@@ -183,7 +183,7 @@ class ContinuousGraphComponent(ScrutinyGUIBaseLocalComponent):
     """A label to report error to the user"""
     _splitter: QSplitter
     """The splitter between the graph and the signal/axis tree"""
-    _serverid2sgnal_item: Dict[str, ChartSeriesWatchableStandardItem]
+    _serverid2signal_item: Dict[str, ChartSeriesWatchableStandardItem]
     """A dictionnary mapping server_id associated with ValueUpdates broadcast by the server to their respective signal (a tree item, which has a reference to the chart series) """
     _first_val_dt: Optional[datetime]
     """The server timestamp of the first value gotten. Used to offset the ValueUpdates timestamps to 0"""
@@ -216,7 +216,7 @@ class ContinuousGraphComponent(ScrutinyGUIBaseLocalComponent):
         return scrutiny_get_theme().load_medium_icon(assets.Icons.ContinuousGraph)
 
     def setup(self) -> None:
-        self._serverid2sgnal_item = {}
+        self._serverid2signal_item = {}
         self._xaxis = ScrutinyValueAxisWithMinMax(self)
         self._xaxis.setTitleText("Time [s]")
         self._xaxis.setTitleVisible(True)
@@ -442,10 +442,10 @@ class ContinuousGraphComponent(ScrutinyGUIBaseLocalComponent):
             with tools.SuppressException():
                 self._chartview.chart().removeAxis(yaxis)
 
-        for signal_item in self._serverid2sgnal_item.values():
+        for signal_item in self._serverid2signal_item.values():
             if signal_item.series_attached():
                 signal_item.detach_series()  # Will reload original icons if any
-        self._serverid2sgnal_item.clear()
+        self._serverid2signal_item.clear()
         self._xaxis.setRange(0, 1)
         self._xaxis.clear_minmax()
         self._yaxes.clear()
@@ -533,7 +533,7 @@ class ContinuousGraphComponent(ScrutinyGUIBaseLocalComponent):
                     self._chartview.chart().addSeries(series)
                     signal_item.attach_series(series)
                     signal_item.show_series()
-                    self._serverid2sgnal_item[server_id] = signal_item  # The main lookup
+                    self._serverid2signal_item[server_id] = signal_item  # The main lookup
                     series.setName(signal_item.text())
                     series.attachAxis(self._xaxis)
                     series.attachAxis(yaxis)
@@ -616,7 +616,7 @@ class ContinuousGraphComponent(ScrutinyGUIBaseLocalComponent):
         based on wether they are selected or not"""
         emphasized_yaxes_id: Set[int] = set()
         selected_index = self._signal_tree.selectedIndexes()
-        for item in self._serverid2sgnal_item.values():
+        for item in self._serverid2signal_item.values():
             if item.series_attached():
                 series = self._get_item_series(item)
                 if item.index() in selected_index:
@@ -668,7 +668,7 @@ class ContinuousGraphComponent(ScrutinyGUIBaseLocalComponent):
         # We do that just so the columns in the CSV file is in the same order as the right menu
         # Right-click -> Save to CSV also follow the same ordering. We want the 2 CSV files to be identical
         def get_server_id_from_signal_item(arg: ChartSeriesWatchableStandardItem) -> str:
-            for server_id, item in self._serverid2sgnal_item.items():
+            for server_id, item in self._serverid2signal_item.items():
                 if item is arg:
                     return server_id
             raise KeyError(f"Could not find the server ID for item: {arg.text()}")
@@ -713,7 +713,7 @@ class ContinuousGraphComponent(ScrutinyGUIBaseLocalComponent):
 
     def _all_series(self) -> Generator[RealTimeScrutinyLineSeries, None, None]:
         """Return the list of all series in the graph"""
-        for item in self._serverid2sgnal_item.values():
+        for item in self._serverid2signal_item.values():
             yield self._get_item_series(item)
 
     def _maybe_enable_opengl_drawing(self, val: bool) -> None:
@@ -852,7 +852,7 @@ class ContinuousGraphComponent(ScrutinyGUIBaseLocalComponent):
                 xval = get_x(value_update)
                 yval = float(value_update.value)
 
-                series = self._get_item_series(self._serverid2sgnal_item[value_update.watchable.server_id])
+                series = self._get_item_series(self._serverid2signal_item[value_update.watchable.server_id])
                 yaxis = self._get_series_yaxis(series)
                 series.add_point(QPointF(xval, yval))
                 self._xaxis.update_minmax(xval)
@@ -874,7 +874,7 @@ class ContinuousGraphComponent(ScrutinyGUIBaseLocalComponent):
             self.stop_acquisition()
 
     def _unwatch_callback(self, watcher_id: Union[str, int], server_path: str, watchable_config: sdk.WatchableConfiguration) -> None:
-        # Should we do something? User feedback if the watcahble is not available anymore maybe?
+        # Should we do something? User feedback if the watchable is not available anymore maybe?
         pass
 
     def _start_periodic_graph_maintenance(self) -> None:
@@ -887,8 +887,8 @@ class ContinuousGraphComponent(ScrutinyGUIBaseLocalComponent):
     def _round_robin_recompute_single_series_min_max(self, full: bool) -> None:
         """Compute a series min/max values. 
         if full=``False``, does only 1 series per call to reduce the load on the CPU. Does all if full=``True``"""
-        sorted_ids = sorted(list(self._serverid2sgnal_item.keys()))
-        all_series = [self._get_item_series(self._serverid2sgnal_item[server_id]) for server_id in sorted_ids]
+        sorted_ids = sorted(list(self._serverid2signal_item.keys()))
+        all_series = [self._get_item_series(self._serverid2signal_item[server_id]) for server_id in sorted_ids]
 
         if full:
             self._y_minmax_recompute_index = 0

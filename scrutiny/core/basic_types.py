@@ -57,7 +57,7 @@ class Endianness(Enum):
     """(Enum) Represent an data storage endianness"""
 
     Little = 0
-    """Litle endian. 0x12345678 is stored as 78 56 34 12 """
+    """Little endian. 0x12345678 is stored as 78 56 34 12 """
 
     Big = 1
     """Big endian. 0x12345678 is stored as 12 34 56 78 """

@@ -402,7 +402,7 @@ class InfoPoller:
                 self.FsmState.GetRPVDefinition: 'Device refused to give RuntimePublishedValues definition. Response Code = %s' % response.code,
                 self.FsmState.GetLoopCount: 'Device refused to give the exec loop count. Response Code = %s' % response.code,
                 self.FsmState.GetLoopDefinition: 'Device refused to give loop definition definition. Response Code = %s' % response.code,
-                self.FsmState.GetDataloggingSetup: 'Device refused to give the coniguration of the embedded datalogger. Response Code = %s' % response.code
+                self.FsmState.GetDataloggingSetup: 'Device refused to give the configuration of the embedded datalogger. Response Code = %s' % response.code
             }
             self.error_message = error_message_map[self.fsm_state] if self.fsm_state in error_message_map else 'Internal error - Request denied. %s - %s' % (
                 str(Request), response.code)

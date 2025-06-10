@@ -144,7 +144,7 @@ class TestEmulatedDatalogger(ScrutinyUnitTest):
         time.sleep(0.001)
         self.assertFalse(self.datalogger.triggered())   # False because hold time is not met
         time.sleep(config.trigger_hold_time + 0.05)
-        self.datalogger.process()   # Now it will see that the hold time has elapsed and trigger will be considered fulfiled
+        self.datalogger.process()   # Now it will see that the hold time has elapsed and trigger will be considered fulfilled
         time.sleep(0.001)
         self.assertTrue(self.datalogger.triggered())
         self.assertEqual(self.datalogger.state, device_datalogging.DataloggerState.TRIGGERED)

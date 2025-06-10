@@ -52,7 +52,7 @@ class UserMessagesManager:
         clear_message = Signal()
 
     _message_queue: List[UserMessage]
-    """The emssage queue. The message at index 0 is the only one that can be active"""
+    """The message queue. The message at index 0 is the only one that can be active"""
     _signals: _Signals
     """The public signals"""
     _message_active: bool
@@ -62,7 +62,7 @@ class UserMessagesManager:
     _logger: logging.Logger
     """Logger for debug mainly"""
     _active_msg_counter: int
-    """A counter for repetitive message used to add a prefix to a message so the user knows it gets re-emited"""
+    """A counter for repetitive message used to add a prefix to a message so the user knows it gets re-emitted"""
 
     def __init__(self) -> None:
         self._message_queue = []
@@ -117,7 +117,7 @@ class UserMessagesManager:
 
     def clear_message(self, id: str) -> None:
         """Remove any message in the message queue with the specified id.
-        If the message is preswently active, clear it properly by emiting a signal"""
+        If the message is presently active, clear it properly by emitting a signal"""
         i = 0
         while True:
             if i >= len(self._message_queue):

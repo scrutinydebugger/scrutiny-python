@@ -43,5 +43,5 @@ class BufferedReaderListener(BaseListener):
         """Returns the queue used for storage"""
         return self._queue
 
-    def allow_subcription_changes_while_running(self) -> bool:
+    def allow_subscription_changes_while_running(self) -> bool:
         return True

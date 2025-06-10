@@ -243,13 +243,13 @@ class WatchComponent(ScrutinyGUIBaseLocalComponent):
                 if k2 not in state_item:
                     raise KeyError(f"Missing key {k2} on node")
 
-            serializable_watcahble: WatchableItemSerializableData = {
+            serializable_watchable: WatchableItemSerializableData = {
                 'text': state_item[State.KEY_TEXT],
                 'fqn': state_item[State.KEY_FQN],
                 'type': WatchableStandardItem.serialized_node_type()
             }
 
-            serializable_item['node'] = serializable_watcahble
+            serializable_item['node'] = serializable_watchable
 
         else:
             raise ValueError(f"Unsupported node type : {state_item[State.KEY_TYPE]}")

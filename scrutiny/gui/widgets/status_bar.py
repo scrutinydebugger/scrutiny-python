@@ -71,7 +71,7 @@ class StatusBarLabel(QWidget):
     _use_indicator: bool
     """True if we want a little indicator light next to the text label"""
     _toolbar: Optional[QToolBar]
-    """The contianing toolbar object for label using a toolbar for the text label"""
+    """The containing toolbar object for label using a toolbar for the text label"""
 
     @property
     def text_label(self) -> TextLabelType:
@@ -222,7 +222,7 @@ class StatusBar(QStatusBar):
     _green_square: QPixmap
     """Icon shown next to the label in the status bar"""
     _one_shot_auto_connect: bool
-    """Flag used to ensure is single reconnection if the user change the server confiugration"""
+    """Flag used to ensure is single reconnection if the user change the server configuration"""
 
     def __init__(self, parent: QWidget, server_manager: ServerManager, local_server_runner: LocalServerRunner) -> None:
         super().__init__(parent)

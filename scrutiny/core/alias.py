@@ -128,7 +128,7 @@ class Alias:
         """Make a dict containing all the information on the alias and that can be loaded with `from_json` """
         d: Dict[str, Any] = dict(target=self.target, target_type=self.target_type)
 
-        # Save some space in alias.json by ommiting defaults value
+        # Save some space in alias.json by omitting defaults value
         if self.gain is not None and self.gain != 1.0:
             d['gain'] = self.gain
 

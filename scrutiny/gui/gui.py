@@ -112,7 +112,7 @@ class ScrutinyQtGUI:
             
             if os.environ['QT_QPA_PLATFORM'] == 'xcb' and is_wsl:
                 if 'DISPLAY' not in os.environ:
-                    logger.warning("To use X11 on WSL, you may need to set DISPLAY=:0")
+                    logger.warning("Using X11 on WSL. An improper X11 configuration may prevent this app from starting. Make sure you can run a basic application (e.g. xeyes).")
                 
 
         app = make_qt_app(args)
@@ -139,7 +139,7 @@ class ScrutinyQtGUI:
         window = MainWindow()
 
         # Signals are processed only when an event is being checked for.
-        # This timer create an opporunity for signal handling every 500 msec
+        # This timer create an opportunity for signal handling every 500 msec
         check_signal_timer = QTimer()
         check_signal_timer.setInterval(500)
         check_signal_timer.start()

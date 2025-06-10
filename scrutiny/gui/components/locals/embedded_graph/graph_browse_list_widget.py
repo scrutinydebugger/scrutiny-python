@@ -53,9 +53,9 @@ class AcquisitionStorageEntryTreeModel(BaseTreeModel):
 
     @classmethod
     def row_from_storage_entry(cls, entry: datalogging.DataloggingStorageEntry) -> List[QStandardItem]:
-        datatime_format_str = gui_persistent_data.global_namespace().long_datetime_format()
+        datetime_format_str = gui_persistent_data.global_namespace().long_datetime_format()
         row = [
-            QStandardItem(entry.timestamp.strftime(datatime_format_str)),
+            QStandardItem(entry.timestamp.strftime(datetime_format_str)),
             QStandardItem(entry.name)
         ]
 

@@ -223,7 +223,7 @@ class BaseListener(abc.ABC):
 
     def _assert_can_change_subscriptions(self) -> None:
         """Raise an exception if it is not permitted to change the subscription list"""
-        if self._started and not self.allow_subcription_changes_while_running():
+        if self._started and not self.allow_subscription_changes_while_running():
             raise sdk_exceptions.NotAllowedError("Changing the number of watchable subscription is not allowed when the listener is started")
 
     def setup(self) -> None:
@@ -364,9 +364,9 @@ class BaseListener(abc.ABC):
                     with tools.SuppressException(KeyError):
                         self._subscriptions.remove(handle)
 
-    def allow_subcription_changes_while_running(self) -> bool:
+    def allow_subscription_changes_while_running(self) -> bool:
         """Indicate if it is allowed to change the subscription list after the listener is started.
-        This method can be overriden.
+        This method can be overridden.
 
         The following methods affect the watchable subscription list
          - :meth:`subscribe()<subscribe>`

@@ -55,12 +55,12 @@ class WorkingTestListener(BaseListener):
         self.recv_time = time.perf_counter()
         self.recv_list.extend(updates)
 
-    def allow_subcription_changes_while_running(self) -> bool:
+    def allow_subscription_changes_while_running(self) -> bool:
         return False
 
 
 class WorkingTestListenerAllowSubscriptionChange(WorkingTestListener):
-    def allow_subcription_changes_while_running(self) -> bool:
+    def allow_subscription_changes_while_running(self) -> bool:
         return True
 
 
@@ -409,9 +409,9 @@ class TestListeners(ScrutinyUnitTest):
                     self.w3._update_value(3 * i, new_dt)
                     self.w5._update_value(i % 2 == 0, new_dt)
                     if i == 6:
-                        to_update = [self.w1, self.w5, self.w2]           # Puposely out of order
+                        to_update = [self.w1, self.w5, self.w2]           # purposely out of order
                     else:
-                        to_update = [self.w1, self.w2, self.w5, self.w3]  # Puposely out of order
+                        to_update = [self.w1, self.w2, self.w5, self.w3]  # purposely out of order
                         if i > 0:
                             self.w4._update_value(4.4123 * i)
                             to_update.append(self.w4)

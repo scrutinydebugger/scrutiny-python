@@ -1,5 +1,5 @@
 #    manual_test_chart.py
-#        A test application to check the visual rendring of a chart
+#        A test application to check the visual rendering of a chart
 #
 #   - License : MIT - See LICENSE file.
 #   - Project :  Scrutiny Debugger (github.com/scrutinydebugger/scrutiny-main)

@@ -1,5 +1,5 @@
 #    device_info_dialog.py
-#        A dialog to visualize the device information downlaoded after a device has connected.
+#        A dialog to visualize the device information downloaded after a device has connected.
 #
 #   - License : MIT - See LICENSE file.
 #   - Project :  Scrutiny Debugger (github.com/scrutinydebugger/scrutiny-main)

@@ -873,7 +873,7 @@ class Protocol:
         valid: bool = True
 
         # For now, all commands have no data in negative response. But it could be different in the future.
-        # So it might be possible in the furture to move this condition and have a response with
+        # So it might be possible in the future to move this condition and have a response with
         # a response code different from OK with valid data to decode.
         if response.code == Response.ResponseCode.OK:
             try:

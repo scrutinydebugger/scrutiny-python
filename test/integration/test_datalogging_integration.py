@@ -266,7 +266,7 @@ class TestDataloggingIntegration(ScrutinyIntegrationTestWithTestSFD1):
                             self.assertEqual(acq_summary['reference_id'], acq_refid)
                             if session_iteration == 0:
                                 self.assertIsNone(acq_summary['firmware_metadata'])
-                            else:   # emulated device firmware ID is cahnged at the end of the loop so it matches the SFD
+                            else:   # emulated device firmware ID is changed at the end of the loop so it matches the SFD
                                 self.assertIsNotNone(acq_summary['firmware_metadata'])
                                 self.assertEqual(acq_summary['firmware_metadata'], self.sfd.get_metadata().to_dict())
                             break
@@ -288,7 +288,7 @@ class TestDataloggingIntegration(ScrutinyIntegrationTestWithTestSFD1):
                     self.assertEqual(len(response['signals']), 4)
 
                     self.assertEqual(response['firmware_id'], self.emulated_device.get_firmware_id_ascii())
-                    # On first loop, emualted device and SFD does not match. Subsequent loop, they match because we change the emulated device ID at the end of the first loop
+                    # On first loop, emulated device and SFD does not match. Subsequent loop, they match because we change the emulated device ID at the end of the first loop
                     if session_iteration == 0:
                         self.assertIsNone(response['firmware_name'])
                     else:

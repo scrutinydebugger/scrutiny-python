@@ -50,9 +50,9 @@ def copy_type(f: T) -> Callable[[Any], T]:
 
 def update_dict_recursive(d1: Dict[Any, Any], d2: Dict[Any, Any]) -> None:
     if not isinstance(d1, dict):
-        raise ValueError("Cannot merge non-dictionnaries")
+        raise ValueError("Cannot merge non-dictionaries")
     if not isinstance(d2, dict):
-        raise ValueError("Cannot merge non-dictionnaries")
+        raise ValueError("Cannot merge non-dictionaries")
 
     for k in d2.keys():
         if isinstance(d2[k], dict):

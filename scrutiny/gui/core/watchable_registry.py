@@ -121,7 +121,7 @@ class WatchableRegistry:
 
     @dataclass(frozen=True)
     class Statistics:
-        """(Immutable struct) Internal metrics for debugging and disagnostics"""
+        """(Immutable struct) Internal metrics for debugging and diagnostics"""
         watched_entries_count: int
         registered_watcher_count: int
         alias_count: int
@@ -624,8 +624,8 @@ class WatchableRegistry:
         def is_equal(fqn1: str, fqn2: str) -> bool:
             """Compares 2 Fully Qualified Names and return ``True`` if they point to the same node
 
-            :param fqn1: First oeprand
-            :param fqn2: Second oeprand
+            :param fqn1: First operand
+            :param fqn2: Second operand
 
             :return: ``True`` if equals
             """

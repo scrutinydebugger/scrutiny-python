@@ -63,7 +63,7 @@ class TestSFD(ScrutinyUnitTest):
         self.assertEqual(enum.get_value('eVal3'), 100)
         self.assertEqual(enum.get_value('eVal4'), 101)
         with self.assertRaises(Exception):
-            enum.get_value('inexistant_name')
+            enum.get_value('inexistent_name')
 
         self.assertEqual(var_as_dict["/path1/path2/some_float32"].get_address(), 1008)
         self.assertEqual(var_as_dict["/path1/path2/some_float32"].get_type(), EmbeddedDataType.float32)

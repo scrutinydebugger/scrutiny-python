@@ -829,7 +829,7 @@ def parse_read_datalogging_acquisition_content_response(response: api_typing.S2C
         _check_response_dict(cmd, d, 'type', str)
 
         if d['type'] not in WatchableType.all():
-            raise sdk.exceptions.BadResponseError(f"Invalid wachable type {d['type']}")
+            raise sdk.exceptions.BadResponseError(f"Invalid watchable type {d['type']}")
         return scrutiny.sdk.datalogging.LoggedWatchable(
             path=d['path'],
             type=WatchableType(d['type'])

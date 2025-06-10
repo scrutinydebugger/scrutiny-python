@@ -66,7 +66,7 @@ class VariableRateExponentialAverager:
             instant_bitrate = self.sum_since_last_estimation / dt
             self.sum_since_last_estimation = 0     # Reset the data counter
 
-            # Let's adjust the transfer function tor espect the given time constant
+            # Let's adjust the transfer function tor expect the given time constant
             b = min(1, dt / self.tau)   # Approximation. Exact equation is 1-exp(-dt/tau)
             a = 1 - b
             val = b * instant_bitrate + a * self.estimated_value

@@ -1,4 +1,4 @@
-#    test_interract_with_device.py
+#    test_interact_with_device.py
 #        Make sure we can do some API calls related to the device that are not read/writes.
 #
 #   - License : MIT - See LICENSE file.
@@ -16,10 +16,10 @@ from scrutiny.tools.typing import *
 from test.integration.integration_test import ScrutinyIntegrationTestWithTestSFD1
 
 
-class TestInterractWithDevice(ScrutinyIntegrationTestWithTestSFD1):
+class TestinteractWithDevice(ScrutinyIntegrationTestWithTestSFD1):
 
     def setUp(self):
-        def setup_regions(self: "TestInterractWithDevice"):
+        def setup_regions(self: "TestinteractWithDevice"):
             self.emulated_device.add_forbidden_region(0x1000, 0x100)
             self.emulated_device.add_forbidden_region(0x3000, 0x200)
             self.emulated_device.add_readonly_region(0x10000, 0x300)
@@ -115,10 +115,10 @@ class TestInterractWithDevice(ScrutinyIntegrationTestWithTestSFD1):
         self.assertEqual(response['metadata']['generation_info']['time'], loaded_sfd.metadata.generation_info.timestamp.timestamp())
 
 
-class TestInterractWithDeviceNoThrottling(ScrutinyIntegrationTestWithTestSFD1):
+class TestinteractWithDeviceNoThrottling(ScrutinyIntegrationTestWithTestSFD1):
 
     def setUp(self):
-        def setup_bitrate(self: "TestInterractWithDevice"):
+        def setup_bitrate(self: "TestinteractWithDevice"):
             self.emulated_device.max_bitrate_bps = 0
         self.prestart_callback = functools.partial(setup_bitrate, self)
         return super().setUp()
