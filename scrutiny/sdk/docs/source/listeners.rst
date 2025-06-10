@@ -78,7 +78,7 @@ These methods launches an internal thread that will handle each new value update
 
 
 Listeners may or may not allow a user to add or remove watchables from their subscription list while the listener is active.
-This behavior is controlled by overriding :meth:`allow_subcription_changes_while_running()<scrutiny.sdk.listeners.BaseListener.allow_subcription_changes_while_running>`.
+This behavior is controlled by overriding :meth:`allow_subscription_changes_while_running()<scrutiny.sdk.listeners.BaseListener.allow_subscription_changes_while_running>`.
 
 Some listeners will allow it (like the :class:`TextStreamListener<scrutiny.sdk.listeners.TextStreamListener>` or the :class:`BufferedReaderListener<scrutiny.sdk.listeners.BufferedReaderListener>`) 
 , but some does not (like the :class:`CSVFileListener<scrutiny.sdk.listeners.CSVFileListener>`). When not allowed, a :class:`NotAllowedError<scrutiny.sdk.exceptions.NotAllowedError>` will
@@ -90,7 +90,7 @@ be raised if one of the following method is called after :meth:`start()<scrutiny
 - :meth:`prune_subscriptions()<scrutiny.sdk.listeners.BaseListener.prune_subscriptions>`
 
 
-.. automethod:: scrutiny.sdk.listeners.BaseListener.allow_subcription_changes_while_running
+.. automethod:: scrutiny.sdk.listeners.BaseListener.allow_subscription_changes_while_running
 
 -----
 
