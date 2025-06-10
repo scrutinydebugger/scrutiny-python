@@ -732,6 +732,7 @@ class ScrutinyChartView(QChartView):
         self._last_mouse_pos = QPoint()
         self._chart_cursor_broadcast_xval_func = None
         self._text_color = scrutiny_get_theme().palette().text().color()
+        self.setRenderHint(QPainter.RenderHint.Antialiasing, True)
 
     def resizeEvent(self, event: QResizeEvent) -> None:
         super().resizeEvent(event)
