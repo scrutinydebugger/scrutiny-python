@@ -42,10 +42,12 @@ from scrutiny import tools
 
 ValType: TypeAlias = Union[int, float, bool]
 
+REAL_DATA_ROLE = Qt.ItemDataRole.UserRole + 1
+"""The data stored in a value cell. Allow storing a value different than the display value. Used by Enums and ComboBoxes"""
 AVAILABLE_DATA_ROLE = Qt.ItemDataRole.UserRole + 2
 """A boolean value put on the watchable name cell telling if the watchable is available in the registry"""
 WATCHER_ID_ROLE = Qt.ItemDataRole.UserRole + 3
-"""A string put on the watchable name cell that stores the WatchbleRegistry watcher ID. One ID per row"""
+"""A string put on the watchable name cell that stores the WatchableRegistry watcher ID. One ID per row"""
 ENUM_DATA_ROLE = Qt.ItemDataRole.UserRole + 4
 """An optional EmbeddedEnum object stored on the Value cell storing a copy of the enum from the registry. Used for combo box on edit"""
 
@@ -55,7 +57,7 @@ class ValueStandardItem(QStandardItem):
 
     def set_value(self, value_to_set: Optional[ValType]) -> None:
         """Set the value of the item. Stores the real data + compute a text representation for the UI."""
-        self.setData(value_to_set, Qt.ItemDataRole.EditRole)    # Real value
+        self.setData(value_to_set, REAL_DATA_ROLE)
 
         value_enum = cast(Optional[EmbeddedEnum], self.data(ENUM_DATA_ROLE))
         display_txt = str(value_to_set)
@@ -72,11 +74,12 @@ class ValueStandardItem(QStandardItem):
                 pass  # That'd be weird. Let's be resilient
         else:
             pass  # Basic type values. Just cast to string for display
-        self.setData(display_txt, Qt.ItemDataRole.DisplayRole)
+        self.setData(display_txt, Qt.ItemDataRole.EditRole)
+
 
     def get_value(self) -> Optional[ValType]:
         """Return the data in its original data type that has been stored with set_value"""
-        return cast(Optional[ValType], self.data(Qt.ItemDataRole.EditRole))
+        return cast(Optional[ValType], self.data(REAL_DATA_ROLE))
 
     @classmethod
     def make_enum_display_val(cls, name: str, val: ValType) -> str:
@@ -129,7 +132,7 @@ class ValueEditDelegate(QStyledItemDelegate):
             super().setEditorData(editor, index)
             return
 
-        loaded_val = cast(Optional[ValType], index.data(Qt.ItemDataRole.EditRole))
+        loaded_val = cast(Optional[ValType], index.data(REAL_DATA_ROLE))
         for val in enum_data.vals.values():
             if val == loaded_val:
                 editor.setCurrentIndex(editor.findData(loaded_val))  # Default value is fine if not found.
@@ -139,19 +142,19 @@ class ValueEditDelegate(QStyledItemDelegate):
 
     def setModelData(self, editor: QWidget, model: QAbstractItemModel, index: Union[QModelIndex, QPersistentModelIndex]) -> None:
         assert isinstance(model, WatchableTreeModel)
-        enum_data = cast(Optional[EmbeddedEnum], index.data(ENUM_DATA_ROLE))
-        if enum_data is None or not isinstance(editor, QComboBox):
-            super().setModelData(editor, model, index)
-            return
-
         item = model.itemFromIndex(index)
         if not isinstance(item, ValueStandardItem):
             super().setModelData(editor, model, index)
             return
-
-        # Combobox, currentData() return the numerical value
-        val = cast(Optional[ValType], editor.currentData())
-        item.set_value(val)
+        
+        enum_data = cast(Optional[EmbeddedEnum], index.data(ENUM_DATA_ROLE))
+        if enum_data is None or not isinstance(editor, QComboBox):
+            super().setModelData(editor, model, index)
+            item.set_value(model.data(index, Qt.ItemDataRole.EditRole)) # Read back the default behavior and store in real value
+        else:
+            # Combobox, currentData() return the numerical value
+            val = cast(Optional[ValType], editor.currentData())
+            item.set_value(val)
 
 
 class WatchComponentTreeWidget(WatchableTreeWidget):
