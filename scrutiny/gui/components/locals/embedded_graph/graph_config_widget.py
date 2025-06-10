@@ -136,15 +136,15 @@ class GraphConfigWidget(QWidget):
         layout.addWidget(xaxis_container)
         layout.addWidget(trigger_container)
 
-        def set_top_bottom_margin(layout:QFormLayout, top:int, bottom:int) -> None:
+        def set_top_bottom_margin(layout: QFormLayout, top: int, bottom: int) -> None:
             margins = layout.contentsMargins()
             margins.setTop(top)
             margins.setBottom(bottom)
             layout.setContentsMargins(margins)
-        
+
         class InternalFormLayout(QFormLayout):
             @tools.copy_type(QFormLayout.__init__)
-            def __init__(self, *args:Any, **kwargs:Any) -> None:
+            def __init__(self, *args: Any, **kwargs: Any) -> None:
                 super().__init__(*args, **kwargs)
                 margins = self.contentsMargins()
                 margins.setTop(3)

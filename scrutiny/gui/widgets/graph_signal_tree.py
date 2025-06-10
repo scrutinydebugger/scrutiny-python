@@ -568,7 +568,7 @@ class GraphSignalTree(BaseTreeView):
             new_axis_action.setDisabled(True)
             remove_action.setDisabled(True)
 
-        context_menu.popup(self.mapToGlobal( event.pos()))
+        context_menu.popup(self.mapToGlobal(event.pos()))
         event.accept()
 
     def keyPressEvent(self, event: QKeyEvent) -> None:
