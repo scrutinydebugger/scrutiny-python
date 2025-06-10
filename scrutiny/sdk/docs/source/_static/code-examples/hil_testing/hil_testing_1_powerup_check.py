@@ -7,7 +7,7 @@ with client.connect(hostname, port, wait_status=True):    # Establish a connecti
     client.wait_device_ready(timeout=5)
 
     # The following watch uses "aliases". For HIL testing, it is a good practice to keep
-    # the interface to the firmware abstracted to ensure the validity of this script across version of firmwares.
+    # the interface to the firmware abstracted to ensure the validity of this script across versions of firmware.
     # Aliases are defined in the SFD, the byproduct of the SCrutiny post-build toolchain.
 
     run_app = client.watch('/alias/app/run_app')                    # Maps to /var/static/main.cpp/run_app

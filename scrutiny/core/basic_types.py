@@ -87,7 +87,7 @@ class EmbeddedDataType(Enum):
     """
     (Enum)
     Represent a datatype that can be read from a device.
-    The embedded library has the same definition of datatype as this one. They needs to match.
+    The embedded library has the same definition of datatypes as this one. They needs to match.
     Not all datatype are supported.  (cfloat or >64 bits)
     """
     sint8 = DataTypeType._sint.value | DataTypeSize._8.value

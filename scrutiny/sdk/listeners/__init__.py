@@ -91,8 +91,8 @@ class BaseListener(abc.ABC):
                  name: Optional[str] = None,
                  queue_max_size: int = 1000
                  ) -> None:
-        """Base abstract class for all listeners. :meth:`receive<receive>` must be overriden.
-            :meth:`setup<setup>` and :meth:`teardown<teardown>` can optionally be overriden.
+        """Base abstract class for all listeners. :meth:`receive<receive>` must be overridden.
+            :meth:`setup<setup>` and :meth:`teardown<teardown>` can optionally be overridden.
 
             :param name: Name of the listener used for logging purpose
             :param queue_max_size: Internal queue maximum size. If the queue is ever full, the update notification will be dropped

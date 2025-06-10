@@ -32,13 +32,13 @@ Getting the server status
 -------------------------
 
 Upon establishing a connection with a client, and at regular intervals thereafter, the server broadcasts a status. 
-This status is a data structure that encapsulates all the pertinent information about what is happening at the other end of the TCP socet. 
+This status is a data structure that encapsulates all the pertinent information about what is happening at the other end of the TCP socket. 
 It includes:
 
 - The type of connection used by the device
 - A unique session ID with the device (if connected).
 - The state of the datalogger within the device
-- The loaded :abbr:`SFD (Scrutiny Frimware Description)`.
+- The loaded :abbr:`SFD (Scrutiny Firmware Description)`.
 - etc.
 
 -----
@@ -56,6 +56,10 @@ It includes:
 -----
 
 .. automethod:: scrutiny.sdk.client.ScrutinyClient.wait_device_ready
+
+-----
+
+.. automethod:: scrutiny.sdk.client.ScrutinyClient.get_device_info
 
 -----
 
@@ -120,8 +124,8 @@ Diagnostic metrics
 ------------------
 
 The client can also provide some diagnostic metrics to monitor the well being of the system.  
-Local metrics (measured by the client) are available trhough :meth:`get_local_stats()<scrutiny.sdk.client.ScrutinyClient.get_local_stats>`.
-Server metrics (measured by the server) are available trhough :meth:`get_server_stats()<scrutiny.sdk.client.ScrutinyClient.get_server_stats>`.
+Local metrics (measured by the client) are available through :meth:`get_local_stats()<scrutiny.sdk.client.ScrutinyClient.get_local_stats>`.
+Server metrics (measured by the server) are available through :meth:`get_server_stats()<scrutiny.sdk.client.ScrutinyClient.get_server_stats>`.
 
 -----
 

@@ -1924,7 +1924,7 @@ class ScrutinyClient:
         Returns a result similar to :meth:`list_stored_datalogging_acquisitions<list_stored_datalogging_acquisitions>`
         but with a single storage entry.
 
-        :param reference_id: The acquisition refence_id (unique ID)
+        :param reference_id: The acquisition reference_id (unique ID)
         :param timeout: The request timeout value. The default client timeout will be used if set to ``None`` Defaults to ``None``
 
         :raise OperationFailure: If fetching the metadata fails
@@ -1971,7 +1971,7 @@ class ScrutinyClient:
                                              before_datetime: Optional[datetime] = None,
                                              count: int = 500,
                                              timeout: Optional[float] = None) -> List[sdk.datalogging.DataloggingStorageEntry]:
-        """Gets the list of datalogging acquisition stored in the server database. 
+        """Gets the list of datalogging acquisitions stored in the server database. 
         Acquisitions are returned ordered by acquisition time, from newest to oldest.
 
         :param firmware_id: When not ``None``, searches for acquisitions taken with this firmware ID

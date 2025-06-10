@@ -14,7 +14,7 @@ soon as a device is connected (RPV)
       - **Description**
       - **SFD required**
     * - Variable
-      - A variable maps to a static or global variable declared in the embedded device firmware. The variable address, type, size and endianness is defined in the loaded :abbr:`SFD (Scrutiny Firmware Description)`
+      - A variable maps to a static or global variable declared in the embedded device firmware. The variable's address, type, size and endianness are defined in the loaded :abbr:`SFD (Scrutiny Firmware Description)`
       - Yes
     * - Runtime Published Values (RPV)
       - Readable and writable elements identified by a numerical ID (16 bits) and declared by the device during the handshake phase with the server.
@@ -29,7 +29,7 @@ Basics
 ------
 
 The first step to access a watchable, is to first tell the server that we want to subscribe to update event on that watchable.
-To do so, we use the :meth:`watch<scrutiny.sdk.client.ScrutinyClient.watch>` method and specify the path of the watchable. The path
+To do so, we use the :meth:`watch<scrutiny.sdk.client.ScrutinyClient.watch>` method and specify the watchable's path. The path
 depends on the firmware and must generally be known in advance. 
 The path is dependent on the firmware and is typically known beforehand. 
 It's also possible to query the server for a list of available watchables, a feature utilized by the GUI.
@@ -113,11 +113,11 @@ method. Alternatively, to wait for updates from all watched variables at once, t
     - Reading : When value is unavailable. This will happen if 
         a. The watchable has never been updated (small window of time after subscription)
         b. The server disconnects
-        c. The device is disconnects
+        c. The device is disconnected
 
     - Writing : When the value cannot be written. This will happen if 
         a. The server disconnects
-        b. The device is disconnects
+        b. The device is disconnected
         c. Writing is actively denied by the device. (Communication error or protected memory region)
         d. Timeout: The write confirmation takes more time than the client ``write_timeout``
 
@@ -164,15 +164,15 @@ In most common scenarios, a value update can be expected within a few hundred mi
 Batch writing
 -------------
 
-Writing multiples values in a row is inefficient due to the latency associated with device access.
+Writing multiple values in a row is inefficient due to the latency associated with device access.
 To optimize speed, one can consolidate multiple write operations into a single batched request using the
 :meth:`ScrutinyClient.batch_write<scrutiny.sdk.client.ScrutinyClient.batch_write>` method. 
 
 In a batch write operation, multiple write requests are queued and dispatched to the server in a single API call. 
-The server then executes all write operations in the correct order and confirms the completion of the entire batch. 
+The server then executes all write operations in the correct order and confirms the successful completion of the entire batch. 
 
 It is permissible to perform multiple writes to the same watchable within the same batch. 
-The server ensures that each write operation is completed and acknowledged by the device before initiating the subsequent operation.
+The server ensures that each write operation is completed and acknowledged by the device before proceeding to the next operation.
 
 -----
 
@@ -231,10 +231,10 @@ to access the memory.
 Available watchables
 --------------------
 
-It is possible to query the server for the current number of available watchable items and also download their definition
+It is possible to query the server for the current number of available watchable items and to download their definition
 
-This feature is typically not required for automation scripts; however, it can be ncessary for presenting users with selectable watchable items. 
-It is currently utilized by the Scrutiny GUI to populate the Variable List widget
+This feature is typically not required for automation scripts; however, it can be necessary for presenting users with selectable watchable items. 
+It is currently used by the Scrutiny GUI to populate the Variable List widget
 
 .. automethod:: scrutiny.sdk.client.ScrutinyClient.get_watchable_count
 
