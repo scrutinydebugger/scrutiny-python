@@ -754,7 +754,7 @@ class EmbeddedGraphComponent(ScrutinyGUIBaseLocalComponent):
             axis_item.appendRow(signal_tree_model.make_watchable_item_row(series_item))
 
             # Bind the graph to the item tree
-            axis_item.attach_axis(qt_axis)
+            axis_item.attach_axis(qt_yaxis)
             series_item.attach_series(series)
 
             yseries_data = ydata.series.get_data()
