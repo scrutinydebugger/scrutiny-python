@@ -18,7 +18,7 @@ import scrutiny
 
 dependencies = [
     'appdirs==1.4.4',
-    'pyelftools==0.31',
+    'pyelftools==0.32',
     'sortedcontainers==2.4.0',
     'pyserial==3.5',
     'pylink-square==1.3.0',

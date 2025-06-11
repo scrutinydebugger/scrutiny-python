@@ -272,13 +272,11 @@ class ElfDwarfVarExtractor:
 
     def get_die_at_spec(self, die: DIE) -> DIE:
         self.log_debug_process_die(die)
-        refaddr = cast(int, die.attributes['DW_AT_specification'].value) + die.cu.cu_offset
-        return die.dwarfinfo.get_DIE_from_refaddr(refaddr)
+        return die.get_DIE_from_attribute('DW_AT_specification')
 
     def get_die_at_abstract_origin(self, die: DIE) -> DIE:
         self.log_debug_process_die(die)
-        refaddr = cast(int, die.attributes['DW_AT_abstract_origin'].value) + die.cu.cu_offset
-        return die.dwarfinfo.get_DIE_from_refaddr(refaddr)
+        return die.get_DIE_from_attribute('DW_AT_abstract_origin')
 
     def get_name(self, die: DIE, default: Optional[str] = None, nolog: bool = False) -> str:
         if not nolog:
@@ -485,8 +483,7 @@ class ElfDwarfVarExtractor:
         while True:
             if 'DW_AT_type' not in prevdie.attributes:
                 return None
-            refaddr = cast(int, prevdie.attributes['DW_AT_type'].value) + prevdie.cu.cu_offset
-            nextdie = prevdie.dwarfinfo.get_DIE_from_refaddr(refaddr)
+            nextdie = prevdie.get_DIE_from_attribute('DW_AT_type')
             if nextdie.tag in tags:
                 return nextdie
             else:
@@ -498,8 +495,7 @@ class ElfDwarfVarExtractor:
         prevdie = die
         enum: Optional[DIE] = None
         while True:
-            refaddr = prevdie.attributes['DW_AT_type'].value + prevdie.cu.cu_offset
-            nextdie = prevdie.dwarfinfo.get_DIE_from_refaddr(refaddr)
+            nextdie = prevdie.get_DIE_from_attribute('DW_AT_type')
             if nextdie.tag == 'DW_TAG_structure_type':
                 return TypeDescriptor(TypeOfVar.Struct, enum, nextdie)
             elif nextdie.tag == 'DW_TAG_class_type':
@@ -552,8 +548,7 @@ class ElfDwarfVarExtractor:
                 offset = 0
                 if self.has_member_byte_offset(child):
                     offset = self.get_member_byte_offset(child)
-                refaddr = child.attributes['DW_AT_type'].value + child.cu.cu_offset
-                typedie = child.dwarfinfo.get_DIE_from_refaddr(refaddr)
+                typedie = child.get_DIE_from_attribute('DW_AT_type')
                 if typedie.tag not in ['DW_TAG_structure_type', 'DW_TAG_class_type']:   # Add union here?
                     self.logger.warning(f"Line {get_linenumber()}: Inheritance to a type die {self.make_name_for_log(typedie)}. Not supported yet")
                     continue
