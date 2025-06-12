@@ -40,13 +40,15 @@ PLATFORM_ARGS=
 OUTPUT_FILENAME="scrutiny.bin"  # default. we manage with symlink on unix based platform
 if [ "$PLATFORM" = "win32" ]; then
     PLATFORM_ARGS+=" --windows-icon-from-ico=${ICON_PNG}"
+    PLATFORM_ARGS+=" --windows-console-mode=disable"
     OUTPUT_FILENAME="scrutiny"  # we do not want scrutiny.bin.exe
 elif [ "$PLATFORM" = "darwin" ]; then
     PLATFORM_ARGS+=" --macos-create-app-bundle"
     PLATFORM_ARGS+=" --include-data-file=${DEPLOY_FOLDER}/macos/launcher.sh=launcher.sh"
     PLATFORM_ARGS+=" --macos-app-icon=${ICON_PNG}"
+    PLATFORM_ARGS+=" --windows-console-mode=hide"
 elif [ "$PLATFORM" = "linux" ]; then
-    :
+    PLATFORM_ARGS+=" --windows-console-mode=hide"
 fi
 
 LICENSE_FILE="LICENSE.out"
