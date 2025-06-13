@@ -32,7 +32,6 @@ from scrutiny.core.logging import DUMPDATA_LOGLEVEL
 
 from scrutiny.tools.typing import *
 
-
 def get_linenumber() -> int:
     cf = currentframe()
     if cf is None:
@@ -436,18 +435,24 @@ class ElfDwarfVarExtractor:
     def get_typename_from_die(self, die: DIE) -> str:
         return cast(bytes, die.attributes['DW_AT_name'].value).decode('ascii')
 
+    def get_size_from_type_die(self, die:DIE) -> int:
+        if 'DW_AT_byte_size' not in die.attributes:
+            raise ElfParsingError(f'Missing DW_AT_byte_size on type die {die}')
+        return cast(int, die.attributes['DW_AT_byte_size'].value)
+
     # Process die of type "base type". Register the type in the global index and maps it to a known type.
     def die_process_base_type(self, die: DIE) -> None:
         self.log_debug_process_die(die)
         name = self.get_typename_from_die(die)
         encoding = self.DwarfEncoding(cast(int, die.attributes['DW_AT_encoding'].value))
-        bytesize = cast(int, die.attributes['DW_AT_byte_size'].value)
+        bytesize = self.get_size_from_type_die(die)
         basetype = self.get_core_base_type(encoding, bytesize)
         self.logger.debug(f"Registering base type: {name} as {basetype.name}")
         self.varmap.register_base_type(name, basetype)
 
         self.die2typeid_map[die] = self.varmap.get_type_id(name)
         self.die2vartype_map[die] = basetype
+    
 
     def die_process_enum(self, die: DIE) -> None:
         self.log_debug_process_die(die)
@@ -566,7 +571,8 @@ class ElfDwarfVarExtractor:
         """Tell the offset at which this member is located relative to the structure base"""
 
         if 'DW_AT_data_member_location' not in die.attributes:
-            raise ElfParsingError(f"No member location on die {die}")
+            # DWARF V4. 5.5.6: If the beginning of the data member is the same as the beginning of the containing entity then neither attribute is required.
+            return 0    
 
         val = die.attributes['DW_AT_data_member_location'].value
         if isinstance(val, int):
@@ -644,24 +650,35 @@ class ElfDwarfVarExtractor:
         else:
             byte_offset = self.get_member_byte_offset(die)
 
-        if 'DW_AT_bit_offset' in die.attributes:
-            if 'DW_AT_byte_size' not in die.attributes:
-                raise ElfParsingError('Missing DW_AT_byte_size for bitfield %s' % (self.get_name(die, '')))
+        is_bitfield = 'DW_AT_bit_offset' in die.attributes or 'DW_AT_bit_size' in die.attributes
+        
+        bitoffset:Optional[int] = None
+        bitsize:Optional[int] = None
+
+        if is_bitfield:
+            bytesize:Optional[int] = None
+
+            if 'DW_AT_byte_size' in die.attributes:
+                bytesize = int(die.attributes['DW_AT_byte_size'].value)
+            elif type_desc.type in [TypeOfVar.BaseType, TypeOfVar.EnumOnly]:
+                bytesize = self.get_size_from_type_die(type_desc.type_die)
+            else:
+                raise ElfParsingError('Cannot get byte size for bitfield %s' % (self.get_name(die, '')))
+            
             if 'DW_AT_bit_size' not in die.attributes:
                 raise ElfParsingError('Missing DW_AT_bit_size for bitfield %s' % (self.get_name(die, '')))
 
-        bitsize = die.attributes['DW_AT_bit_size'].value if 'DW_AT_bit_size' in die.attributes else None
+            bitsize = die.attributes['DW_AT_bit_size'].value
 
-        # Not sure about this.
-        if 'DW_AT_bit_offset' in die.attributes:
-            if self.endianness == Endianness.Little:
-                bitoffset = (die.attributes['DW_AT_byte_size'].value * 8) - die.attributes['DW_AT_bit_offset'].value - bitsize
-            elif self.endianness == Endianness.Big:
-                bitoffset = die.attributes['DW_AT_bit_offset'].value
+            if 'DW_AT_bit_offset' in die.attributes:
+                bitoffset = int(die.attributes['DW_AT_bit_offset'].value)
+            elif 'DW_AT_data_bit_offset' in die.attributes:
+                bitoffset = int(die.attributes['DW_AT_data_bit_offset'].value)
             else:
-                raise ValueError('Unknown endianness')
-        else:
-            bitoffset = None
+                bitoffset = 0   # Dwarf V4 allow this. 
+
+            if self.endianness == Endianness.Little:
+                bitoffset = (bytesize * 8) - bitoffset - bitsize
 
         return Struct.Member(
             name=name,
