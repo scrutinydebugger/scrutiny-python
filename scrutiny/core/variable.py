@@ -118,25 +118,25 @@ class Struct:
 
             if bitoffset is not None:
                 if not isinstance(bitoffset, int):
-                    raise ValueError('bitoffset must be an integer value')
+                    raise ValueError(f'bitoffset must be an integer value. Got {bitoffset.__class__.__name__}')
                 if bitoffset < 0:
                     raise ValueError('bitoffset must be a positive integer')
 
             if bitsize is not None:
                 if not isinstance(bitsize, int):
-                    raise ValueError('bitsize must be an integer value')
+                    raise ValueError(f'bitsize must be an integer value. Got {bitsize.__class__.__name__}')
                 if bitsize < 0:
                     raise ValueError('bitsize must be a positive integer')
 
             if byte_offset is not None:
                 if not isinstance(byte_offset, int):
-                    raise ValueError('byte_offset must be an integer value')
+                    raise ValueError(f'byte_offset must be an integer value. Got {bitsize.__class__.__name__}')
                 if byte_offset < 0:
                     raise ValueError('byte_offset must be a positive integer')
 
             if substruct is not None:
                 if not isinstance(substruct, Struct):
-                    raise ValueError('substruct must be Struct instance')
+                    raise ValueError(f'substruct must be Struct instance. Got {substruct.__class__.__name__}')
 
             if is_unnamed:
                 if not is_substruct:
