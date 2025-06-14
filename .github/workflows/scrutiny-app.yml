@@ -8,7 +8,7 @@ on:
 
 jobs:
   build-ubuntu:
-    runs-on: ubuntu-latest
+    runs-on: ubuntu-22.04
     steps:
       # Check-out repository
       - name: Checkout Repo
