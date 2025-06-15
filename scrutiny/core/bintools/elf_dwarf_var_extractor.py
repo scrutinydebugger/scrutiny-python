@@ -573,6 +573,13 @@ class ElfDwarfVarExtractor:
     def die_process_enum(self, die: DIE) -> None:
         self._log_debug_process_die(die)
         name = self.get_name(die)
+        
+        if self._context.cu_compiler == Compiler.TI_C28_CGT:
+            # cl2000 embeds the full mangled path in the DW_AT_NAME attribute, 
+            # ex : _ZN13FileNamespace14File3TestClass16File3EnumInClassE = FileNamespace::File3TestClass::File3EnumInClass
+            demangled_name = self.demangler.demangle(name)
+            name = demangled_name.split('::')[-1]
+
         if die not in self.enum_die_map and name is not None:
             enum = EmbeddedEnum(name)
 
@@ -581,6 +588,12 @@ class ElfDwarfVarExtractor:
                     continue
 
                 name = self.get_name_no_none(child)
+                if self._context.cu_compiler == Compiler.TI_C28_CGT:
+                    # cl2000 embeds the full mangled path in the DW_AT_NAME attribute, 
+                    # ex :_ZN13FileNamespace14File3TestClass3BBBE = FileNamespace::File3TestClass::BBB
+                    demangled_name = self.demangler.demangle(name)
+                    name = demangled_name.split('::')[-1]
+
                 if Attrs.DW_AT_const_value in child.attributes:
                     value = cast(int, child.attributes[Attrs.DW_AT_const_value].value)
                     enum.add_value(name=name, value=value)
@@ -588,27 +601,6 @@ class ElfDwarfVarExtractor:
                     self.logger.error('Enumerator without value')
 
             self.enum_die_map[die] = enum
-
-    def extract_basetype_die(self, die: DIE) -> DIE:
-        self._log_debug_process_die(die)
-        basetype_die = self.get_first_parent_of_type(die, Tags.DW_TAG_base_type)
-        if basetype_die is None:
-            raise ElfParsingError("Given die does not resolve to a base type")
-        return basetype_die
-
-    def get_first_parent_of_type(self, die: DIE, tags: Union[str, List[str]]) -> Optional[DIE]:
-        self._log_debug_process_die(die)
-        if isinstance(tags, str):
-            tags = [tags]
-        prevdie = die
-        while True:
-            if Attrs.DW_AT_type not in prevdie.attributes:
-                return None
-            nextdie = prevdie.get_DIE_from_attribute(Attrs.DW_AT_type)
-            if nextdie.tag in tags:
-                return nextdie
-            else:
-                prevdie = nextdie
 
     def get_type_of_var(self, die: DIE) -> TypeDescriptor:
         """Go up the hiearchy to find the die that represent the type of the variable. """
@@ -813,7 +805,7 @@ class ElfDwarfVarExtractor:
     def register_struct_var(self, die: DIE, type_die: DIE, location: VariableLocation) -> None:
         """Register an instance of a struct at a given location"""
         path_segments = self.make_varpath(die)
-        path_segments.append(self.get_name_no_none(die))
+        #path_segments.append(self.get_name_no_none(die))
         struct = self.struct_die_map[type_die]
         startpoint = Struct.Member(struct.name, is_substruct=True, bitoffset=None, bitsize=None, substruct=struct)
 
@@ -927,7 +919,8 @@ class ElfDwarfVarExtractor:
                 # Base type
                 elif type_desc.type in (TypeOfVar.BaseType, TypeOfVar.EnumOnly):
                     path_segments = self.make_varpath(die)
-                    name = self.get_name_no_none(die)
+                    name = path_segments.pop()
+                    #name = self.get_name_no_none(die)
 
                     enum: Optional[EmbeddedEnum] = None
                     if type_desc.enum_die is not None:
@@ -955,49 +948,33 @@ class ElfDwarfVarExtractor:
                     self.logger.warning(
                         f"Line {get_linenumber()}: Found a variable with a type die {self._make_name_for_log(type_desc.type_die)} (type={type_desc.type.name}). Not supported yet")
 
-    def get_varpath_from_hierarchy(self, die: DIE) -> List[str]:
-        """Go up in the DWARF hierarchy and make a path segment for each level"""
-        segments: List[str] = []
-        parent = die.get_parent()
-        while parent is not None:
-            if parent.tag == Tags.DW_TAG_compile_unit:
-                break
-
-            name = self.get_demangled_linkage_name(parent)
-            
-            if name is None:
-                name = self.get_name(parent)
-            
-            if name is None:
-                if Attrs.DW_AT_specification in parent.attributes:
-                    parent2 = self.get_die_at_spec(parent)
-                    name = self.get_name(parent2)
-
-            if name is not None:
-                segments.insert(0, name)
-            parent = parent.get_parent()
-        return segments
-
-    def get_varpath_from_linkage_name(self, die: DIE) -> List[str]:
-        """Generate path segments by parsing the linkage name. Relies on the ability to demangle"""
-        demangled = self.get_demangled_linkage_name(die)
-        if demangled is None:
-            raise ElfParsingError("No linkage name available to build the varpath")
+    def make_varpath_recursive(self, die:DIE, segments:List[str]) -> List[str]:
+        if die.tag == Tags.DW_TAG_compile_unit:
+            return segments
         
-        segments = demangled.split('::')
+        name = self.get_demangled_linkage_name(die)
+        if name is not None:
+            parts = name.split('::')
+            return parts + segments
+
         name = self.get_name(die)
-        if name is not None and segments[-1] == name:
-            segments.pop()
+        if name is None:
+            if Attrs.DW_AT_specification in die.attributes:
+                spec_die = self.get_die_at_spec(die)
+                name = self.get_name(spec_die) 
+        
+        if name is not None:
+            segments.insert(0, name)
+            parent = die.get_parent()
+            if parent is not None:
+                return self.make_varpath_recursive(parent, segments=segments)
 
         return segments
+
 
     def make_varpath(self, die: DIE) -> List[str]:
         """Generate the display path for a die, either from the hierarchy or the linkage name"""
-        if self.has_linkage_name(die):
-            segments = self.get_varpath_from_linkage_name(die)
-        else:
-            segments = self.get_varpath_from_hierarchy(die)
-
+        segments = self.make_varpath_recursive(die, []) # Stops at the compile unit (without including it)
 
         if self.is_external(die):
             segments.insert(0, self.GLOBAL)
