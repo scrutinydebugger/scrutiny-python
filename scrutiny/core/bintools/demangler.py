@@ -12,6 +12,8 @@ import subprocess
 import shutil
 import abc
 
+from scrutiny.tools.typing import *
+
 
 class BaseDemangler(abc.ABC):
     def can_run(self) -> bool:
@@ -32,7 +34,7 @@ class GccDemangler(BaseDemangler):
     binary_name: str
     error_details: str
 
-    def __init__(self, binary_name: str = _default_binary_name) -> None:
+    def __init__(self, binary_name: Optional[str] = None ) -> None:
         if binary_name is None:
             binary_name = self._default_binary_name
         self.binary_name = binary_name
