@@ -379,6 +379,40 @@ class ElfDwarfVarExtractor:
             return None
 
         return self.demangler.demangle(mangled_name)
+    
+    @classmethod
+    def split_demangled_name(cls, name:str) -> List[str]:
+        paranthesis_level = 0
+        ducky_bracket_level = 0
+
+        outname = ''
+        is_in_bracket = False
+        bracket_exit_pos = 0
+        bracket_enter_pos = 0
+        for i in range(len(name)):
+            c=name[i]
+
+            was_in_bracket = is_in_bracket
+            if c == '(':
+                paranthesis_level += 1
+            elif c == ')':
+                paranthesis_level -= 1
+            elif c == '<':
+                ducky_bracket_level+=1
+            elif c == '>':
+                ducky_bracket_level-=1
+            is_in_bracket = (paranthesis_level > 0 or ducky_bracket_level > 0)
+
+            if not was_in_bracket and is_in_bracket:  # entering bracket
+                bracket_enter_pos = i
+                outname += name[bracket_exit_pos:i].replace('::', ';')
+
+            if was_in_bracket and not is_in_bracket:    # exiting bracket
+                bracket_exit_pos = i
+                outname += name[bracket_enter_pos:i]    # No replace on purpose
+
+        outname += name[bracket_exit_pos:].replace('::', ';')
+        return outname.split(';')
 
     def is_external(self, die: DIE) -> bool:
         """Tells if the die is accessible from outside the compile unit. If it is, it's global, otherwise it's static."""
@@ -578,7 +612,7 @@ class ElfDwarfVarExtractor:
             # cl2000 embeds the full mangled path in the DW_AT_NAME attribute, 
             # ex : _ZN13FileNamespace14File3TestClass16File3EnumInClassE = FileNamespace::File3TestClass::File3EnumInClass
             demangled_name = self.demangler.demangle(name)
-            name = demangled_name.split('::')[-1]
+            name = self.split_demangled_name(demangled_name)[-1]
 
         if die not in self.enum_die_map and name is not None:
             enum = EmbeddedEnum(name)
@@ -592,7 +626,7 @@ class ElfDwarfVarExtractor:
                     # cl2000 embeds the full mangled path in the DW_AT_NAME attribute, 
                     # ex :_ZN13FileNamespace14File3TestClass3BBBE = FileNamespace::File3TestClass::BBB
                     demangled_name = self.demangler.demangle(name)
-                    name = demangled_name.split('::')[-1]
+                    name = self.split_demangled_name(demangled_name)[-1]
 
                 if Attrs.DW_AT_const_value in child.attributes:
                     value = cast(int, child.attributes[Attrs.DW_AT_const_value].value)
@@ -954,7 +988,7 @@ class ElfDwarfVarExtractor:
         
         name = self.get_demangled_linkage_name(die)
         if name is not None:
-            parts = name.split('::')
+            parts = self.split_demangled_name(name)
             return parts + segments
 
         name = self.get_name(die)
