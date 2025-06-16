@@ -572,7 +572,7 @@ class ElfDwarfVarExtractor:
 
     def die_process_enum(self, die: DIE) -> None:
         self._log_debug_process_die(die)
-        name = self.get_name(die)
+        name = self.get_name_no_none(die)
         
         if self._context.cu_compiler == Compiler.TI_C28_CGT:
             # cl2000 embeds the full mangled path in the DW_AT_NAME attribute, 
