@@ -771,10 +771,10 @@ class ElfDwarfVarExtractor:
             elif type_desc.type in [TypeOfVar.BaseType, TypeOfVar.EnumOnly]:
                 bytesize = self.get_size_from_type_die(type_desc.type_die)
             else:
-                raise ElfParsingError(f'Cannot get byte size for bitfield {self.get_name(die, '')}' )
+                raise ElfParsingError(f'Cannot get byte size for bitfield {name}' )
             
             if Attrs.DW_AT_bit_size not in die.attributes:
-                raise ElfParsingError(f'Missing {Attrs.DW_AT_bit_size} for bitfield {self.get_name(die, '')}')
+                raise ElfParsingError(f'Missing {Attrs.DW_AT_bit_size} for bitfield {name}')
 
             bitsize = die.attributes[Attrs.DW_AT_bit_size].value
 
