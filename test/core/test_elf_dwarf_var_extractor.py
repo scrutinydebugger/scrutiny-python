@@ -8,12 +8,13 @@
 
 import re
 from test import ScrutinyUnitTest
+from scrutiny.core.bintools.elf_dwarf_var_extractor import ElfDwarfVarExtractor
 
+from scrutiny.tools.typing import *
 
 class TestElf2VarMap(ScrutinyUnitTest):
 
     def test_unique_cu_name(self):
-        from scrutiny.core.bintools.elf_dwarf_var_extractor import ElfDwarfVarExtractor
         unique_name_regex = re.compile(r'cu(\d+)_(.+)')
 
         a, b, c, d, e, f = object(), object(), object(), object(), object(), object()
@@ -45,6 +46,16 @@ class TestElf2VarMap(ScrutinyUnitTest):
             self.assertNotIn(name, name_set, 'Duplicate name %s' % name)
             name_set.add(name)
 
+    def test_split_demangled_name(self):
+        cases:List[Tuple[str, List[str]]] = [
+            ("aaa::bbb::ccc", ['aaa', 'bbb', 'ccc']),
+            ("aaa::bbb(qqq::www, yyy::zzz::kkk)::ccc", ['aaa', 'bbb(qqq::www, yyy::zzz::kkk)', 'ccc']),
+            ("aaa::bbb<AAA::BBB<CCC::DDD>>(qqq::www<EEE::FFF>, yyy::zzz::kkk)::ccc", ['aaa', 'bbb<AAA::BBB<CCC::DDD>>(qqq::www<EEE::FFF>, yyy::zzz::kkk)', 'ccc'])
+        ]
+        for case in cases:
+            strin, expected = case[0], case[1]
+            segments = ElfDwarfVarExtractor.split_demangled_name(strin)
+            self.assertEqual(segments, expected)
 
 if __name__ == '__main__':
     import unittest

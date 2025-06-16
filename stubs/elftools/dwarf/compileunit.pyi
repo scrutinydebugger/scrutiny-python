@@ -8,11 +8,12 @@
 
 from typing import Dict, Any
 from elftools.dwarf.die import DIE
-
+from elftools.dwarf.dwarfinfo import DWARFInfo
 
 
 class CompileUnit:
     cu_offset: int
     header:Dict[str, Any]
+    dwarfinfo:DWARFInfo
 
     def get_top_DIE(self) -> DIE: ...
