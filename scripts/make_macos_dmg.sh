@@ -36,7 +36,7 @@ assert_scrutiny_version_format "$SCRUTINY_VERSION"
 info "Scrutiny version: $SCRUTINY_VERSION"
 
 # Make the DMG
-PKG_NAME="scrutinydebugger_v${SCRUTINY_VERSION}_$(uname -m)"
+PKG_NAME="$(./scripts/make_macos_dmg_name.sh "${NUITKA_OUTPUT}" )"
 DMG_NAME="${PKG_NAME}.dmg"
 DMG_FILE=${OUTPUT_FOLDER}/${DMG_NAME}
 TEMP_DIR=$(mktemp -d)
