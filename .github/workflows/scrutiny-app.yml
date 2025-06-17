@@ -98,7 +98,7 @@ jobs:
         shell: bash
       
       - name: Sign Executable
-      - uses: sslcom/esigner-codesign@develop
+        uses: sslcom/esigner-codesign@v1.3.1
         with:
           command: sign
           username: ${{secrets.CODESIGN_USERNAME}}
@@ -119,7 +119,7 @@ jobs:
         shell: bash
 
       - name: Sign Installer
-      - uses: sslcom/esigner-codesign@develop
+        uses: sslcom/esigner-codesign@v1.3.1
         with:
           command: sign
           username: ${{secrets.CODESIGN_USERNAME}}
