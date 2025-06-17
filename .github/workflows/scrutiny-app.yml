@@ -115,8 +115,8 @@ jobs:
         shell: bash
 
       - name: Get Installer Name
-        run: |
-          echo "INSTALLER_NAME=$(./make_windows_installer_name.sh)" >> $GITHUB_ENV
+        run: echo "INSTALLER_NAME=$(./make_windows_installer_name.sh)" >> $GITHUB_ENV
+        shell: bash
 
       - name: Sign Installer
       - uses: sslcom/esigner-codesign@develop
