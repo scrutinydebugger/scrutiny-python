@@ -94,16 +94,44 @@ jobs:
 
       # Launch Nuitka
       - name: Nuitka build
-        run: ./scripts/nuitka_build.sh
+        run: ./scripts/nuitka_build.sh build
         shell: bash
+      
+      - name: Sign Executable
+      - uses: sslcom/esigner-codesign@develop
+        with:
+          command: sign
+          username: ${{secrets.CODESIGN_USERNAME}}
+          password: ${{secrets.CODESIGN_PASSWORD}}
+          credential_id: ${{secrets.CODESIGN_CREDENTIAL_ID}}
+          totp_secret: ${{secrets.CODESIGN_TOTP_SECRET}}
+          file_path: ./build/scrutiny.dist/scrutiny.exe
+          override: true
+          clean_logs: true
       
       # Launch InnoSetup
       - name: InnoSetup packaging
-        run: ./scripts/make_windows_installer.sh
+        run: ./scripts/make_windows_installer.sh build
         shell: bash
+
+      - name: Get Installer Name
+        run: |
+          echo "INSTALLER_NAME=$(./make_windows_installer_name.sh)" >> $GITHUB_ENV
+
+      - name: Sign Installer
+      - uses: sslcom/esigner-codesign@develop
+        with:
+          command: sign
+          username: ${{secrets.CODESIGN_USERNAME}}
+          password: ${{secrets.CODESIGN_PASSWORD}}
+          credential_id: ${{secrets.CODESIGN_CREDENTIAL_ID}}
+          totp_secret: ${{secrets.CODESIGN_TOTP_SECRET}}
+          file_path: ./build/installer/${{ env.INSTALLER_NAME }}.exe
+          override: true
+          clean_logs: true
 
       - name: Upload Artifact
         uses: actions/upload-artifact@v4
         with:
           name: Windows installer ${{ github.ref_name }}
-          path: ./nuitka_build/installer/*.exe
+          path: ./build/installer/${{ env.INSTALLER_NAME }}.exe
