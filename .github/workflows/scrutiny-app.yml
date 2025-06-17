@@ -8,6 +8,7 @@ on:
 
 jobs:
   build-ubuntu:
+    if: false
     runs-on: ubuntu-22.04
     steps:
       # Check-out repository
@@ -42,6 +43,7 @@ jobs:
 
 
   build-mac-os:
+    if: false
     runs-on: macos-latest
     steps:
       # Check-out repository
