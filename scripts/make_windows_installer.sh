@@ -28,7 +28,7 @@ SCRUTINY_VERSION=$( ${SOURCE_DIR}/scrutiny.exe version --format short )
 
 info "Scrutiny version: $SCRUTINY_VERSION"
 assert_scrutiny_version_format "$SCRUTINY_VERSION"
-PKG_NAME="scrutinydebugger_v${SCRUTINY_VERSION}_$(uname -m)_setup"
+PKG_NAME=$(./scripts/make_windows_installer_name.sh)
 
 cp ${PROJECT_ROOT}/deploy/windows/scrutiny.ico ${SOURCE_DIR}/
 
