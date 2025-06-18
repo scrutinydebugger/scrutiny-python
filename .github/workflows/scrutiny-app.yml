@@ -73,7 +73,7 @@ jobs:
           password: ${{ secrets.CODESIGN_PASSWORD }}
           credential_id: ${{ secrets.CODESIGN_CREDENTIAL_ID }}
           totp_secret: ${{ secrets.CODESIGN_TOTP_SECRET }}
-          file_path: ./nuitka_build/scrutiny.app/Contents/MacOS/scrutiny.bin
+          file_path: ./nuitka_build/scrutiny.app
           override: true
           clean_logs: true
 
